@@ -1,13 +1,13 @@
-// Hypixel Bedwars Stats Bot - Railway 7/24 versiyon
+// Hypixel Bedwars Stats Bot - Render 7/24 versiyon
 const express = require("express");
 const mineflayer = require("mineflayer");
 const axios = require("axios");
 
 // === 1. Express Web Server ===
 const app = express();
-const PORT = process.env.PORT || 3000; // Railway için PORT ayarı
+const PORT = process.env.PORT || 3000; // Render için PORT ayarı
 app.get("/", (req, res) => {
-  res.send("✅ Bot çalışıyor ve online! (Railway)");
+  res.send("✅ Bot çalışıyor ve online! (Render)");
 });
 app.listen(PORT, () => {
   console.log(`🌐 Web server ${PORT} portunda çalışıyor (UptimeRobot için hazır)`);
@@ -15,7 +15,7 @@ app.listen(PORT, () => {
 
 // === 2. Hypixel API Key Kontrolü ===
 if (!process.env.HYPIXEL_API_KEY) {
-  console.error("❌ HYPIXEL_API_KEY bulunamadı. Lütfen Railway Variables kısmına ekleyin.");
+  console.error("❌ HYPIXEL_API_KEY bulunamadı. Lütfen Render Environment Variables kısmına ekleyin.");
   process.exit(1);
 }
 const HYPIXEL_API_KEY = process.env.HYPIXEL_API_KEY;
@@ -114,7 +114,7 @@ function createBot() {
 
   bot.on("kicked", (reason) => {
     console.log("❌ Sunucudan atıldı:", reason);
-    setTimeout(createBot, 10000); // Railway için 10 sn bekle, IP blok riskini azalt
+    setTimeout(createBot, 10000); // Render için 10 sn bekle, IP blok riskini azalt
   });
 
   bot.on("end", () => {
