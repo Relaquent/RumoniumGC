@@ -96,6 +96,13 @@ function createBot() {
         const line = `RumoGC - ${ign} | Star: ${stats.star} | FKDR: ${stats.fkdr} | KD: ${stats.kd} | WL: ${stats.wl} - by Relaquent`;
         bot.chat(line);
         console.log("📤 Gönderildi:", line);
+
+        // 🔥 Eğer NerdyWolf ise ekstra mesaj
+        if (ign.toLowerCase() === "nerdywolf") {
+          await sleep(300);
+          bot.chat("This is NerdyWolf");
+          console.log("📤 Gönderildi: This guy might be the lowest iq castle player with the 1.69 FKDR. It is worth mentioning.");
+        }
       } catch (err) {
         bot.chat(`BW Stats - ${ign} | no data found.`);
         console.log("⚠️ Hata:", err.message);
