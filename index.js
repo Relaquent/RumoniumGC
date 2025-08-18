@@ -93,12 +93,34 @@ function createBot() {
 
       try {
         const stats = await getPlayerStats(ign);
-        const line = `RumoGC - ${ign} | Star: ${stats.star} | FKDR: ${stats.fkdr} | KD: ${stats.kd} | WL: ${stats.wl} - by Relaquent`;
+        const line = `RumoGC - ${ign} | Star: ${stats.star} | FKDR: ${stats.fkdr} | KD: ${stats.kd} | WL: ${stats.wl}`;
         bot.chat(line);
         console.log("📤 Gönderildi:", line);
       } catch (err) {
-        bot.chat(`BW Stats - ${ign} | no data found.`);
+        bot.chat(`RumoGC - ${ign} | no data found.`);
         console.log("⚠️ Hata:", err.message);
+      }
+      return;
+    }
+
+    // !ping komutu
+    if (msg.toLowerCase().includes("!ping")) {
+      const match = msg.match(/!ping\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+
+      const ign = match[1];
+      await sleep(300);
+
+      const playerObj = bot.players[ign];
+
+      if (playerObj && typeof playerObj.ping === "number") {
+        const line = `RumoGC - ${ign}: ${playerObj.ping}ms`;
+        bot.chat(line);
+        console.log("📤 Gönderildi:", line);
+      } else {
+        const line = `RumoGC - ${ign}: They are offline.`;
+        bot.chat(line);
+        console.log("⚠️ Ping alınamadı, oyuncu bulunamadı:", ign);
       }
       return;
     }
@@ -106,7 +128,7 @@ function createBot() {
     // !about komutu
     if (msg.toLowerCase().includes("!about")) {
       await sleep(300);
-      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.0.2";
+      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.0.4";
       bot.chat(aboutMsg);
       console.log("📤 Gönderildi:", aboutMsg);
     }
