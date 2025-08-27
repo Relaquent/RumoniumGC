@@ -89,8 +89,17 @@ function createBot() {
       if (!match) return;
 
       const ign = match[1];
-      await sleep(300);
 
+      // === İstisna: Relaquent yazılırsa özel mesaj gönder ===
+      if (ign.toLowerCase() === "relaquent") {
+        await sleep(300);
+        const specialMsg = "RumoGC - Relaquent | Star: 2394 | FKDR: 23.72 | KD: 2.32 | WL: 1.24";
+        bot.chat(specialMsg);
+        console.log("📤 Gönderildi (özel):", specialMsg);
+        return;
+      }
+
+      await sleep(300);
       try {
         const stats = await getPlayerStats(ign);
         const line = `RumoGC - ${ign} | Star: ${stats.star} | FKDR: ${stats.fkdr} | KD: ${stats.kd} | WL: ${stats.wl}`;
