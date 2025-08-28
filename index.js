@@ -228,7 +228,6 @@ function createBot() {
         "!ping <IGN> → Shows player's ping (works best for the bot itself).",
         "!when → Shows the countdown for the next Castle event.",
         "!about → Information about the bot.",
-        "!help → Displays this command list.",
         "----- Powered by Relaquent -----"
       ];
       for (const line of helpMsg) {
@@ -253,3 +252,4 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
