@@ -198,9 +198,9 @@ function createBot() {
       if (daysLeft > 0) {
         response = `Castle will return in ${daysLeft} days (${nextEvent.toDateString()}).`;
       } else if (daysLeft === 0) {
-        response = "Castle starts today!";
+        response = "Castle starts today! 🎉";
       } else {
-        response = "Castle might be currently active!";
+        response = "Castle might be currently active! ✅";
       }
 
       bot.chat(response);
@@ -211,9 +211,30 @@ function createBot() {
     // !about command
     if (msg.toLowerCase().includes("!about")) {
       await sleep(300);
-      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.0.7 - Last Update 28/08/25";
+      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.0.8 - Last Update 28/08/25";
       bot.chat(aboutMsg);
-      console.log("📤 Sent:", aboutMsg);
+      console.log("📤 Sent (!about):", aboutMsg);
+      return;
+    }
+
+    // !help command
+    if (msg.toLowerCase().includes("!help")) {
+      await sleep(300);
+
+      const helpMessage = [
+        "--------- RumoniumGC v1.0.8 ---------"
+        "Available Commands:",
+        "!help >> Shows this command list.",
+        "!bw [player] >> Shows Bedwars stats for a player.",
+        "!stats [player] >> Shows general Hypixel stats for a player.",
+        "!when >> Shows how many days until the next Castle event.",
+        "!about >> Information about this bot."
+        "--------- Powered by Relaquent ---------"
+      ].join("\n");
+
+      bot.chat(helpMessage);
+      console.log("📤 Sent (!help):", helpMessage);
+      return;
     }
   });
 
