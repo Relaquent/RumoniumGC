@@ -221,14 +221,14 @@ function createBot() {
     if (msg.toLowerCase().includes("!help")) {
       await sleep(300);
       const helpMsg = [
-        "----- RumoniumGC v1.0.8 -----"
-        "Command List:",
+        "----- RumoniumGC v1.0.8 -----",
+        "📜 Command List:",
         "!bw <IGN> → Shows Bedwars stats (Star, FKDR, KD, WL).",
         "!stats <IGN> → Shows detailed stats (Star, Finals, Wins, Beds).",
         "!ping <IGN> → Shows player's ping (works best for the bot itself).",
         "!when → Shows the countdown for the next Castle event.",
         "!about → Information about the bot.",
-        "!help → Displays this command list."
+        "!help → Displays this command list.",
         "----- Powered by Relaquent -----"
       ];
       for (const line of helpMsg) {
