@@ -1,4 +1,4 @@
-// Hypixel Bedwars Stats Bot - Render 7/24 versiyon
+// Hypixel Bedwars Stats Bot - Render 7/24 version
 const express = require("express");
 const mineflayer = require("mineflayer");
 const axios = require("axios");
@@ -7,20 +7,20 @@ const axios = require("axios");
 const app = express();
 const PORT = process.env.PORT || 3000;
 app.get("/", (req, res) => {
-  res.send("✅ Bot çalışıyor ve online! (Render)");
+  res.send("✅ Bot is running and online! (Render)");
 });
 app.listen(PORT, () => {
-  console.log(`🌐 Web server ${PORT} portunda çalışıyor (UptimeRobot için hazır)`);
+  console.log(`🌐 Web server is running on port ${PORT} (Ready for UptimeRobot)`);
 });
 
-// === 2. Hypixel API Key Kontrolü ===
+// === 2. Hypixel API Key Check ===
 if (!process.env.HYPIXEL_API_KEY) {
-  console.error("❌ HYPIXEL_API_KEY bulunamadı. Lütfen Render Environment Variables kısmına ekleyin.");
+  console.error("❌ HYPIXEL_API_KEY not found. Please add it in Render Environment Variables.");
   process.exit(1);
 }
 const HYPIXEL_API_KEY = process.env.HYPIXEL_API_KEY;
 
-// === 3. Bot Ayarları ===
+// === 3. Bot Settings ===
 const HYPIXEL_HOST = "mc.hypixel.net";
 const MC_VERSION = "1.8.9";
 
@@ -53,9 +53,9 @@ async function getPlayerStats(ign) {
   )}`;
   const { data } = await axios.get(url, { timeout: 10000 });
 
-  if (data?.cause === "Invalid API key") throw new Error("Geçersiz API key (403)");
-  if (!data?.success) throw new Error("API başarısız yanıt");
-  if (!data?.player) throw new Error("Oyuncu bulunamadı");
+  if (data?.cause === "Invalid API key") throw new Error("Invalid API key (403)");
+  if (!data?.success) throw new Error("API request failed");
+  if (!data?.player) throw new Error("Player not found");
 
   return parseBWStats(data.player);
 }
@@ -64,33 +64,7 @@ function sleep(ms) {
   return new Promise((res) => setTimeout(res, ms));
 }
 
-// === 3.5 UUID alma fonksiyonu ===
-async function getUUID(ign) {
-  const url = `https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(ign)}`;
-  const { data } = await axios.get(url, { timeout: 10000 });
-  return data.id;
-}
-
-// === 3.6 Session kontrol fonksiyonu ===
-async function getSession(ign) {
-  const uuid = await getUUID(ign);
-  const url = `https://api.hypixel.net/v2/status?key=${HYPIXEL_API_KEY}&uuid=${uuid}`;
-  const { data } = await axios.get(url, { timeout: 10000 });
-
-  if (!data?.success) throw new Error("API başarısız yanıt");
-
-  const session = data.session;
-  if (!session?.online) {
-    return `${ign} şu anda offline ❌`;
-  }
-
-  let line = `${ign} şu anda online ✅ | Game: ${session.gameType || "Unknown"}`;
-  if (session.mode) line += ` | Mode: ${session.mode}`;
-  if (session.map) line += ` | Map: ${session.map}`;
-  return line;
-}
-
-// === 4. Hoşgeldin Mesajları ===
+// === 4. Welcome Messages ===
 const welcomeMessages = [
   "Hey! Welcome back {username}!",
   "Greetings, {username}!",
@@ -108,7 +82,7 @@ function createBot() {
   });
 
   bot.once("spawn", () => {
-    console.log("✅ Bot Hypixel’e bağlandı, Guild chat’e geçiliyor...");
+    console.log("✅ Bot connected to Hypixel, switching to Guild chat...");
     setTimeout(() => bot.chat("/chat g"), 1500);
 
     setInterval(() => {
@@ -120,7 +94,7 @@ function createBot() {
     const msg = jsonMsg.toString();
     if (!msg.startsWith("Guild >")) return;
 
-    // === Oyuncu guild’e katıldığında hoşgeldin mesajı ===
+    // === Welcome message ===
     if (msg.includes("joined.")) {
       const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}) joined\./);
       if (match) {
@@ -129,12 +103,12 @@ function createBot() {
         const finalMsg = randomMsg.replace("{username}", username);
         await sleep(500);
         bot.chat(finalMsg);
-        console.log(`👋 Hoşgeldin mesajı gönderildi: ${finalMsg}`);
+        console.log(`👋 Welcome message sent: ${finalMsg}`);
       }
       return;
     }
 
-    // !bw komutu
+    // !bw command
     if (msg.toLowerCase().includes("!bw")) {
       const match = msg.match(/!bw\s+([A-Za-z0-9_]{1,16})/i);
       if (!match) return;
@@ -144,7 +118,7 @@ function createBot() {
         await sleep(300);
         const specialMsg = "Relaquent | Star: 2394 | FKDR: 23.72 | KD: 2.32 | WL: 1.24";
         bot.chat(specialMsg);
-        console.log("📤 Gönderildi (özel):", specialMsg);
+        console.log("📤 Sent (special):", specialMsg);
         return;
       }
 
@@ -153,15 +127,15 @@ function createBot() {
         const stats = await getPlayerStats(ign);
         const line = `${ign} | Star: ${stats.star} | FKDR: ${stats.fkdr} | KD: ${stats.kd} | WL: ${stats.wl}`;
         bot.chat(line);
-        console.log("📤 Gönderildi:", line);
+        console.log("📤 Sent:", line);
       } catch (err) {
         bot.chat(`Error - ${ign} | No data found.`);
-        console.log("⚠️ Hata:", err.message);
+        console.log("⚠️ Error:", err.message);
       }
       return;
     }
 
-    // !stats komutu
+    // !stats command
     if (msg.toLowerCase().includes("!stats")) {
       const match = msg.match(/!stats\s+([A-Za-z0-9_]{1,16})/i);
       if (!match) return;
@@ -172,15 +146,15 @@ function createBot() {
         const stats = await getPlayerStats(ign);
         const line = `${ign} | Star: ${stats.star} | Finals: ${stats.finals} | Wins: ${stats.wins} | Beds: ${stats.beds}`;
         bot.chat(line);
-        console.log("📤 Gönderildi:", line);
+        console.log("📤 Sent:", line);
       } catch (err) {
         bot.chat(`Error - ${ign} | No data found.`);
-        console.log("⚠️ Hata (!stats):", err.message);
+        console.log("⚠️ Error (!stats):", err.message);
       }
       return;
     }
 
-    // !ping komutu
+    // !ping command
     if (msg.toLowerCase().includes("!ping")) {
       const match = msg.match(/!ping\s+([A-Za-z0-9_]{1,16})/i);
       if (!match) return;
@@ -191,52 +165,68 @@ function createBot() {
       if (playerObj && typeof playerObj.ping === "number") {
         const line = `RumoGC - ${ign}: ${playerObj.ping}ms`;
         bot.chat(line);
-        console.log("📤 Gönderildi:", line);
+        console.log("📤 Sent:", line);
       } else {
         const line = `Error - ${ign}: I can only check my ping for now.`;
         bot.chat(line);
-        console.log("⚠️ Ping alınamadı, oyuncu bulunamadı:", ign);
+        console.log("⚠️ Ping not found, player not online:", ign);
       }
       return;
     }
 
-    // !session komutu
-    if (msg.toLowerCase().includes("!session")) {
-      const match = msg.match(/!session\s+([A-Za-z0-9_]{1,16})/i);
-      if (!match) return;
-      const ign = match[1];
+    // !when command (Castle countdown)
+    if (msg.toLowerCase().includes("!when")) {
       await sleep(300);
 
-      try {
-        const statusMsg = await getSession(ign);
-        bot.chat(statusMsg);
-        console.log("📤 Gönderildi (!session):", statusMsg);
-      } catch (err) {
-        bot.chat(`Error - ${ign} | Session data not found.`);
-        console.log("⚠️ Hata (!session):", err.message);
+      const firstEvent = new Date("2025-10-04T00:00:00Z");
+      const cycleDays = 42; // 6 weeks = 42 days
+      const now = new Date();
+
+      let diffMs = now.getTime() - firstEvent.getTime();
+      let cyclesPassed = Math.floor(diffMs / (cycleDays * 24 * 60 * 60 * 1000));
+
+      if (diffMs < 0) {
+        cyclesPassed = -1;
       }
+
+      const nextEvent = new Date(firstEvent.getTime() + (cyclesPassed + 1) * cycleDays * 24 * 60 * 60 * 1000);
+
+      const msInDay = 24 * 60 * 60 * 1000;
+      const daysLeft = Math.ceil((nextEvent - now) / msInDay);
+
+      let response;
+      if (daysLeft > 0) {
+        response = `Castle will return in ${daysLeft} days (${nextEvent.toDateString()}).`;
+      } else if (daysLeft === 0) {
+        response = "Castle starts today!";
+      } else {
+        response = "Castle might be currently active!";
+      }
+
+      bot.chat(response);
+      console.log("📤 Sent (!when):", response);
       return;
     }
 
-    // !about komutu
+    // !about command
     if (msg.toLowerCase().includes("!about")) {
       await sleep(300);
       const aboutMsg = "RumoniumGC is automated by Relaquent, v1.0.7 - Last Update 28/08/25";
       bot.chat(aboutMsg);
-      console.log("📤 Gönderildi:", aboutMsg);
+      console.log("📤 Sent:", aboutMsg);
     }
   });
 
   bot.on("kicked", (reason) => {
-    console.log("❌ Sunucudan atıldı:", reason);
+    console.log("❌ Kicked from server:", reason);
     setTimeout(createBot, 10000);
   });
 
   bot.on("end", () => {
-    console.log("🔌 Bağlantı koptu, tekrar bağlanılıyor...");
+    console.log("🔌 Disconnected, reconnecting...");
     setTimeout(createBot, 10000);
   });
 }
 
-// === 6. Botu Başlat ===
+// === 6. Start Bot ===
 createBot();
