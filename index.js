@@ -43,6 +43,7 @@ function parseBWStats(player) {
     wl: ratio(bw.wins_bedwars, bw.losses_bedwars),
     finals: bw.final_kills_bedwars || 0,
     wins: bw.wins_bedwars || 0,
+    beds: bw.beds_broken_bedwars || 0,
   };
 }
 
@@ -61,6 +62,32 @@ async function getPlayerStats(ign) {
 
 function sleep(ms) {
   return new Promise((res) => setTimeout(res, ms));
+}
+
+// === 3.5 UUID alma fonksiyonu ===
+async function getUUID(ign) {
+  const url = `https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(ign)}`;
+  const { data } = await axios.get(url, { timeout: 10000 });
+  return data.id;
+}
+
+// === 3.6 Session kontrol fonksiyonu ===
+async function getSession(ign) {
+  const uuid = await getUUID(ign);
+  const url = `https://api.hypixel.net/v2/status?key=${HYPIXEL_API_KEY}&uuid=${uuid}`;
+  const { data } = await axios.get(url, { timeout: 10000 });
+
+  if (!data?.success) throw new Error("API başarısız yanıt");
+
+  const session = data.session;
+  if (!session?.online) {
+    return `${ign} şu anda offline ❌`;
+  }
+
+  let line = `${ign} şu anda online ✅ | Game: ${session.gameType || "Unknown"}`;
+  if (session.mode) line += ` | Mode: ${session.mode}`;
+  if (session.map) line += ` | Map: ${session.map}`;
+  return line;
 }
 
 // === 4. Hoşgeldin Mesajları ===
@@ -128,7 +155,7 @@ function createBot() {
         bot.chat(line);
         console.log("📤 Gönderildi:", line);
       } catch (err) {
-        bot.chat(`RumoGC - ${ign} | no data found.`);
+        bot.chat(`Error - ${ign} | No data found.`);
         console.log("⚠️ Hata:", err.message);
       }
       return;
@@ -143,11 +170,11 @@ function createBot() {
 
       try {
         const stats = await getPlayerStats(ign);
-        const line = `${ign} | Star: ${stats.star} | Finals: ${stats.finals} | Wins: ${stats.wins}`;
+        const line = `${ign} | Star: ${stats.star} | Finals: ${stats.finals} | Wins: ${stats.wins} | Beds: ${stats.beds}`;
         bot.chat(line);
         console.log("📤 Gönderildi:", line);
       } catch (err) {
-        bot.chat(`RumoGC - ${ign} | no data found.`);
+        bot.chat(`Error - ${ign} | No data found.`);
         console.log("⚠️ Hata (!stats):", err.message);
       }
       return;
@@ -166,9 +193,27 @@ function createBot() {
         bot.chat(line);
         console.log("📤 Gönderildi:", line);
       } else {
-        const line = `RumoGC - ${ign}: They are offline.`;
+        const line = `Error - ${ign}: I can only check my ping for now.`;
         bot.chat(line);
         console.log("⚠️ Ping alınamadı, oyuncu bulunamadı:", ign);
+      }
+      return;
+    }
+
+    // !session komutu
+    if (msg.toLowerCase().includes("!session")) {
+      const match = msg.match(/!session\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+      const ign = match[1];
+      await sleep(300);
+
+      try {
+        const statusMsg = await getSession(ign);
+        bot.chat(statusMsg);
+        console.log("📤 Gönderildi (!session):", statusMsg);
+      } catch (err) {
+        bot.chat(`Error - ${ign} | Session data not found.`);
+        console.log("⚠️ Hata (!session):", err.message);
       }
       return;
     }
@@ -176,7 +221,7 @@ function createBot() {
     // !about komutu
     if (msg.toLowerCase().includes("!about")) {
       await sleep(300);
-      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.0.6";
+      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.0.7 - Last Update 28/08/25";
       bot.chat(aboutMsg);
       console.log("📤 Gönderildi:", aboutMsg);
     }
