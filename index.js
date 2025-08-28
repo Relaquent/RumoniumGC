@@ -5,7 +5,7 @@ const axios = require("axios");
 
 // === 1. Express Web Server ===
 const app = express();
-const PORT = process.env.PORT || 3000; // Render için PORT ayarı
+const PORT = process.env.PORT || 3000;
 app.get("/", (req, res) => {
   res.send("✅ Bot çalışıyor ve online! (Render)");
 });
@@ -41,6 +41,8 @@ function parseBWStats(player) {
     fkdr: ratio(bw.final_kills_bedwars, bw.final_deaths_bedwars),
     kd: ratio(bw.kills_bedwars, bw.deaths_bedwars),
     wl: ratio(bw.wins_bedwars, bw.losses_bedwars),
+    finals: bw.final_kills_bedwars || 0,
+    wins: bw.wins_bedwars || 0,
   };
 }
 
@@ -61,21 +63,29 @@ function sleep(ms) {
   return new Promise((res) => setTimeout(res, ms));
 }
 
-// === 4. Mineflayer Bot ===
+// === 4. Hoşgeldin Mesajları ===
+const welcomeMessages = [
+  "Hey! Welcome back {username}!",
+  "Greetings, {username}!",
+  "{username} has joined, hello!",
+  "{username} is ready to camp again!",
+  "{username} the GOAT is back!"
+];
+
+// === 5. Mineflayer Bot ===
 function createBot() {
   const bot = mineflayer.createBot({
     host: HYPIXEL_HOST,
     version: MC_VERSION,
-    auth: "microsoft", // Microsoft hesabınla giriş yapar
+    auth: "microsoft",
   });
 
   bot.once("spawn", () => {
     console.log("✅ Bot Hypixel’e bağlandı, Guild chat’e geçiliyor...");
     setTimeout(() => bot.chat("/chat g"), 1500);
 
-    // AFK kick yememesi için periyodik komut
     setInterval(() => {
-      bot.chat("/locraw"); // zararsız komut, alive tutar
+      bot.chat("/locraw");
     }, 60 * 1000);
   });
 
@@ -83,14 +93,26 @@ function createBot() {
     const msg = jsonMsg.toString();
     if (!msg.startsWith("Guild >")) return;
 
+    // === Oyuncu guild’e katıldığında hoşgeldin mesajı ===
+    if (msg.includes("joined.")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}) joined\./);
+      if (match) {
+        const username = match[1];
+        const randomMsg = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
+        const finalMsg = randomMsg.replace("{username}", username);
+        await sleep(500);
+        bot.chat(finalMsg);
+        console.log(`👋 Hoşgeldin mesajı gönderildi: ${finalMsg}`);
+      }
+      return;
+    }
+
     // !bw komutu
     if (msg.toLowerCase().includes("!bw")) {
       const match = msg.match(/!bw\s+([A-Za-z0-9_]{1,16})/i);
       if (!match) return;
-
       const ign = match[1];
 
-      // === İstisna: Relaquent yazılırsa özel mesaj gönder ===
       if (ign.toLowerCase() === "relaquent") {
         await sleep(300);
         const specialMsg = "Relaquent | Star: 2394 | FKDR: 23.72 | KD: 2.32 | WL: 1.24";
@@ -112,16 +134,33 @@ function createBot() {
       return;
     }
 
+    // !stats komutu
+    if (msg.toLowerCase().includes("!stats")) {
+      const match = msg.match(/!stats\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+      const ign = match[1];
+      await sleep(300);
+
+      try {
+        const stats = await getPlayerStats(ign);
+        const line = `${ign} | Star: ${stats.star} | Finals: ${stats.finals} | Wins: ${stats.wins}`;
+        bot.chat(line);
+        console.log("📤 Gönderildi:", line);
+      } catch (err) {
+        bot.chat(`RumoGC - ${ign} | no data found.`);
+        console.log("⚠️ Hata (!stats):", err.message);
+      }
+      return;
+    }
+
     // !ping komutu
     if (msg.toLowerCase().includes("!ping")) {
       const match = msg.match(/!ping\s+([A-Za-z0-9_]{1,16})/i);
       if (!match) return;
-
       const ign = match[1];
       await sleep(300);
 
       const playerObj = bot.players[ign];
-
       if (playerObj && typeof playerObj.ping === "number") {
         const line = `RumoGC - ${ign}: ${playerObj.ping}ms`;
         bot.chat(line);
@@ -137,7 +176,7 @@ function createBot() {
     // !about komutu
     if (msg.toLowerCase().includes("!about")) {
       await sleep(300);
-      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.0.4";
+      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.0.6";
       bot.chat(aboutMsg);
       console.log("📤 Gönderildi:", aboutMsg);
     }
@@ -145,7 +184,7 @@ function createBot() {
 
   bot.on("kicked", (reason) => {
     console.log("❌ Sunucudan atıldı:", reason);
-    setTimeout(createBot, 10000); // Render için 10 sn bekle, IP blok riskini azalt
+    setTimeout(createBot, 10000);
   });
 
   bot.on("end", () => {
@@ -154,6 +193,5 @@ function createBot() {
   });
 }
 
-// === 5. Botu Başlat ===
+// === 6. Botu Başlat ===
 createBot();
-
