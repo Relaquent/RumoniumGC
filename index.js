@@ -67,6 +67,7 @@ function sleep(ms) {
 // === 4. Welcome Messages ===
 const welcomeMessages = [
   "Hey! Welcome back {username}!",
+  "Welcome back, {username}! The legend has returned!",
   "Greetings, {username}!",
   "{username} has joined, hello!",
   "{username} is ready to camp again!",
@@ -100,12 +101,12 @@ function createBot() {
       if (match) {
         const username = match[1];
 
-        // 1 saniye bekle
-        await sleep(1000);
+        // 2 saniye bekle
+        await sleep(2000);
 
         // özel hoş geldin mesajı Caillou16 için
         if (username.toLowerCase() === "caillou16") {
-          const specialMsg = "Welcome back Caillou16 the Boklu Adam!";
+          const specialMsg = "Welcome back Caillou16 the bald.";
           bot.chat(specialMsg);
           console.log(`👑 Special welcome sent to Caillou16: ${specialMsg}`);
         } else {
@@ -236,7 +237,6 @@ function createBot() {
         "📜 Command List:",
         "bw <IGN> → Shows Bedwars stats (Star, FKDR, KD, WL).",
         "stats <IGN> → Shows detailed stats (Star, Finals, Wins, Beds).",
-        "ping <IGN> → Shows player's ping (works best for the bot itself).",
         "when → Shows the countdown for the next Castle event.",
         "about → Information about the bot.",
         "help → Displays this page.",
