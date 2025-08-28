@@ -99,11 +99,22 @@ function createBot() {
       const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}) joined\./);
       if (match) {
         const username = match[1];
-        const randomMsg = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
-        const finalMsg = randomMsg.replace("{username}", username);
-        await sleep(500);
-        bot.chat(finalMsg);
-        console.log(`👋 Welcome message sent: ${finalMsg}`);
+
+        // 1 saniye bekle
+        await sleep(1000);
+
+        // özel hoş geldin mesajı Caillou16 için
+        if (username.toLowerCase() === "caillou16") {
+          const specialMsg = "Welcome back Caillou16 the Boklu Adam!";
+          bot.chat(specialMsg);
+          console.log(`👑 Special welcome sent to Caillou16: ${specialMsg}`);
+        } else {
+          // diğer oyuncular için random hoşgeldin mesajı
+          const randomMsg = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
+          const finalMsg = randomMsg.replace("{username}", username);
+          bot.chat(finalMsg);
+          console.log(`👋 Welcome message sent: ${finalMsg}`);
+        }
       }
       return;
     }
@@ -253,4 +264,3 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
-
