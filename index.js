@@ -223,7 +223,7 @@ function createBot() {
     // !about command
     if (msg.toLowerCase().includes("!about")) {
       await sleep(300);
-      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.0.8 - Last Update 28/08/25";
+      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.0.9 - Last Update 29/08/25";
       bot.chat(aboutMsg);
       console.log("📤 Sent:", aboutMsg);
       return;
@@ -234,10 +234,9 @@ function createBot() {
       await sleep(300);
       const helpMsg = [
         "----- RumoniumGC v1.0.8 -----",
-        "📜 Command List:",
-        "bw <IGN> → Shows Bedwars stats (Star, FKDR, KD, WL).",
-        "stats <IGN> → Shows detailed stats (Star, Finals, Wins, Beds).",
-        "when → Shows the countdown for the next Castle event.",
+        "bw <user> → Shows Bedwars stats.",
+        "stats <user> → Shows detailed stats.",
+        "when → Next Castle date.",
         "about → Information about the bot.",
         "help → Displays this page.",
         "----- Powered by Relaquent -----"
@@ -264,3 +263,4 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
