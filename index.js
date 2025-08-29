@@ -70,7 +70,6 @@ const welcomeMessages = [
   "Welcome back, {username}! The legend has returned!",
   "Greetings, {username}!",
   "{username} has joined, hello!",
-  "{username} is ready to camp again!",
   "{username} the GOAT is back!"
 ];
 
@@ -263,5 +262,6 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
 
 
