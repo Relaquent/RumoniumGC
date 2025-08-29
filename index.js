@@ -208,7 +208,7 @@ function createBot() {
 
       let response;
       if (daysLeft > 0) {
-        response = `Castle will return in ${daysLeft} days (${nextEvent.toDateString()}).`;
+        response = `Castle will return in ${daysLeft} days (${nextEvent.toDateString()}) 5:30 PM EST.`;
       } else if (daysLeft === 0) {
         response = "Castle starts today!";
       } else {
@@ -263,4 +263,5 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
 
