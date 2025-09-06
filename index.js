@@ -1,7 +1,8 @@
-// Hypixel Bedwars Stats Bot - Render 7/24 version
+// Hypixel Bedwars Stats Bot + ChatGPT - Render 7/24 version
 const express = require("express");
 const mineflayer = require("mineflayer");
 const axios = require("axios");
+const { Configuration, OpenAIApi } = require("openai"); // ✅ ChatGPT için
 
 // === 1. Express Web Server ===
 const app = express();
@@ -13,12 +14,21 @@ app.listen(PORT, () => {
   console.log(`🌐 Web server is running on port ${PORT} (Ready for UptimeRobot)`);
 });
 
-// === 2. Hypixel API Key Check ===
+// === 2. API Keys ===
 if (!process.env.HYPIXEL_API_KEY) {
-  console.error("❌ HYPIXEL_API_KEY not found. Please add it in Render Environment Variables.");
+  console.error("❌ HYPIXEL_API_KEY not found.");
+  process.exit(1);
+}
+if (!process.env.OPENAI_API_KEY) {
+  console.error("❌ OPENAI_API_KEY not found.");
   process.exit(1);
 }
 const HYPIXEL_API_KEY = process.env.HYPIXEL_API_KEY;
+
+// ✅ OpenAI ayarı
+const openai = new OpenAIApi(
+  new Configuration({ apiKey: process.env.OPENAI_API_KEY })
+);
 
 // === 3. Bot Settings ===
 const HYPIXEL_HOST = "mc.hypixel.net";
@@ -100,16 +110,13 @@ function createBot() {
       if (match) {
         const username = match[1];
 
-        // 2 saniye bekle
         await sleep(2000);
 
-        // özel hoş geldin mesajı Caillou16 için
         if (username.toLowerCase() === "caillou16") {
           const specialMsg = "Welcome back Caillou16 the bald.";
           bot.chat(specialMsg);
           console.log(`👑 Special welcome sent to Caillou16: ${specialMsg}`);
         } else {
-          // diğer oyuncular için random hoşgeldin mesajı
           const randomMsg = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
           const finalMsg = randomMsg.replace("{username}", username);
           bot.chat(finalMsg);
@@ -119,7 +126,7 @@ function createBot() {
       return;
     }
 
-    // !bw command
+    // === !bw command ===
     if (msg.toLowerCase().includes("!bw")) {
       const match = msg.match(/!bw\s+([A-Za-z0-9_]{1,16})/i);
       if (!match) return;
@@ -146,7 +153,7 @@ function createBot() {
       return;
     }
 
-    // !stats command
+    // === !stats command ===
     if (msg.toLowerCase().includes("!stats")) {
       const match = msg.match(/!stats\s+([A-Za-z0-9_]{1,16})/i);
       if (!match) return;
@@ -165,7 +172,7 @@ function createBot() {
       return;
     }
 
-    // !ping command
+    // === !ping command ===
     if (msg.toLowerCase().includes("!ping")) {
       const match = msg.match(/!ping\s+([A-Za-z0-9_]{1,16})/i);
       if (!match) return;
@@ -185,12 +192,12 @@ function createBot() {
       return;
     }
 
-    // !when command (Castle countdown)
+    // === !when command ===
     if (msg.toLowerCase().includes("!when")) {
       await sleep(300);
 
       const firstEvent = new Date("2025-10-04T00:00:00Z");
-      const cycleDays = 42; // 6 weeks = 42 days
+      const cycleDays = 42;
       const now = new Date();
 
       let diffMs = now.getTime() - firstEvent.getTime();
@@ -219,7 +226,7 @@ function createBot() {
       return;
     }
 
-    // !about command
+    // === !about command ===
     if (msg.toLowerCase().includes("!about")) {
       await sleep(300);
       const aboutMsg = "RumoniumGC is automated by Relaquent, v1.0.9 - Last Update 29/08/25";
@@ -228,14 +235,16 @@ function createBot() {
       return;
     }
 
-    // !help command
+    // === !help command ===
     if (msg.toLowerCase().includes("!help")) {
       await sleep(300);
       const helpMsg = [
-        "----- RumoniumGC v1.0.8 -----",
+        "----- RumoniumGC v1.0.9 -----",
         "bw <user> → Shows Bedwars stats.",
         "stats <user> → Shows detailed stats.",
+        "ping <user> → Shows player ping.",
         "when → Next Castle date.",
+        "ask <msg> → Ask ChatGPT anything.",
         "about → Information about the bot.",
         "help → Displays this page.",
         "----- Powered by Relaquent -----"
@@ -245,6 +254,37 @@ function createBot() {
         await sleep(500);
       }
       console.log("📤 Sent: !help command list");
+      return;
+    }
+
+    // === !ask command (ChatGPT) ===
+    if (msg.toLowerCase().includes("!ask")) {
+      const match = msg.match(/!ask\s+(.+)/i);
+      if (!match) return;
+      const question = match[1].trim();
+      await sleep(500);
+
+      try {
+        const response = await openai.createChatCompletion({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: question }],
+          max_tokens: 100
+        });
+
+        const reply = response.data.choices[0].message.content.trim();
+
+        // Minecraft chat için 80 karakter sınırı
+        const replyLines = reply.match(/.{1,80}/g);
+        for (const line of replyLines) {
+          bot.chat(line);
+          await sleep(700);
+        }
+
+        console.log(`🤖 ChatGPT Reply: ${reply}`);
+      } catch (err) {
+        console.error("⚠️ ChatGPT error:", err.message);
+        bot.chat("❌ GPT error, try again later.");
+      }
       return;
     }
   });
@@ -262,6 +302,3 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
-
-
-
