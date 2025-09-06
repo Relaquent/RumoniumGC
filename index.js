@@ -1,8 +1,18 @@
-// Hypixel Bedwars Stats Bot + ChatGPT - Render 7/24 version
+// index.js
+
 const express = require("express");
 const mineflayer = require("mineflayer");
 const axios = require("axios");
-const { Configuration, OpenAIApi } = require("openai"); // ✅ ChatGPT için
+const OpenAI = require("openai");
+
+// === 0. OpenAI Setup ===
+if (!process.env.OPENAI_API_KEY) {
+  console.error("❌ OPENAI_API_KEY not found. Please add it in Render Environment Variables.");
+  process.exit(1);
+}
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 // === 1. Express Web Server ===
 const app = express();
@@ -14,21 +24,12 @@ app.listen(PORT, () => {
   console.log(`🌐 Web server is running on port ${PORT} (Ready for UptimeRobot)`);
 });
 
-// === 2. API Keys ===
+// === 2. Hypixel API Key Check ===
 if (!process.env.HYPIXEL_API_KEY) {
-  console.error("❌ HYPIXEL_API_KEY not found.");
-  process.exit(1);
-}
-if (!process.env.OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY not found.");
+  console.error("❌ HYPIXEL_API_KEY not found. Please add it in Render Environment Variables.");
   process.exit(1);
 }
 const HYPIXEL_API_KEY = process.env.HYPIXEL_API_KEY;
-
-// ✅ OpenAI ayarı
-const openai = new OpenAIApi(
-  new Configuration({ apiKey: process.env.OPENAI_API_KEY })
-);
 
 // === 3. Bot Settings ===
 const HYPIXEL_HOST = "mc.hypixel.net";
@@ -103,6 +104,35 @@ function createBot() {
   bot.on("message", async (jsonMsg) => {
     const msg = jsonMsg.toString();
     if (!msg.startsWith("Guild >")) return;
+
+    // === !ask command (ChatGPT) ===
+    if (msg.toLowerCase().includes("!ask")) {
+      const match = msg.match(/!ask\s+(.+)/i);
+      if (!match) return;
+      const userMessage = match[1];
+
+      bot.chat("💭 Thinking...");
+      console.log("🤖 ChatGPT request:", userMessage);
+
+      try {
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: "You are a helpful assistant for a Minecraft Hypixel Guild chat." },
+            { role: "user", content: userMessage }
+          ],
+          max_tokens: 100,
+        });
+
+        const reply = completion.choices[0].message.content.trim();
+        bot.chat(reply.slice(0, 250)); // 250 karakter sınırı (Minecraft chat limit)
+        console.log("📤 GPT reply:", reply);
+      } catch (err) {
+        console.error("⚠️ OpenAI API error:", err.message);
+        bot.chat("Error: Could not get response from GPT.");
+      }
+      return;
+    }
 
     // === Welcome message ===
     if (msg.includes("joined.")) {
@@ -192,7 +222,7 @@ function createBot() {
       return;
     }
 
-    // === !when command ===
+    // === !when command (Castle countdown) ===
     if (msg.toLowerCase().includes("!when")) {
       await sleep(300);
 
@@ -208,7 +238,6 @@ function createBot() {
       }
 
       const nextEvent = new Date(firstEvent.getTime() + (cyclesPassed + 1) * cycleDays * 24 * 60 * 60 * 1000);
-
       const msInDay = 24 * 60 * 60 * 1000;
       const daysLeft = Math.ceil((nextEvent - now) / msInDay);
 
@@ -229,7 +258,7 @@ function createBot() {
     // === !about command ===
     if (msg.toLowerCase().includes("!about")) {
       await sleep(300);
-      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.0.9 - Last Update 29/08/25";
+      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.1.0 - Last Update 06/09/25";
       bot.chat(aboutMsg);
       console.log("📤 Sent:", aboutMsg);
       return;
@@ -239,12 +268,11 @@ function createBot() {
     if (msg.toLowerCase().includes("!help")) {
       await sleep(300);
       const helpMsg = [
-        "----- RumoniumGC v1.0.9 -----",
+        "----- RumoniumGC v1.1.0 -----",
         "bw <user> → Shows Bedwars stats.",
         "stats <user> → Shows detailed stats.",
-        "ping <user> → Shows player ping.",
         "when → Next Castle date.",
-        "ask <msg> → Ask ChatGPT anything.",
+        "ask <msg> → Ask ChatGPT.",
         "about → Information about the bot.",
         "help → Displays this page.",
         "----- Powered by Relaquent -----"
@@ -254,37 +282,6 @@ function createBot() {
         await sleep(500);
       }
       console.log("📤 Sent: !help command list");
-      return;
-    }
-
-    // === !ask command (ChatGPT) ===
-    if (msg.toLowerCase().includes("!ask")) {
-      const match = msg.match(/!ask\s+(.+)/i);
-      if (!match) return;
-      const question = match[1].trim();
-      await sleep(500);
-
-      try {
-        const response = await openai.createChatCompletion({
-          model: "gpt-4o-mini",
-          messages: [{ role: "user", content: question }],
-          max_tokens: 100
-        });
-
-        const reply = response.data.choices[0].message.content.trim();
-
-        // Minecraft chat için 80 karakter sınırı
-        const replyLines = reply.match(/.{1,80}/g);
-        for (const line of replyLines) {
-          bot.chat(line);
-          await sleep(700);
-        }
-
-        console.log(`🤖 ChatGPT Reply: ${reply}`);
-      } catch (err) {
-        console.error("⚠️ ChatGPT error:", err.message);
-        bot.chat("❌ GPT error, try again later.");
-      }
       return;
     }
   });
