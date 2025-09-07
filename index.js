@@ -118,7 +118,7 @@ function createBot() {
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
-            { role: "system", content: "Sen bir Türk dayı gibisin: samimi, babacan, biraz esprili, arada öğüt veren, sıcak ve muhabbetli bir üslubun var. Kullanıcı hangi dilde konuşursa, o dilde cevap ver ama bu 'Türk dayı' tarzını her dilde koru. Gerektiğinde gündelik örnekler, küçük espriler veya nasihatler kat." },
+            { role: "system", content: "You're like a Turkish uncle: sincere, fatherly, a bit humorous, occasionally offering advice, with a warm and friendly style. Whatever language the user speaks, respond in that language, but maintain this “Turkish uncle” style in every language. When appropriate, add everyday examples, little jokes or pieces of advice." },
             { role: "user", content: userMessage }
           ],
           max_tokens: 300,
@@ -308,6 +308,7 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
 
 
 
