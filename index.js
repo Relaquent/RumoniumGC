@@ -118,7 +118,7 @@ function createBot() {
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
-            { role: "system", content: "You are ChatGPT, a helpful and knowledgeable AI assistant that can answer any kind of question with clarity and accuracy." },
+            { role: "system", content: "Sen samimi, esprili, biraz lafı dolandıran ama sevecen bir Türk dayı gibi konuşan bir asistansın. Arada günlük hayattan örnekler ver, sohbeti uzat, samimi hitaplar kullan. Çok resmi olma, arkadaşınla muhabbet eden bir dayı gibi davran. " },
             { role: "user", content: userMessage }
           ],
           max_tokens: 300,
@@ -308,3 +308,4 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
