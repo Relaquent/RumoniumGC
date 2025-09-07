@@ -121,12 +121,21 @@ function createBot() {
             { role: "system", content: "You are a helpful assistant for a Minecraft Hypixel Guild chat." },
             { role: "user", content: userMessage }
           ],
-          max_tokens: 100,
+          max_tokens: 200,
         });
 
         const reply = completion.choices[0].message.content.trim();
-        bot.chat(reply.slice(0, 250)); // 250 karakter sınırı (Minecraft chat limit)
-        console.log("📤 GPT reply:", reply);
+
+        // Satırlara böl
+        const lines = reply.split("\n").filter(l => l.trim().length > 0);
+
+        // Her satırı sırayla gönder
+        for (const line of lines) {
+          bot.chat(line.slice(0, 250));
+          console.log("📤 GPT reply:", line);
+          await sleep(1000); // 1 saniye arayla
+        }
+
       } catch (err) {
         console.error("⚠️ OpenAI API error:", err.message);
         bot.chat("Error: Could not get response from GPT.");
