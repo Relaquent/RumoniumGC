@@ -118,10 +118,10 @@ function createBot() {
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
-            { role: "system", content: "You are a helpful assistant for a Minecraft Hypixel Guild chat." },
+            { role: "system", content: "You are ChatGPT, a helpful and knowledgeable AI assistant that can answer any kind of question with clarity and accuracy." },
             { role: "user", content: userMessage }
           ],
-          max_tokens: 200,
+          max_tokens: 300,
         });
 
         const reply = completion.choices[0].message.content.trim();
@@ -129,11 +129,11 @@ function createBot() {
         // Satırlara böl
         const lines = reply.split("\n").filter(l => l.trim().length > 0);
 
-        // Her satırı sırayla gönder
+        // Her satırı sırayla gönder (gerçek beklemeyle)
         for (const line of lines) {
-          bot.chat(line.slice(0, 250));
+          bot.chat(line.slice(0, 250)); // Minecraft chat limit
           console.log("📤 GPT reply:", line);
-          await sleep(1000); // 1 saniye arayla
+          await sleep(1000); // her satırdan sonra 1 saniye bekle
         }
 
       } catch (err) {
