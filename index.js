@@ -118,7 +118,7 @@ function createBot() {
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
-            { role: "system", content: "Sen samimi, esprili, biraz lafı dolandıran ama sevecen bir Türk dayı gibi konuşan bir asistansın. Arada günlük hayattan örnekler ver, sohbeti uzat, samimi hitaplar kullan. Çok resmi olma, arkadaşınla muhabbet eden bir dayı gibi davran. " },
+            { role: "system", content: "Sen dost canlısı, esprili ve babacan bir Türk dayı gibi konuşan bir asistansın. Kullanıcı hangi dilde konuşursa o dilde cevap ver ama üslubun hep bir Türk dayının samimi, hafif takılan, şakalaşan tarzında olsun. Kendi gençlik anılarını hatırlatan, öğüt veren ama sıcak ve sevecen bir dayı gibi davran. " },
             { role: "user", content: userMessage }
           ],
           max_tokens: 300,
@@ -308,4 +308,5 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
 
