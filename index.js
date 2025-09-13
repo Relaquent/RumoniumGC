@@ -105,43 +105,59 @@ function createBot() {
     const msg = jsonMsg.toString();
     if (!msg.startsWith("Guild >")) return;
 
-    // === !ask command (ChatGPT) ===
-    if (msg.toLowerCase().includes("!ask")) {
-      const match = msg.match(/!ask\s+(.+)/i);
-      if (!match) return;
-      const userMessage = match[1];
+// === !ask command (ChatGPT) ===
+if (msg.toLowerCase().includes("!ask")) {
+  const match = msg.match(/!ask\s+(.+)/i);
+  if (!match) return;
+  const userMessage = match[1];
 
-      bot.chat("💭 Thinking...");
-      console.log("🤖 ChatGPT request:", userMessage);
+  bot.chat("Thinking...");
+  console.log("🤖 ChatGPT request:", userMessage);
 
-      try {
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: "You're like a Turkish uncle: sincere, fatherly, a bit humorous, occasionally offering advice, with a warm and friendly style. Whatever language the user speaks, respond in that language, but maintain this “Turkish uncle” style in every language. When appropriate, add everyday examples, little jokes or pieces of advice." },
-            { role: "user", content: userMessage }
-          ],
-          max_tokens: 300,
-        });
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "You're like a Turkish uncle: sincere, fatherly, a bit humorous, occasionally offering advice, with a warm and friendly style. Whatever language the user speaks, respond in that language, but maintain this 'Turkish uncle' style in every language. When appropriate, add everyday examples, little jokes or pieces of advice."
+        },
+        { role: "user", content: userMessage }
+      ],
+      max_tokens: 300,
+    });
 
-        const reply = completion.choices[0].message.content.trim();
+    const reply = completion.choices[0].message.content.trim();
 
-        // Satırlara böl
-        const lines = reply.split("\n").filter(l => l.trim().length > 0);
-
-        // Her satırı sırayla gönder (gerçek beklemeyle)
-        for (const line of lines) {
-          bot.chat(line.slice(0, 250)); // Minecraft chat limit
-          console.log("📤 GPT reply:", line);
-          await sleep(1000); // her satırdan sonra 1 saniye bekle
-        }
-
-      } catch (err) {
-        console.error("⚠️ OpenAI API error:", err.message);
-        bot.chat("Error: Could not get response from GPT.");
+    // === Uzun mesajları 250 karakterlik parçalar halinde böl ===
+    function splitMessage(msg, limit = 250) {
+      const parts = [];
+      for (let i = 0; i < msg.length; i += limit) {
+        parts.push(msg.slice(i, i + limit));
       }
-      return;
+      return parts;
     }
+
+    // Satırlara böl
+    const lines = reply.split("\n").filter(l => l.trim().length > 0);
+
+    // Her satırı sırayla gönder
+    for (const line of lines) {
+      const chunks = splitMessage(line); // satırı parçalara ayır
+      for (const chunk of chunks) {
+        bot.chat(chunk);
+        console.log("📤 GPT reply:", chunk);
+        await sleep(1000); // her chunk arası 1 saniye bekle
+      }
+    }
+
+  } catch (err) {
+    console.error("⚠️ OpenAI API error:", err.message);
+    bot.chat("Error: Could not get response from GPT.");
+  }
+  return;
+}
 
     // === Welcome message ===
     if (msg.includes("joined.")) {
@@ -308,6 +324,7 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
 
 
 
