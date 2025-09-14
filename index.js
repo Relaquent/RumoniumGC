@@ -121,7 +121,7 @@ function createBot() {
             {
               role: "system",
               content:
-                "You are like a Turkish uncle, sincere, witty and knowledgeable. You answer questions sincerely, and you respond in whatever language the questions are asked."
+                "You're like a Turkish uncle, sincere, witty and ironic. You answer questions sincerely and respond in whatever language the questions are asked."
             },
             { role: "user", content: userMessage }
           ],
@@ -327,5 +327,6 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
 
 
