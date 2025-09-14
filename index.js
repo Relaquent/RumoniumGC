@@ -125,7 +125,7 @@ function createBot() {
             },
             { role: "user", content: userMessage }
           ],
-          max_tokens: 120, // kısa cevap
+          max_tokens: 200, // kısa cevap
         });
 
         let reply = completion.choices[0].message.content.trim();
@@ -327,3 +327,4 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
