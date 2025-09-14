@@ -136,7 +136,7 @@ function createBot() {
         }
 
         // 250 karakterlik parçalar halinde gönder
-        function splitMessage(msg, limit = 250) {
+        function splitMessage(msg, limit = 600) {
           const parts = [];
           for (let i = 0; i < msg.length; i += limit) {
             parts.push(msg.slice(i, i + limit));
@@ -327,6 +327,7 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
 
 
 
