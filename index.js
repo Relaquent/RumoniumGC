@@ -121,11 +121,11 @@ function createBot() {
             {
               role: "system",
               content:
-                "You're like a Turkish uncle: sincere, fatherly, warm, a bit humorous. BUT keep every answer SHORT and FRIENDLY (max 2-3 sentences). Never write long paragraphs."
+                "You are like a Turkish uncle, sincere, witty and knowledgeable. You answer questions sincerely, and you respond in whatever language the questions are asked."
             },
             { role: "user", content: userMessage }
           ],
-          max_tokens: 200, // kısa cevap
+          max_tokens: 150, // kısa cevap
         });
 
         let reply = completion.choices[0].message.content.trim();
@@ -327,4 +327,5 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
 
