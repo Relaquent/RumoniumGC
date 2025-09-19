@@ -121,7 +121,7 @@ function createBot() {
             {
               role: "system",
               content:
-                "You're like a Turkish uncle, sincere, witty and ironic. You answer questions sincerely and respond in whatever language the questions are asked."
+                "You're like a uncle, sincere, witty and ironic. You answer questions sincerely and respond in whatever language the questions are asked."
             },
             { role: "user", content: userMessage }
           ],
@@ -129,11 +129,6 @@ function createBot() {
         });
 
         let reply = completion.choices[0].message.content.trim();
-
-        // Çok uzun olursa kes
-        if (reply.length > 300) {
-          reply = reply.slice(0, 300) + "...";
-        }
 
         // 250 karakterlik parçalar halinde gönder
         function splitMessage(msg, limit = 600) {
@@ -327,6 +322,7 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
 
 
 
