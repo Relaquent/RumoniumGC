@@ -84,6 +84,10 @@ const welcomeMessages = [
   "{username} the GOAT is back!"
 ];
 
+// === Cooldown Tracker for !ask ===
+const askCooldowns = {};
+const ASK_COOLDOWN_MS = 3 * 60 * 1000; // 3 dakika
+
 // === 5. Mineflayer Bot ===
 function createBot() {
   const bot = mineflayer.createBot({
@@ -107,12 +111,29 @@ function createBot() {
 
     // === !ask command (ChatGPT) ===
     if (msg.toLowerCase().includes("!ask")) {
-      const match = msg.match(/!ask\s+(.+)/i);
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!ask\s+(.+)/i);
       if (!match) return;
-      const userMessage = match[1];
+      const username = match[1];
+      const userMessage = match[2];
+
+      // Cooldown kontrolü (Relaquent hariç)
+      if (username.toLowerCase() !== "relaquent") {
+        const now = Date.now();
+        const lastUsed = askCooldowns[username] || 0;
+        const timePassed = now - lastUsed;
+
+        if (timePassed < ASK_COOLDOWN_MS) {
+          const secondsLeft = Math.ceil((ASK_COOLDOWN_MS - timePassed) / 1000);
+          bot.chat(`${username}, you must wait ${secondsLeft}s before using "ask" command again.`);
+          console.log(`⏳ Cooldown: ${username} tried !ask too soon`);
+          return;
+        }
+
+        askCooldowns[username] = now;
+      }
 
       bot.chat("Thinking...");
-      console.log("🤖 ChatGPT request:", userMessage);
+      console.log(`🤖 ChatGPT request from ${username}:`, userMessage);
 
       try {
         const completion = await openai.chat.completions.create({
@@ -130,7 +151,6 @@ function createBot() {
 
         let reply = completion.choices[0].message.content.trim();
 
-        // 250 karakterlik parçalar halinde gönder
         function splitMessage(msg, limit = 600) {
           const parts = [];
           for (let i = 0; i < msg.length; i += limit) {
@@ -249,7 +269,7 @@ function createBot() {
     if (msg.toLowerCase().includes("!when")) {
       await sleep(300);
 
-      const firstEvent = new Date("2025-10-04T00:00:00Z");
+      const firstEvent = new Date("2025-10-02T00:00:00Z");
       const cycleDays = 42;
       const now = new Date();
 
@@ -281,7 +301,7 @@ function createBot() {
     // === !about command ===
     if (msg.toLowerCase().includes("!about")) {
       await sleep(300);
-      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.1.0 - Last Update 06/09/25";
+      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.1.2 - Last Update 19/10/25";
       bot.chat(aboutMsg);
       console.log("📤 Sent:", aboutMsg);
       return;
@@ -291,7 +311,7 @@ function createBot() {
     if (msg.toLowerCase().includes("!help")) {
       await sleep(300);
       const helpMsg = [
-        "----- RumoniumGC v1.1.0 -----",
+        "----- RumoniumGC v1.1.2 -----",
         "bw <user> → Shows Bedwars stats.",
         "stats <user> → Shows detailed stats.",
         "when → Next Castle date.",
@@ -322,12 +342,3 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
-
-
-
-
-
-
-
-
-
