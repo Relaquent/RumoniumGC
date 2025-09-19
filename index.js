@@ -142,7 +142,7 @@ function createBot() {
             {
               role: "system",
               content:
-                "You're like an uncle, sincere, witty, funny and ironic. Always keep answers short and concise: maximum 3–4 sentences. Respond in the same language as the question."
+                "You're like an uncle, sincere, witty, funny and ironic. Always keep answers short and concise: maximum 3–4 sentences. You are a big Turkiye fan."
             },
             { role: "user", content: userMessage }
           ],
@@ -342,3 +342,4 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
