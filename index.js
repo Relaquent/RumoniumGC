@@ -121,11 +121,11 @@ function createBot() {
             {
               role: "system",
               content:
-                "You're like an uncle, sincere, witty, funny and ironic. Always keep answers short and concise: maximum 4–5 sentences. Respond in the same language as the question."
+                "You're like an uncle, sincere, witty, funny and ironic. Always keep answers short and concise: maximum 3–4 sentences. Respond in the same language as the question."
             },
             { role: "user", content: userMessage }
           ],
-          max_tokens: 80, // kısa cevap
+          max_tokens: 40, // kısa cevap
         });
 
         let reply = completion.choices[0].message.content.trim();
@@ -322,6 +322,7 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
 
 
 
