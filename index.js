@@ -1,5 +1,3 @@
-// index.js
-
 const express = require("express");
 const mineflayer = require("mineflayer");
 const axios = require("axios");
@@ -17,11 +15,48 @@ const openai = new OpenAI({
 // === 1. Express Web Server ===
 const app = express();
 const PORT = process.env.PORT || 3000;
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 app.get("/", (req, res) => {
   res.send("✅ Bot is running and online! (Render)");
 });
+
+// Basit Web Panel
+app.get("/panel", (req, res) => {
+  res.send(`
+    <html>
+      <head>
+        <title>RumoniumGC Panel</title>
+      </head>
+      <body style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+        <h2>RumoniumGC Chat Panel</h2>
+        <form method="POST" action="/chat">
+          <input type="text" name="message" placeholder="Type your message" style="width:300px; padding:8px;" required />
+          <button type="submit" style="padding:8px 15px;">Send</button>
+        </form>
+      </body>
+    </html>
+  `);
+});
+
+// POST /chat -> mesajı bota gönder
+let bot; // global bot
+app.post("/chat", (req, res) => {
+  const { message } = req.body;
+  if (!message) return res.status(400).send("❌ Message required.");
+
+  if (bot && bot.chat) {
+    bot.chat(message);
+    console.log(`🌐 Web chat sent: ${message}`);
+    res.send(`✅ Sent: ${message}`);
+  } else {
+    res.status(500).send("❌ Bot not connected yet.");
+  }
+});
+
 app.listen(PORT, () => {
-  console.log(`🌐 Web server is running on port ${PORT} (Ready for UptimeRobot)`);
+  console.log(`🌐 Web server is running on port ${PORT} (Ready for UptimeRobot & Panel)`);
 });
 
 // === 2. Hypixel API Key Check ===
@@ -90,7 +125,7 @@ const ASK_COOLDOWN_MS = 3 * 60 * 1000; // 3 dakika
 
 // === 5. Mineflayer Bot ===
 function createBot() {
-  const bot = mineflayer.createBot({
+  bot = mineflayer.createBot({
     host: HYPIXEL_HOST,
     version: MC_VERSION,
     auth: "microsoft",
@@ -342,5 +377,3 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
-
-
