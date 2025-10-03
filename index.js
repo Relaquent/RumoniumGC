@@ -304,8 +304,8 @@ function createBot() {
     if (msg.toLowerCase().includes("!when")) {
       await sleep(300);
 
-      const firstEvent = new Date("2025-10-02T00:00:00Z");
-      const cycleDays = 42;
+      const firstEvent = new Date("2025-11-28T00:00:00Z");
+      const cycleDays = 56;
       const now = new Date();
 
       let diffMs = now.getTime() - firstEvent.getTime();
@@ -377,3 +377,4 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
