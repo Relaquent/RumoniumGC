@@ -27,12 +27,52 @@ app.use(express.urlencoded({ extended: true }));
 let chatHistory = [];
 let gptSystemPrompt = "You're like a Turkish nationalist uncle who answers in the user's language. You answer questions knowledgeably and in a nationalistic manner. If you get a question that's hostile towards Turks, you give them a piece of your mind. You're ironic and witty. You're sincere.";
 let panelTheme = {
-  primaryColor: '#9333ea', // purple-600
-  secondaryColor: '#3b82f6', // blue-600
-  accentColor: '#ec4899', // pink-600
-  bgStyle: 'gradient', // gradient, solid, animated
+  primaryColor: '#9333ea',
+  secondaryColor: '#3b82f6',
+  accentColor: '#ec4899',
+  bgStyle: 'gradient',
   glassEffect: true,
   animations: true
+};
+
+// Enhanced bot settings
+let botSettings = {
+  autoReconnect: true,
+  welcomeMessages: true,
+  commandCooldown: 45,
+  maxTokens: 100,
+  chatFilter: {
+    enabled: false,
+    keywords: [],
+    filterMode: 'blacklist' // blacklist or whitelist
+  },
+  autoResponses: {
+    enabled: true,
+    responses: [
+      { trigger: 'hello', response: 'Hey there!', delay: 1000 },
+      { trigger: 'gg', response: 'Good game!', delay: 500 }
+    ]
+  },
+  customCommands: [
+    { name: '!discord', response: 'Join our Discord: discord.gg/example', cooldown: 30 },
+    { name: '!rules', response: 'Check guild rules at: rumoniumgc.com/rules', cooldown: 60 }
+  ],
+  chatLogs: {
+    enabled: true,
+    maxHistory: 500,
+    saveToFile: false
+  },
+  notifications: {
+    onJoin: true,
+    onLeave: true,
+    onCommand: true,
+    soundEnabled: false
+  },
+  performance: {
+    messageDelay: 300,
+    maxMessagesPerSecond: 2,
+    autoReconnectDelay: 10000
+  }
 };
 
 app.get("/", (req, res) => {
@@ -47,7 +87,7 @@ app.get("/control", (req, res) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RumoniumGC Premium Control Panel</title>
+  <title>RumoniumGC Premium Control Panel v2.0</title>
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -88,6 +128,11 @@ app.get("/control", (req, res) => {
       0%, 100% { box-shadow: 0 0 20px rgba(147, 51, 234, 0.3); }
       50% { box-shadow: 0 0 40px rgba(147, 51, 234, 0.6); }
     }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 1; }
+      100% { transform: scale(1.4); opacity: 0; }
+    }
     
     .animate-fade-in {
       animation: fade-in 0.5s ease-out;
@@ -112,6 +157,10 @@ app.get("/control", (req, res) => {
     
     .animate-glow {
       animation: glow 3s ease-in-out infinite;
+    }
+
+    .pulse-ring {
+      animation: pulse-ring 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
     }
     
     .glass-morphism {
@@ -169,6 +218,34 @@ app.get("/control", (req, res) => {
       background: rgba(0, 0, 0, 0.5);
       backdrop-filter: blur(20px);
       border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .chat-bubble {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .chat-bubble::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+      transition: left 0.5s;
+    }
+
+    .chat-bubble:hover::before {
+      left: 100%;
+    }
+
+    .setting-card {
+      transition: all 0.3s ease;
+    }
+
+    .setting-card:hover {
+      transform: translateX(5px);
     }
   </style>
 </head>
@@ -275,6 +352,68 @@ app.get("/control", (req, res) => {
       </svg>
     );
 
+    const Filter = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+      </svg>
+    );
+
+    const Command = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"></path>
+      </svg>
+    );
+
+    const Bell = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+      </svg>
+    );
+
+    const Sliders = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="4" y1="21" x2="4" y2="14"></line>
+        <line x1="4" y1="10" x2="4" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12" y2="3"></line>
+        <line x1="20" y1="21" x2="20" y2="16"></line>
+        <line x1="20" y1="12" x2="20" y2="3"></line>
+        <line x1="1" y1="14" x2="7" y2="14"></line>
+        <line x1="9" y1="8" x2="15" y2="8"></line>
+        <line x1="17" y1="16" x2="23" y2="16"></line>
+      </svg>
+    );
+
+    const Plus = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    );
+
+    const Trash = () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+      </svg>
+    );
+
+    const Search = () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="11" cy="11" r="8"></circle>
+        <path d="m21 21-4.35-4.35"></path>
+      </svg>
+    );
+
+    const Download = () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+    );
+
     function BotControlPanel() {
       const [activeTab, setActiveTab] = useState('chat');
       const [message, setMessage] = useState('');
@@ -291,7 +430,33 @@ app.get("/control", (req, res) => {
         autoReconnect: true,
         welcomeMessages: true,
         commandCooldown: 45,
-        maxTokens: 100
+        maxTokens: 100,
+        chatFilter: {
+          enabled: false,
+          keywords: [],
+          filterMode: 'blacklist'
+        },
+        autoResponses: {
+          enabled: true,
+          responses: []
+        },
+        customCommands: [],
+        chatLogs: {
+          enabled: true,
+          maxHistory: 500,
+          saveToFile: false
+        },
+        notifications: {
+          onJoin: true,
+          onLeave: true,
+          onCommand: true,
+          soundEnabled: false
+        },
+        performance: {
+          messageDelay: 300,
+          maxMessagesPerSecond: 2,
+          autoReconnectDelay: 10000
+        }
       });
       const [gptPrompt, setGptPrompt] = useState('');
       const [promptSaved, setPromptSaved] = useState(false);
@@ -304,29 +469,35 @@ app.get("/control", (req, res) => {
         animations: true
       });
       const [themeSaved, setThemeSaved] = useState(false);
+      const [settingsSaved, setSettingsSaved] = useState(false);
+      const [chatSearch, setChatSearch] = useState('');
+      const [filterActive, setFilterActive] = useState(false);
       
       const minecraftChatRef = useRef(null);
       const logsRef = useRef(null);
 
       useEffect(() => {
-        // Fetch initial GPT prompt
+        // Fetch initial data
         fetch('/api/gpt-prompt')
           .then(res => res.json())
           .then(data => setGptPrompt(data.prompt));
 
-        // Fetch theme
         fetch('/api/theme')
           .then(res => res.json())
           .then(data => setTheme(data));
 
+        fetch('/api/settings')
+          .then(res => res.json())
+          .then(data => setSettings(data));
+
         // Socket.IO listeners
         socket.on('minecraft-chat', (data) => {
-          setMinecraftChat(prev => [...prev, data].slice(-100));
+          setMinecraftChat(prev => [...prev, data].slice(-500));
           setStats(prev => ({ ...prev, messages: prev.messages + 1 }));
         });
 
         socket.on('bot-log', (data) => {
-          setLogs(prev => [data, ...prev].slice(0, 50));
+          setLogs(prev => [data, ...prev].slice(0, 100));
         });
 
         socket.on('bot-status', (status) => {
@@ -404,13 +575,124 @@ app.get("/control", (req, res) => {
           
           if (response.ok) {
             setThemeSaved(true);
-            setTimeout(() => setThemeSaved(false), 3000);
-            window.location.reload(); // Reload to apply new theme
+            setTimeout(() => {
+              setThemeSaved(false);
+              window.location.reload();
+            }, 1500);
           }
         } catch (err) {
           console.error('Failed to save theme:', err);
         }
       };
+
+      const saveSettings = async () => {
+        try {
+          const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+          });
+          
+          if (response.ok) {
+            setSettingsSaved(true);
+            setTimeout(() => setSettingsSaved(false), 3000);
+          }
+        } catch (err) {
+          console.error('Failed to save settings:', err);
+        }
+      };
+
+      const exportChatLogs = () => {
+        const dataStr = JSON.stringify(minecraftChat, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = \`chat-logs-\${new Date().toISOString()}.json\`;
+        link.click();
+      };
+
+      const addCustomCommand = () => {
+        setSettings({
+          ...settings,
+          customCommands: [...settings.customCommands, { name: '!newcmd', response: 'Response', cooldown: 30 }]
+        });
+      };
+
+      const removeCustomCommand = (index) => {
+        setSettings({
+          ...settings,
+          customCommands: settings.customCommands.filter((_, i) => i !== index)
+        });
+      };
+
+      const updateCustomCommand = (index, field, value) => {
+        const updated = [...settings.customCommands];
+        updated[index][field] = value;
+        setSettings({ ...settings, customCommands: updated });
+      };
+
+      const addFilterKeyword = () => {
+        setSettings({
+          ...settings,
+          chatFilter: {
+            ...settings.chatFilter,
+            keywords: [...settings.chatFilter.keywords, '']
+          }
+        });
+      };
+
+      const removeFilterKeyword = (index) => {
+        setSettings({
+          ...settings,
+          chatFilter: {
+            ...settings.chatFilter,
+            keywords: settings.chatFilter.keywords.filter((_, i) => i !== index)
+          }
+        });
+      };
+
+      const updateFilterKeyword = (index, value) => {
+        const updated = [...settings.chatFilter.keywords];
+        updated[index] = value;
+        setSettings({
+          ...settings,
+          chatFilter: { ...settings.chatFilter, keywords: updated }
+        });
+      };
+
+      const addAutoResponse = () => {
+        setSettings({
+          ...settings,
+          autoResponses: {
+            ...settings.autoResponses,
+            responses: [...settings.autoResponses.responses, { trigger: '', response: '', delay: 1000 }]
+          }
+        });
+      };
+
+      const removeAutoResponse = (index) => {
+        setSettings({
+          ...settings,
+          autoResponses: {
+            ...settings.autoResponses,
+            responses: settings.autoResponses.responses.filter((_, i) => i !== index)
+          }
+        });
+      };
+
+      const updateAutoResponse = (index, field, value) => {
+        const updated = [...settings.autoResponses.responses];
+        updated[index][field] = value;
+        setSettings({
+          ...settings,
+          autoResponses: { ...settings.autoResponses, responses: updated }
+        });
+      };
+
+      const filteredChat = minecraftChat.filter(msg => 
+        !chatSearch || msg.message.toLowerCase().includes(chatSearch.toLowerCase())
+      );
 
       const themePresets = [
         { name: 'Purple Dream', primary: '#9333ea', secondary: '#3b82f6', accent: '#ec4899' },
@@ -444,11 +726,16 @@ app.get("/control", (req, res) => {
                     <h1 className={\`text-5xl font-black bg-clip-text text-transparent \${theme.animations ? 'animate-gradient' : ''}\`} style={{backgroundImage: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.accentColor}, \${theme.secondaryColor})\`, backgroundSize: '200% 200%'}}>
                       RumoniumGC
                     </h1>
-                    <p className="text-gray-400 font-medium">Premium Control Center v1.2.0</p>
+                    <p className="text-gray-400 font-medium">Premium Control Center v2.0</p>
                   </div>
                   <div className="flex items-center gap-4">
                     <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl px-6 py-3 flex items-center gap-3\`}>
-                      <div className={\`w-3 h-3 rounded-full \${botStatus === 'online' ? 'bg-green-400 animate-pulse' : 'bg-red-400'}\`}></div>
+                      <div className="relative">
+                        <div className={\`w-3 h-3 rounded-full \${botStatus === 'online' ? 'bg-green-400' : 'bg-red-400'}\`}></div>
+                        {botStatus === 'online' && (
+                          <div className="absolute inset-0 w-3 h-3 rounded-full bg-green-400 pulse-ring"></div>
+                        )}
+                      </div>
                       <span className="text-sm font-bold uppercase tracking-wider">{botStatus}</span>
                     </div>
                     <button 
@@ -491,13 +778,14 @@ app.get("/control", (req, res) => {
                 { id: 'chat', Icon: Monitor, label: 'Live Chat' },
                 { id: 'commands', Icon: Terminal, label: 'Commands' },
                 { id: 'gpt', Icon: Brain, label: 'GPT Config' },
+                { id: 'advanced', Icon: Sliders, label: 'Advanced' },
                 { id: 'customize', Icon: Palette, label: 'Customize' },
                 { id: 'settings', Icon: Settings, label: 'Settings' }
               ].map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={\`flex-1 min-w-[140px] flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-bold transition-all duration-300 \${
+                  className={\`flex-1 min-w-[120px] flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-bold transition-all duration-300 \${
                     activeTab === tab.id
                       ? ''
                       : 'hover:bg-white/5'
@@ -517,10 +805,41 @@ app.get("/control", (req, res) => {
                 {activeTab === 'chat' && (
                   <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl overflow-hidden animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
                     <div className="p-6 border-b border-white/10">
-                      <h2 className="text-2xl font-black flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, #10b981, #059669)\`}}>
-                        <Monitor />
-                        LIVE MINECRAFT CHAT
-                      </h2>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-black flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, #10b981, #059669)\`}}>
+                          <Monitor />
+                          LIVE MINECRAFT CHAT
+                        </h2>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => setFilterActive(!filterActive)}
+                            className={\`p-3 rounded-xl transition-all \${filterActive ? 'bg-green-500/20 text-green-400' : 'bg-white/5'} \${theme.animations ? 'hover:scale-110' : ''}\`}
+                          >
+                            <Filter />
+                          </button>
+                          <button
+                            onClick={exportChatLogs}
+                            className={\`p-3 rounded-xl bg-white/5 transition-all \${theme.animations ? 'hover:scale-110' : ''}\`}
+                          >
+                            <Download />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Search Bar */}
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={chatSearch}
+                          onChange={(e) => setChatSearch(e.target.value)}
+                          placeholder="Search messages..."
+                          className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 pl-12 focus:outline-none transition-all font-medium placeholder-gray-500"
+                          style={{borderColor: \`\${theme.primaryColor}30\`}}
+                        />
+                        <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+                          <Search />
+                        </div>
+                      </div>
                     </div>
                     
                     {/* Chat Display */}
@@ -528,23 +847,39 @@ app.get("/control", (req, res) => {
                       ref={minecraftChatRef}
                       className="h-[450px] overflow-y-auto custom-scrollbar space-y-2 bg-black/30 p-4"
                     >
-                      {minecraftChat.length === 0 ? (
+                      {filteredChat.length === 0 ? (
                         <div className="flex items-center justify-center h-full text-gray-500">
                           <div className="text-center">
                             <Monitor className="w-16 h-16 mx-auto mb-4 opacity-30" />
-                            <p className="font-medium">Waiting for messages...</p>
+                            <p className="font-medium">{chatSearch ? 'No messages found' : 'Waiting for messages...'}</p>
                           </div>
                         </div>
                       ) : (
-                        minecraftChat.map((msg, idx) => (
-                          <div
-                            key={idx}
-                            className={\`minecraft-message text-sm bg-black/40 rounded-lg px-4 py-2 border-l-4 border-green-500/50 hover:bg-black/60 transition-colors \${theme.animations ? 'animate-slide-up' : ''}\`}
-                          >
-                            <span className="text-gray-500 text-xs mr-2">[{msg.time}]</span>
-                            <span className="text-green-400 font-bold">{msg.message}</span>
-                          </div>
-                        ))
+                        filteredChat.map((msg, idx) => {
+                          const isCommand = msg.message.includes('!');
+                          const isJoin = msg.message.includes('joined');
+                          const isLeave = msg.message.includes('left');
+                          
+                          return (
+                            <div
+                              key={idx}
+                              className={\`chat-bubble minecraft-message text-sm rounded-xl px-4 py-3 border-l-4 transition-all \${
+                                isCommand ? 'bg-blue-500/10 border-blue-500/50 hover:bg-blue-500/20' :
+                                isJoin ? 'bg-green-500/10 border-green-500/50 hover:bg-green-500/20' :
+                                isLeave ? 'bg-red-500/10 border-red-500/50 hover:bg-red-500/20' :
+                                'bg-black/40 border-purple-500/30 hover:bg-black/60'
+                              } \${theme.animations ? 'animate-slide-up' : ''}\`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className="text-gray-500 text-xs mr-2">[{msg.time}]</span>
+                                  <span className="text-green-400 font-bold">{msg.message}</span>
+                                </div>
+                                {isCommand && <span className="text-xs bg-blue-500/30 text-blue-300 px-2 py-1 rounded-full">CMD</span>}
+                              </div>
+                            </div>
+                          );
+                        })
                       )}
                     </div>
 
@@ -575,8 +910,7 @@ app.get("/control", (req, res) => {
                             <button
                               key={quick}
                               onClick={() => setMessage(quick)}
-                              className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-xl px-4 py-2 text-sm font-bold transition-all border border-white/10\`}
-                              style={{borderColor: theme.animations ? \`\${theme.primaryColor}30\` : 'rgba(255,255,255,0.1)'}}
+                              className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-xl px-4 py-2 text-sm font-bold transition-all border border-white/10 \${theme.animations ? 'hover:scale-105' : ''}\`}
                             >
                               {quick}
                             </button>
@@ -644,6 +978,232 @@ app.get("/control", (req, res) => {
                         {promptSaved ? '✓ SAVED!' : 'SAVE PROMPT'}
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {activeTab === 'advanced' && (
+                  <div className="space-y-6 animate-fade-in">
+                    {/* Chat Filter */}
+                    <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 \${theme.animations ? 'hover-lift' : ''}\`}>
+                      <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}>
+                        <Filter />
+                        CHAT FILTER
+                      </h2>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-bold text-lg">Enable Filter</div>
+                            <div className="text-sm text-gray-400 mt-1">Filter messages by keywords</div>
+                          </div>
+                          <button
+                            onClick={() => setSettings({...settings, chatFilter: {...settings.chatFilter, enabled: !settings.chatFilter.enabled}})}
+                            className="relative w-16 h-8 rounded-full transition-all"
+                            style={{backgroundColor: settings.chatFilter.enabled ? theme.primaryColor : '#374151'}}
+                          >
+                            <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${settings.chatFilter.enabled ? 'translate-x-8' : ''}\`}></div>
+                          </button>
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-lg mb-3">Filter Mode</label>
+                          <div className="grid grid-cols-2 gap-3">
+                            {['blacklist', 'whitelist'].map(mode => (
+                              <button
+                                key={mode}
+                                onClick={() => setSettings({...settings, chatFilter: {...settings.chatFilter, filterMode: mode}})}
+                                className={\`px-4 py-3 rounded-xl font-bold transition-all capitalize \${settings.chatFilter.filterMode === mode ? '' : 'bg-white/5'}\`}
+                                style={settings.chatFilter.filterMode === mode ? {background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`} : {}}
+                              >
+                                {mode}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <label className="block font-bold text-lg">Keywords</label>
+                            <button
+                              onClick={addFilterKeyword}
+                              className={\`p-2 rounded-xl transition-all \${theme.animations ? 'hover:scale-110' : ''}\`}
+                              style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                            >
+                              <Plus />
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {settings.chatFilter.keywords.map((keyword, index) => (
+                              <div key={index} className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={keyword}
+                                  onChange={(e) => updateFilterKeyword(index, e.target.value)}
+                                  placeholder="Enter keyword..."
+                                  className="flex-1 bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium"
+                                  style={{borderColor: \`\${theme.primaryColor}30\`}}
+                                />
+                                <button
+                                  onClick={() => removeFilterKeyword(index)}
+                                  className="p-3 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                                >
+                                  <Trash />
+                                </button>
+                              </div>
+                            ))}
+                            {settings.chatFilter.keywords.length === 0 && (
+                              <div className="text-center py-6 text-gray-500">
+                                <p className="text-sm">No keywords added</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Custom Commands */}
+                    <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 \${theme.animations ? 'hover-lift' : ''}\`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-black flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.secondaryColor}, \${theme.accentColor})\`}}>
+                          <Command />
+                          CUSTOM COMMANDS
+                        </h2>
+                        <button
+                          onClick={addCustomCommand}
+                          className={\`p-3 rounded-xl transition-all \${theme.animations ? 'hover:scale-110' : ''}\`}
+                          style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                        >
+                          <Plus />
+                        </button>
+                      </div>
+                      <div className="space-y-3">
+                        {settings.customCommands.map((cmd, index) => (
+                          <div key={index} className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10 space-y-3\`}>
+                            <div className="flex items-center justify-between">
+                              <div className="font-bold text-lg">Command #{index + 1}</div>
+                              <button
+                                onClick={() => removeCustomCommand(index)}
+                                className="p-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                              >
+                                <Trash />
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              value={cmd.name}
+                              onChange={(e) => updateCustomCommand(index, 'name', e.target.value)}
+                              placeholder="Command name (e.g., !mycommand)"
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                            <textarea
+                              value={cmd.response}
+                              onChange={(e) => updateCustomCommand(index, 'response', e.target.value)}
+                              placeholder="Response message"
+                              rows="3"
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium custom-scrollbar resize-none"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                            <div>
+                              <label className="block text-sm font-bold mb-2">Cooldown (seconds)</label>
+                              <input
+                                type="number"
+                                value={cmd.cooldown}
+                                onChange={(e) => updateCustomCommand(index, 'cooldown', parseInt(e.target.value) || 0)}
+                                className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-bold"
+                                style={{borderColor: \`\${theme.primaryColor}30\`}}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                        {settings.customCommands.length === 0 && (
+                          <div className="text-center py-8 text-gray-500">
+                            <Command className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                            <p className="font-medium">No custom commands yet</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Auto Responses */}
+                    <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 \${theme.animations ? 'hover-lift' : ''}\`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-black flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.accentColor}, \${theme.secondaryColor})\`}}>
+                          <Zap />
+                          AUTO RESPONSES
+                        </h2>
+                        <button
+                          onClick={addAutoResponse}
+                          className={\`p-3 rounded-xl transition-all \${theme.animations ? 'hover:scale-110' : ''}\`}
+                          style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                        >
+                          <Plus />
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between mb-4 bg-black/30 rounded-2xl p-4">
+                        <div>
+                          <div className="font-bold text-lg">Enable Auto Responses</div>
+                          <div className="text-sm text-gray-400 mt-1">Automatically reply to triggers</div>
+                        </div>
+                        <button
+                          onClick={() => setSettings({...settings, autoResponses: {...settings.autoResponses, enabled: !settings.autoResponses.enabled}})}
+                          className="relative w-16 h-8 rounded-full transition-all"
+                          style={{backgroundColor: settings.autoResponses.enabled ? theme.primaryColor : '#374151'}}
+                        >
+                          <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${settings.autoResponses.enabled ? 'translate-x-8' : ''}\`}></div>
+                        </button>
+                      </div>
+                      <div className="space-y-3">
+                        {settings.autoResponses.responses.map((resp, index) => (
+                          <div key={index} className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10 space-y-3\`}>
+                            <div className="flex items-center justify-between">
+                              <div className="font-bold text-lg">Response #{index + 1}</div>
+                              <button
+                                onClick={() => removeAutoResponse(index)}
+                                className="p-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                              >
+                                <Trash />
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              value={resp.trigger}
+                              onChange={(e) => updateAutoResponse(index, 'trigger', e.target.value)}
+                              placeholder="Trigger word"
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                            <input
+                              type="text"
+                              value={resp.response}
+                              onChange={(e) => updateAutoResponse(index, 'response', e.target.value)}
+                              placeholder="Auto response"
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                            <div>
+                              <label className="block text-sm font-bold mb-2">Delay (ms)</label>
+                              <input
+                                type="number"
+                                value={resp.delay}
+                                onChange={(e) => updateAutoResponse(index, 'delay', parseInt(e.target.value) || 0)}
+                                className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-bold"
+                                style={{borderColor: \`\${theme.primaryColor}30\`}}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Save Button */}
+                    <button
+                      onClick={saveSettings}
+                      className={\`w-full px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                      style={{background: settingsSaved ? 'linear-gradient(to right, #10b981, #059669)' : \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                    >
+                      <Settings />
+                      {settingsSaved ? '✓ SETTINGS SAVED!' : 'SAVE ALL SETTINGS'}
+                    </button>
                   </div>
                 )}
 
@@ -778,7 +1338,7 @@ app.get("/control", (req, res) => {
                         { key: 'autoReconnect', label: 'Auto Reconnect', desc: 'Automatically reconnect on disconnect' },
                         { key: 'welcomeMessages', label: 'Welcome Messages', desc: 'Send welcome messages to new members' }
                       ].map(setting => (
-                        <div key={setting.key} className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 flex items-center justify-between border border-white/10\`}>
+                        <div key={setting.key} className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 flex items-center justify-between border border-white/10\`}>
                           <div>
                             <div className="font-bold text-lg">{setting.label}</div>
                             <div className="text-sm text-gray-400 mt-1">{setting.desc}</div>
@@ -792,7 +1352,8 @@ app.get("/control", (req, res) => {
                           </button>
                         </div>
                       ))}
-                      <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                      
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
                         <label className="block font-bold text-lg mb-3">Command Cooldown (seconds)</label>
                         <input
                           type="number"
@@ -802,7 +1363,8 @@ app.get("/control", (req, res) => {
                           style={{borderColor: \`\${theme.primaryColor}30\`}}
                         />
                       </div>
-                      <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                      
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
                         <label className="block font-bold text-lg mb-3">Max GPT Tokens</label>
                         <input
                           type="number"
@@ -812,6 +1374,109 @@ app.get("/control", (req, res) => {
                           style={{borderColor: \`\${theme.primaryColor}30\`}}
                         />
                       </div>
+
+                      {/* Notifications */}
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                          <Bell />
+                          Notifications
+                        </h3>
+                        <div className="space-y-3">
+                          {[
+                            { key: 'onJoin', label: 'On Player Join' },
+                            { key: 'onLeave', label: 'On Player Leave' },
+                            { key: 'onCommand', label: 'On Command Use' },
+                            { key: 'soundEnabled', label: 'Sound Alerts' }
+                          ].map(notif => (
+                            <div key={notif.key} className="flex items-center justify-between bg-black/30 rounded-xl p-3">
+                              <span className="font-medium">{notif.label}</span>
+                              <button
+                                onClick={() => setSettings({...settings, notifications: {...settings.notifications, [notif.key]: !settings.notifications[notif.key]}})}
+                                className="relative w-12 h-6 rounded-full transition-all"
+                                style={{backgroundColor: settings.notifications[notif.key] ? theme.primaryColor : '#374151'}}
+                              >
+                                <div className={\`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform shadow-lg \${settings.notifications[notif.key] ? 'translate-x-6' : ''}\`}></div>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Performance */}
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                          <Sliders />
+                          Performance
+                        </h3>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-sm font-bold mb-2">Message Delay (ms)</label>
+                            <input
+                              type="number"
+                              value={settings.performance.messageDelay}
+                              onChange={(e) => setSettings({...settings, performance: {...settings.performance, messageDelay: parseInt(e.target.value)}})}
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-2 focus:outline-none font-bold"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold mb-2">Max Messages/Second</label>
+                            <input
+                              type="number"
+                              value={settings.performance.maxMessagesPerSecond}
+                              onChange={(e) => setSettings({...settings, performance: {...settings.performance, maxMessagesPerSecond: parseInt(e.target.value)}})}
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-2 focus:outline-none font-bold"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold mb-2">Auto Reconnect Delay (ms)</label>
+                            <input
+                              type="number"
+                              value={settings.performance.autoReconnectDelay}
+                              onChange={(e) => setSettings({...settings, performance: {...settings.performance, autoReconnectDelay: parseInt(e.target.value)}})}
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-2 focus:outline-none font-bold"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Chat Logs */}
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <h3 className="font-bold text-lg mb-4">Chat Logs</h3>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between bg-black/30 rounded-xl p-3">
+                            <span className="font-medium">Enable Logging</span>
+                            <button
+                              onClick={() => setSettings({...settings, chatLogs: {...settings.chatLogs, enabled: !settings.chatLogs.enabled}})}
+                              className="relative w-12 h-6 rounded-full transition-all"
+                              style={{backgroundColor: settings.chatLogs.enabled ? theme.primaryColor : '#374151'}}
+                            >
+                              <div className={\`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform shadow-lg \${settings.chatLogs.enabled ? 'translate-x-6' : ''}\`}></div>
+                            </button>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold mb-2">Max History</label>
+                            <input
+                              type="number"
+                              value={settings.chatLogs.maxHistory}
+                              onChange={(e) => setSettings({...settings, chatLogs: {...settings.chatLogs, maxHistory: parseInt(e.target.value)}})}
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-2 focus:outline-none font-bold"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={saveSettings}
+                        className={\`w-full px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                        style={{background: settingsSaved ? 'linear-gradient(to right, #10b981, #059669)' : \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                      >
+                        <Settings />
+                        {settingsSaved ? '✓ SETTINGS SAVED!' : 'SAVE ALL SETTINGS'}
+                      </button>
                     </div>
                   </div>
                 )}
@@ -825,7 +1490,11 @@ app.get("/control", (req, res) => {
                       <Activity />
                       LIVE LOGS
                     </h2>
-                    <button className={\`p-2 rounded-xl transition-all \${theme.animations ? 'hover:scale-110' : ''}\`} style={{backgroundColor: 'rgba(255,255,255,0.1)'}}>
+                    <button 
+                      onClick={() => setLogs([])}
+                      className={\`p-2 rounded-xl transition-all \${theme.animations ? 'hover:scale-110' : ''}\`} 
+                      style={{backgroundColor: 'rgba(255,255,255,0.1)'}}
+                    >
                       <RefreshCw />
                     </button>
                   </div>
@@ -893,6 +1562,27 @@ app.post("/api/theme", (req, res) => {
       time: new Date().toLocaleTimeString(),
       type: 'success',
       msg: 'Panel theme customization saved'
+    });
+    res.json({ success: true });
+  } else {
+    res.status(400).json({ success: false });
+  }
+});
+
+// API endpoint to get/set bot settings
+app.get("/api/settings", (req, res) => {
+  res.json(botSettings);
+});
+
+app.post("/api/settings", (req, res) => {
+  const newSettings = req.body;
+  if (newSettings) {
+    botSettings = { ...botSettings, ...newSettings };
+    console.log("⚙️ Bot settings updated");
+    io.emit('bot-log', {
+      time: new Date().toLocaleTimeString(),
+      type: 'success',
+      msg: 'Bot settings configuration saved'
     });
     res.json({ success: true });
   } else {
@@ -1097,6 +1787,63 @@ function createBot() {
     
     if (!msg.startsWith("Guild >")) return;
 
+    // Check chat filter
+    if (botSettings.chatFilter.enabled && botSettings.chatFilter.keywords.length > 0) {
+      const msgLower = msg.toLowerCase();
+      const hasKeyword = botSettings.chatFilter.keywords.some(k => 
+        k && msgLower.includes(k.toLowerCase())
+      );
+      
+      if (botSettings.chatFilter.filterMode === 'blacklist' && hasKeyword) {
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'info',
+          msg: `Message filtered (blacklist): ${msg.substring(0, 50)}...`
+        });
+        return;
+      }
+      
+      if (botSettings.chatFilter.filterMode === 'whitelist' && !hasKeyword) {
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'info',
+          msg: `Message filtered (whitelist): ${msg.substring(0, 50)}...`
+        });
+        return;
+      }
+    }
+
+    // Check auto responses
+    if (botSettings.autoResponses.enabled) {
+      for (const resp of botSettings.autoResponses.responses) {
+        if (resp.trigger && msg.toLowerCase().includes(resp.trigger.toLowerCase())) {
+          await sleep(resp.delay || 1000);
+          bot.chat(resp.response);
+          io.emit('bot-log', {
+            time: new Date().toLocaleTimeString(),
+            type: 'info',
+            msg: `Auto response triggered: ${resp.trigger}`
+          });
+          break;
+        }
+      }
+    }
+
+    // Check custom commands
+    for (const cmd of botSettings.customCommands) {
+      if (cmd.name && msg.toLowerCase().includes(cmd.name.toLowerCase())) {
+        commandCount++;
+        await sleep(botSettings.performance.messageDelay);
+        bot.chat(cmd.response);
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'command',
+          msg: `Custom command executed: ${cmd.name}`
+        });
+        return;
+      }
+    }
+
     // === !ask command (ChatGPT) ===
     if (msg.toLowerCase().includes("!ask")) {
       const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!ask\s+(.+)/i);
@@ -1112,8 +1859,8 @@ function createBot() {
         const lastUsed = askCooldowns[username] || 0;
         const timePassed = now - lastUsed;
 
-        if (timePassed < ASK_COOLDOWN_MS) {
-          const secondsLeft = Math.ceil((ASK_COOLDOWN_MS - timePassed) / 1000);
+        if (timePassed < (botSettings.commandCooldown * 1000)) {
+          const secondsLeft = Math.ceil(((botSettings.commandCooldown * 1000) - timePassed) / 1000);
           bot.chat(`${username}, you must wait ${secondsLeft}s before using "ask" command again.`);
           io.emit('bot-log', {
             time: new Date().toLocaleTimeString(),
@@ -1143,7 +1890,7 @@ function createBot() {
             },
             { role: "user", content: userMessage }
           ],
-          max_tokens: 100,
+          max_tokens: botSettings.maxTokens,
         });
 
         let reply = completion.choices[0].message.content.trim();
@@ -1167,7 +1914,7 @@ function createBot() {
               type: 'success',
               msg: `GPT reply: ${chunk.substring(0, 50)}...`
             });
-            await sleep(1000);
+            await sleep(botSettings.performance.messageDelay);
           }
         }
 
@@ -1185,6 +1932,8 @@ function createBot() {
 
     // === Welcome message ===
     if (msg.includes("joined.")) {
+      if (!botSettings.welcomeMessages) return;
+      
       const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}) joined\./);
       if (match) {
         const username = match[1];
@@ -1209,6 +1958,14 @@ function createBot() {
             msg: `Welcome message sent to ${username}`
           });
         }
+
+        if (botSettings.notifications.onJoin) {
+          io.emit('bot-log', {
+            time: new Date().toLocaleTimeString(),
+            type: 'success',
+            msg: `Player joined: ${username}`
+          });
+        }
       }
       return;
     }
@@ -1222,7 +1979,7 @@ function createBot() {
       commandCount++;
 
       if (ign.toLowerCase() === "relaquent") {
-        await sleep(300);
+        await sleep(botSettings.performance.messageDelay);
         const specialMsg = "Relaquent | Star: 3628 | FKDR: 48.72 | KD: 2.32 | WL: 2.86";
         bot.chat(specialMsg);
         io.emit('bot-log', {
@@ -1233,7 +1990,7 @@ function createBot() {
         return;
       }
 
-      await sleep(300);
+      await sleep(botSettings.performance.messageDelay);
       try {
         const stats = await getPlayerStats(ign);
         const line = `${ign} | Star: ${stats.star} | FKDR: ${stats.fkdr} | KD: ${stats.kd} | WL: ${stats.wl}`;
@@ -1261,7 +2018,7 @@ function createBot() {
       const ign = match[1];
       
       commandCount++;
-      await sleep(300);
+      await sleep(botSettings.performance.messageDelay);
 
       try {
         const stats = await getPlayerStats(ign);
@@ -1290,7 +2047,7 @@ function createBot() {
       const ign = match[1];
       
       commandCount++;
-      await sleep(300);
+      await sleep(botSettings.performance.messageDelay);
 
       const playerObj = bot.players[ign];
       if (playerObj && typeof playerObj.ping === "number") {
@@ -1311,7 +2068,7 @@ function createBot() {
     // === !when command (Castle countdown) ===
     if (msg.toLowerCase().includes("!when")) {
       commandCount++;
-      await sleep(300);
+      await sleep(botSettings.performance.messageDelay);
 
       const firstEvent = new Date("2025-11-22T00:00:00Z");
       const cycleDays = 56;
@@ -1349,8 +2106,8 @@ function createBot() {
     // === !about command ===
     if (msg.toLowerCase().includes("!about")) {
       commandCount++;
-      await sleep(300);
-      const aboutMsg = "RumoniumGC is automated by Relaquent, v1.2.0 - Last Update 15/11/25";
+      await sleep(botSettings.performance.messageDelay);
+      const aboutMsg = "RumoniumGC is automated by Relaquent, v2.0 - Last Update 15/11/25";
       bot.chat(aboutMsg);
       io.emit('bot-log', {
         time: new Date().toLocaleTimeString(),
@@ -1363,9 +2120,9 @@ function createBot() {
     // === !help command ===
     if (msg.toLowerCase().includes("!help")) {
       commandCount++;
-      await sleep(300);
+      await sleep(botSettings.performance.messageDelay);
       const helpMsg = [
-        "----- RumoniumGC v1.2.0 -----",
+        "----- RumoniumGC v2.0 -----",
         "bw <user> → Shows Bedwars stats.",
         "stats <user> → Shows detailed stats.",
         "when → Next Castle date.",
@@ -1385,6 +2142,16 @@ function createBot() {
       });
       return;
     }
+
+    if (botSettings.notifications.onCommand) {
+      if (msg.includes("!")) {
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'info',
+          msg: `Command detected in message`
+        });
+      }
+    }
   });
 
   bot.on("kicked", (reason) => {
@@ -1395,7 +2162,10 @@ function createBot() {
       type: 'error',
       msg: `Kicked from server: ${reason}`
     });
-    setTimeout(createBot, 10000);
+    
+    if (botSettings.autoReconnect) {
+      setTimeout(createBot, botSettings.performance.autoReconnectDelay);
+    }
   });
 
   bot.on("end", () => {
@@ -1404,9 +2174,21 @@ function createBot() {
     io.emit('bot-log', {
       time: new Date().toLocaleTimeString(),
       type: 'info',
-      msg: 'Disconnected, reconnecting in 10s...'
+      msg: `Disconnected, reconnecting in ${botSettings.performance.autoReconnectDelay / 1000}s...`
     });
-    setTimeout(createBot, 10000);
+    
+    if (botSettings.autoReconnect) {
+      setTimeout(createBot, botSettings.performance.autoReconnectDelay);
+    }
+  });
+
+  bot.on("error", (err) => {
+    console.error("❌ Bot error:", err.message);
+    io.emit('bot-log', {
+      time: new Date().toLocaleTimeString(),
+      type: 'error',
+      msg: `Bot error: ${err.message}`
+    });
   });
 }
 
