@@ -896,7 +896,7 @@ app.get("/control", (req, res) => {
         const url = URL.createObjectURL(dataBlob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = \`chat-logs-\${new Date().toISOString()}.json\`;
+        link.download = %%BACKTICK%%chat-logs-\${new Date().toISOString()}.json%%BACKTICK%%;
         link.click();
       };
 
@@ -1039,10 +1039,10 @@ app.get("/control", (req, res) => {
       ];
 
       return (
-        <div className={\`min-h-screen text-white p-4 md:p-6 overflow-hidden relative \${
+        <div className={%%BACKTICK%%min-h-screen text-white p-4 md:p-6 overflow-hidden relative \${
           theme.bgStyle === 'gradient' ? 'bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950' :
           theme.bgStyle === 'solid' ? 'bg-slate-950' : 'bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950'
-        }\`}>
+        }%%BACKTICK%%}>
           {/* Ultra Animated Background */}
           {theme.animations && (
             <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -1055,23 +1055,23 @@ app.get("/control", (req, res) => {
           <div className="max-w-[1900px] mx-auto relative z-10">
             {/* Ultra Premium Header */}
             <div className="mb-6 animate-fade-in">
-              <div className={\`\${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-8 \${theme.animations ? 'animate-glow-pulse' : ''}\`}>
+              <div className={%%BACKTICK%%\${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-8 \${theme.animations ? 'animate-glow-pulse' : ''}%%BACKTICK%%}>
                 <div className="flex items-center justify-between mb-6">
                   <div className="flex items-center gap-6">
-                    <div className={\`w-20 h-20 rounded-2xl flex items-center justify-center \${theme.animations ? 'animate-gradient-xy' : ''}\`} style={{background: \`linear-gradient(135deg, \${theme.primaryColor}, \${theme.accentColor}, \${theme.secondaryColor})\`}}>
+                    <div className={%%BACKTICK%%w-20 h-20 rounded-2xl flex items-center justify-center \${theme.animations ? 'animate-gradient-xy' : ''}%%BACKTICK%%} style={{background: %%BACKTICK%%linear-gradient(135deg, \${theme.primaryColor}, \${theme.accentColor}, \${theme.secondaryColor})%%BACKTICK%%}}>
                       <Terminal className="w-10 h-10" />
                     </div>
                     <div>
-                      <h1 className={\`text-6xl font-black bg-clip-text text-transparent \${theme.animations ? 'animate-gradient-x' : ''}\`} style={{backgroundImage: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.accentColor}, \${theme.secondaryColor}, \${theme.primaryColor})\`, backgroundSize: '200% 200%'}}>
+                      <h1 className={%%BACKTICK%%text-6xl font-black bg-clip-text text-transparent \${theme.animations ? 'animate-gradient-x' : ''}%%BACKTICK%%} style={{backgroundImage: %%BACKTICK%%linear-gradient(to right, \${theme.primaryColor}, \${theme.accentColor}, \${theme.secondaryColor}, \${theme.primaryColor})%%BACKTICK%%, backgroundSize: '200% 200%'}}>
                         RumoniumGC
                       </h1>
                       <p className="text-gray-400 font-bold text-lg mt-1">Ultra Premium Control Center v3.0</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className={\`\${theme.glassEffect ? 'glass-strong' : 'bg-slate-900/50'} rounded-2xl px-8 py-4 flex items-center gap-4\`}>
+                    <div className={%%BACKTICK%%\${theme.glassEffect ? 'glass-strong' : 'bg-slate-900/50'} rounded-2xl px-8 py-4 flex items-center gap-4%%BACKTICK%%}>
                       <div className="relative">
-                        <div className={\`w-4 h-4 rounded-full \${botStatus === 'online' ? 'bg-green-400' : 'bg-red-400'} \${theme.animations ? 'animate-scale-pulse' : ''}\`}></div>
+                        <div className={%%BACKTICK%%w-4 h-4 rounded-full \${botStatus === 'online' ? 'bg-green-400' : 'bg-red-400'} \${theme.animations ? 'animate-scale-pulse' : ''}%%BACKTICK%%}></div>
                         {botStatus === 'online' && theme.animations && (
                           <>
                             <div className="absolute inset-0 w-4 h-4 rounded-full bg-green-400 animate-pulse-ring"></div>
@@ -1083,8 +1083,8 @@ app.get("/control", (req, res) => {
                     </div>
                     <button 
                       onClick={() => setBotStatus(botStatus === 'online' ? 'offline' : 'online')}
-                      className={\`btn-premium px-10 py-4 rounded-2xl font-black transition-all duration-300 flex items-center gap-3 text-lg\`}
-                      style={{background: \`linear-gradient(135deg, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                      className={%%BACKTICK%%btn-premium px-10 py-4 rounded-2xl font-black transition-all duration-300 flex items-center gap-3 text-lg%%BACKTICK%%}
+                      style={{background: %%BACKTICK%%linear-gradient(135deg, \${theme.primaryColor}, \${theme.secondaryColor})%%BACKTICK%%}}
                     >
                       <Power />
                       TOGGLE
@@ -1095,17 +1095,17 @@ app.get("/control", (req, res) => {
                 {/* Ultra Modern Stats Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
-                    { Icon: Clock, label: 'UPTIME', value: stats.uptime, gradient: \`linear-gradient(135deg, \${theme.primaryColor}, \${theme.accentColor})\`, delay: '0s' },
-                    { Icon: Zap, label: 'COMMANDS', value: stats.commands, gradient: \`linear-gradient(135deg, \${theme.secondaryColor}, \${theme.primaryColor})\`, delay: '0.1s' },
-                    { Icon: MessageSquare, label: 'MESSAGES', value: stats.messages, gradient: \`linear-gradient(135deg, \${theme.accentColor}, \${theme.primaryColor})\`, delay: '0.2s' },
-                    { Icon: Users, label: 'USERS', value: stats.users, gradient: \`linear-gradient(135deg, \${theme.secondaryColor}, \${theme.accentColor})\`, delay: '0.3s' }
+                    { Icon: Clock, label: 'UPTIME', value: stats.uptime, gradient: %%BACKTICK%%linear-gradient(135deg, \${theme.primaryColor}, \${theme.accentColor})%%BACKTICK%%, delay: '0s' },
+                    { Icon: Zap, label: 'COMMANDS', value: stats.commands, gradient: %%BACKTICK%%linear-gradient(135deg, \${theme.secondaryColor}, \${theme.primaryColor})%%BACKTICK%%, delay: '0.1s' },
+                    { Icon: MessageSquare, label: 'MESSAGES', value: stats.messages, gradient: %%BACKTICK%%linear-gradient(135deg, \${theme.accentColor}, \${theme.primaryColor})%%BACKTICK%%, delay: '0.2s' },
+                    { Icon: Users, label: 'USERS', value: stats.users, gradient: %%BACKTICK%%linear-gradient(135deg, \${theme.secondaryColor}, \${theme.accentColor})%%BACKTICK%%, delay: '0.3s' }
                   ].map((stat, idx) => (
                     <div 
                       key={idx}
-                      className={\`stat-card \${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 hover-lift group cursor-pointer\`}
+                      className={%%BACKTICK%%stat-card \${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 hover-lift group cursor-pointer%%BACKTICK%%}
                       style={theme.animations ? {animationDelay: stat.delay} : {}}
                     >
-                      <div className={\`w-16 h-16 rounded-xl flex items-center justify-center mb-4 \${theme.animations ? 'group-hover:scale-110 group-hover:rotate-3' : ''} transition-all duration-300\`} style={{background: stat.gradient}}>
+                      <div className={%%BACKTICK%%w-16 h-16 rounded-xl flex items-center justify-center mb-4 \${theme.animations ? 'group-hover:scale-110 group-hover:rotate-3' : ''} transition-all duration-300%%BACKTICK%%} style={{background: stat.gradient}}>
                         <stat.Icon />
                       </div>
                       <div className="text-4xl font-black mb-2">{stat.value}</div>
@@ -1117,7 +1117,7 @@ app.get("/control", (req, res) => {
             </div>
 
             {/* Ultra Modern Navigation */}
-            <div className={\`\${theme.glassEffect ? 'glass-strong' : 'bg-slate-900/80'} rounded-3xl p-2 mb-6 flex gap-2 overflow-x-auto relative\`}>
+            <div className={%%BACKTICK%%\${theme.glassEffect ? 'glass-strong' : 'bg-slate-900/80'} rounded-3xl p-2 mb-6 flex gap-2 overflow-x-auto relative%%BACKTICK%%}>
               {[
                 { id: 'chat', Icon: Monitor, label: 'Live Chat', color: '#10b981' },
                 { id: 'commands', Icon: Terminal, label: 'Commands', color: theme.primaryColor },
@@ -1129,12 +1129,12 @@ app.get("/control", (req, res) => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={\`flex-1 min-w-[140px] flex items-center justify-center gap-3 px-6 py-5 rounded-2xl font-black transition-all duration-300 relative overflow-hidden group \${
+                  className={%%BACKTICK%%flex-1 min-w-[140px] flex items-center justify-center gap-3 px-6 py-5 rounded-2xl font-black transition-all duration-300 relative overflow-hidden group \${
                     activeTab === tab.id ? '' : 'hover:bg-white/5'
-                  }\`}
+                  }%%BACKTICK%%}
                   style={activeTab === tab.id ? {
-                    background: \`linear-gradient(135deg, \${tab.color}dd, \${tab.color})\`, 
-                    boxShadow: \`0 20px 60px \${tab.color}40\`
+                    background: %%BACKTICK%%linear-gradient(135deg, \${tab.color}dd, \${tab.color})%%BACKTICK%%, 
+                    boxShadow: %%BACKTICK%%0 20px 60px \${tab.color}40%%BACKTICK%%
                   } : {}}
                 >
                   {theme.animations && activeTab !== tab.id && (
@@ -1154,7 +1154,7 @@ app.get("/control", (req, res) => {
               {/* Main Content */}
               <div className="lg:col-span-2 space-y-6">
                 {activeTab === 'chat' && (
-                  <div className={\`\${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl overflow-hidden animate-fade-in hover-lift\`}>
+                  <div className={%%BACKTICK%%\${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl overflow-hidden animate-fade-in hover-lift%%BACKTICK%%}>
                     <div className="p-6 border-b border-white/10">
                       <div className="flex items-center justify-between mb-4">
                         <h2 className="text-3xl font-black flex items-center gap-3" style={{color: '#10b981'}}>
@@ -1164,13 +1164,13 @@ app.get("/control", (req, res) => {
                         <div className="flex items-center gap-3">
                           <button
                             onClick={() => setFilterActive(!filterActive)}
-                            className={\`p-3 rounded-xl transition-all \${filterActive ? 'bg-green-500/20 text-green-400 neon-glow' : 'bg-white/5'} \${theme.animations ? 'hover-scale' : ''}\`}
+                            className={%%BACKTICK%%p-3 rounded-xl transition-all \${filterActive ? 'bg-green-500/20 text-green-400 neon-glow' : 'bg-white/5'} \${theme.animations ? 'hover-scale' : ''}%%BACKTICK%%}
                           >
                             <Filter />
                           </button>
                           <button
                             onClick={exportChatLogs}
-                            className={\`p-3 rounded-xl bg-white/5 transition-all \${theme.animations ? 'hover-scale' : ''}\`}
+                            className={%%BACKTICK%%p-3 rounded-xl bg-white/5 transition-all \${theme.animations ? 'hover-scale' : ''}%%BACKTICK%%}
                           >
                             <Download />
                           </button>
@@ -1185,7 +1185,7 @@ app.get("/control", (req, res) => {
                           onChange={(e) => setChatSearch(e.target.value)}
                           placeholder="Search messages..."
                           className="w-full bg-black/40 border-2 rounded-2xl px-6 py-4 pl-14 focus:outline-none transition-all font-medium placeholder-gray-500 input-glow"
-                          style={{borderColor: \`\${theme.primaryColor}40\`}}
+                          style={{borderColor: %%BACKTICK%%\${theme.primaryColor}40%%BACKTICK%%}}
                         />
                         <div className="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400">
                           <Search />
@@ -1209,7 +1209,7 @@ app.get("/control", (req, res) => {
                       {filteredChat.length === 0 ? (
                         <div className="flex items-center justify-center h-full text-gray-500">
                           <div className="text-center">
-                            <Monitor className={\`w-20 h-20 mx-auto mb-4 opacity-30 \${theme.animations ? 'animate-bounce-soft' : ''}\`} />
+                            <Monitor className={%%BACKTICK%%w-20 h-20 mx-auto mb-4 opacity-30 \${theme.animations ? 'animate-bounce-soft' : ''}%%BACKTICK%%} />
                             <p className="font-bold text-lg">{chatSearch ? 'No messages found' : 'Waiting for messages...'}</p>
                           </div>
                         </div>
@@ -1222,13 +1222,13 @@ app.get("/control", (req, res) => {
                           return (
                             <div
                               key={idx}
-                              className={\`chat-bubble minecraft-message text-sm rounded-xl px-5 py-4 border-l-4 transition-all \${
+                              className={%%BACKTICK%%chat-bubble minecraft-message text-sm rounded-xl px-5 py-4 border-l-4 transition-all \${
                                 isCommand ? 'bg-blue-500/10 border-blue-500 hover:bg-blue-500/20' :
                                 isJoin ? 'bg-green-500/10 border-green-500 hover:bg-green-500/20' :
                                 isLeave ? 'bg-red-500/10 border-red-500 hover:bg-red-500/20' :
                                 'bg-black/50 border-purple-500/40 hover:bg-black/70'
-                              } \${theme.animations ? 'animate-slide-up' : ''}\`}
-                              style={theme.animations ? {animationDelay: \`${idx * 0.02}s\`} : {}}
+                              } \${theme.animations ? 'animate-slide-up' : ''}%%BACKTICK%%}
+                              style={theme.animations ? {animationDelay: %%BACKTICK%%${idx * 0.02}s%%BACKTICK%%} : {}}
                             >
                               <div className="flex items-center justify-between">
                                 <div className="flex-1">
@@ -1256,12 +1256,12 @@ app.get("/control", (req, res) => {
                             onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                             placeholder="Type your message..."
                             className="flex-1 bg-black/40 border-2 rounded-2xl px-6 py-4 focus:outline-none transition-all font-medium placeholder-gray-500 input-glow"
-                            style={{borderColor: \`${theme.primaryColor}40\`}}
+                            style={{borderColor: %%BACKTICK%%${theme.primaryColor}40%%BACKTICK%%}}
                           />
                           <button
                             onClick={sendMessage}
-                            className={\`btn-premium px-10 py-4 rounded-2xl font-black transition-all duration-300 flex items-center gap-3 text-lg ${theme.animations ? 'hover:scale-105' : ''}\`}
-                            style={{background: \`linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})\`}}
+                            className={%%BACKTICK%%btn-premium px-10 py-4 rounded-2xl font-black transition-all duration-300 flex items-center gap-3 text-lg ${theme.animations ? 'hover:scale-105' : ''}%%BACKTICK%%}
+                            style={{background: %%BACKTICK%%linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})%%BACKTICK%%}}
                           >
                             <Send />
                             SEND
@@ -1272,8 +1272,8 @@ app.get("/control", (req, res) => {
                             <button
                               key={quick}
                               onClick={() => setMessage(quick)}
-                              className={\`${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-xl px-4 py-3 text-sm font-bold transition-all border border-white/10 ${theme.animations ? 'hover-scale' : ''}\`}
-                              style={theme.animations ? {animationDelay: \`${idx * 0.1}s\`} : {}}
+                              className={%%BACKTICK%%${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-xl px-4 py-3 text-sm font-bold transition-all border border-white/10 ${theme.animations ? 'hover-scale' : ''}%%BACKTICK%%}
+                              style={theme.animations ? {animationDelay: %%BACKTICK%%${idx * 0.1}s%%BACKTICK%%} : {}}
                             >
                               {quick}
                             </button>
@@ -1287,8 +1287,8 @@ app.get("/control", (req, res) => {
                 {activeTab === 'commands' && (
                   <div className="space-y-6 animate-fade-in">
                     {/* Quick Commands */}
-                    <div className={\`${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 hover-lift\`}>
-                      <h2 className="text-3xl font-black mb-6 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, ${theme.primaryColor}, ${theme.accentColor})\`}}>
+                    <div className={%%BACKTICK%%${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 hover-lift%%BACKTICK%%}>
+                      <h2 className="text-3xl font-black mb-6 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: %%BACKTICK%%linear-gradient(to right, ${theme.primaryColor}, ${theme.accentColor})%%BACKTICK%%}}>
                         <Terminal />
                         QUICK COMMANDS
                       </h2>
@@ -1304,10 +1304,10 @@ app.get("/control", (req, res) => {
                           <button
                             key={item.cmd}
                             onClick={() => executeCommand(item.cmd)}
-                            className={\`${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 text-left transition-all group border border-white/10 hover-lift\`}
-                            style={theme.animations ? {animationDelay: \`${idx * 0.05}s\`} : {}}
+                            className={%%BACKTICK%%${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 text-left transition-all group border border-white/10 hover-lift%%BACKTICK%%}
+                            style={theme.animations ? {animationDelay: %%BACKTICK%%${idx * 0.05}s%%BACKTICK%%} : {}}
                           >
-                            <div className="inline-block px-4 py-2 rounded-lg font-mono font-black text-sm mb-3" style={{backgroundColor: \`${item.color}30\`, color: item.color}}>
+                            <div className="inline-block px-4 py-2 rounded-lg font-mono font-black text-sm mb-3" style={{backgroundColor: %%BACKTICK%%${item.color}30%%BACKTICK%%, color: item.color}}>
                               {item.cmd}
                             </div>
                             <div className="text-sm text-gray-400 font-medium">{item.desc}</div>
@@ -1317,7 +1317,7 @@ app.get("/control", (req, res) => {
                     </div>
 
                     {/* Custom Commands Manager */}
-                    <div className={\`${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 hover-lift\`}>
+                    <div className={%%BACKTICK%%${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 hover-lift%%BACKTICK%%}>
                       <div className="flex items-center justify-between mb-6">
                         <h2 className="text-3xl font-black flex items-center gap-3" style={{color: theme.secondaryColor}}>
                           <Command />
@@ -1325,8 +1325,8 @@ app.get("/control", (req, res) => {
                         </h2>
                         <button
                           onClick={addCustomCommand}
-                          className={\`btn-premium px-6 py-3 rounded-2xl font-black transition-all duration-300 flex items-center gap-2 ${theme.animations ? 'hover:scale-105' : ''}\`}
-                          style={{background: \`linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})\`}}
+                          className={%%BACKTICK%%btn-premium px-6 py-3 rounded-2xl font-black transition-all duration-300 flex items-center gap-2 ${theme.animations ? 'hover:scale-105' : ''}%%BACKTICK%%}
+                          style={{background: %%BACKTICK%%linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})%%BACKTICK%%}}
                         >
                           <Plus />
                           NEW COMMAND
@@ -1335,7 +1335,7 @@ app.get("/control", (req, res) => {
 
                       {settings.customCommands.length === 0 ? (
                         <div className="text-center py-16 text-gray-500">
-                          <Command className={\`w-24 h-24 mx-auto mb-6 opacity-20 ${theme.animations ? 'animate-bounce-soft' : ''}\`} />
+                          <Command className={%%BACKTICK%%w-24 h-24 mx-auto mb-6 opacity-20 ${theme.animations ? 'animate-bounce-soft' : ''}%%BACKTICK%%} />
                           <p className="font-bold text-xl mb-2">No custom commands yet</p>
                           <p className="text-sm">Create your first custom command to get started!</p>
                         </div>
@@ -1344,11 +1344,11 @@ app.get("/control", (req, res) => {
                           {settings.customCommands.map((cmd, index) => (
                             <div 
                               key={index} 
-                              className={\`command-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}
+                              className={%%BACKTICK%%command-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10%%BACKTICK%%}
                             >
                               <div className="flex items-start justify-between mb-3">
                                 <div className="flex items-center gap-4 flex-1">
-                                  <div className={\`w-12 h-12 rounded-xl flex items-center justify-center font-black text-xl ${cmd.enabled ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-500'}\`}>
+                                  <div className={%%BACKTICK%%w-12 h-12 rounded-xl flex items-center justify-center font-black text-xl ${cmd.enabled ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-500'}%%BACKTICK%%}>
                                     {cmd.enabled ? <Check /> : <X />}
                                   </div>
                                   <div className="flex-1">
@@ -1369,7 +1369,7 @@ app.get("/control", (req, res) => {
                                 <div className="flex items-center gap-2">
                                   <button
                                     onClick={() => toggleCommandEnabled(index)}
-                                    className={\`p-2 rounded-xl transition-all ${cmd.enabled ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30'}\`}
+                                    className={%%BACKTICK%%p-2 rounded-xl transition-all ${cmd.enabled ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30'}%%BACKTICK%%}
                                     title={cmd.enabled ? 'Disable' : 'Enable'}
                                   >
                                     <Power />
@@ -1406,7 +1406,7 @@ app.get("/control", (req, res) => {
                     {/* Command Creation Modal */}
                     {showCommandModal && (
                       <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-                        <div className={\`${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900'} rounded-3xl p-8 max-w-2xl w-full border-2 ${theme.animations ? 'animate-slide-up' : ''}\`} style={{borderColor: \`${theme.primaryColor}40\`}}>
+                        <div className={%%BACKTICK%%${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900'} rounded-3xl p-8 max-w-2xl w-full border-2 ${theme.animations ? 'animate-slide-up' : ''}%%BACKTICK%%} style={{borderColor: %%BACKTICK%%${theme.primaryColor}40%%BACKTICK%%}}>
                           <div className="flex items-center justify-between mb-6">
                             <h3 className="text-3xl font-black flex items-center gap-3" style={{color: theme.primaryColor}}>
                               <Command />
@@ -1432,7 +1432,7 @@ app.get("/control", (req, res) => {
                                 onChange={(e) => setNewCommand({...newCommand, name: e.target.value})}
                                 placeholder="e.g., !mycommand"
                                 className="w-full bg-black/40 border-2 rounded-xl px-5 py-3 focus:outline-none font-mono font-bold input-glow"
-                                style={{borderColor: \`${theme.primaryColor}40\`}}
+                                style={{borderColor: %%BACKTICK%%${theme.primaryColor}40%%BACKTICK%%}}
                               />
                               <p className="text-xs text-gray-500 mt-2 font-medium">Use ! prefix for commands (e.g., !help, !discord)</p>
                             </div>
@@ -1448,7 +1448,7 @@ app.get("/control", (req, res) => {
                                 onChange={(e) => setNewCommand({...newCommand, description: e.target.value})}
                                 placeholder="Brief description of what this command does"
                                 className="w-full bg-black/40 border-2 rounded-xl px-5 py-3 focus:outline-none font-medium input-glow"
-                                style={{borderColor: \`${theme.primaryColor}40\`}}
+                                style={{borderColor: %%BACKTICK%%${theme.primaryColor}40%%BACKTICK%%}}
                               />
                             </div>
 
@@ -1463,7 +1463,7 @@ app.get("/control", (req, res) => {
                                 placeholder="The message the bot will send when this command is triggered"
                                 rows="4"
                                 className="w-full bg-black/40 border-2 rounded-xl px-5 py-3 focus:outline-none font-medium custom-scrollbar resize-none input-glow"
-                                style={{borderColor: \`${theme.primaryColor}40\`}}
+                                style={{borderColor: %%BACKTICK%%${theme.primaryColor}40%%BACKTICK%%}}
                               />
                               <p className="text-xs text-gray-500 mt-2 font-medium">You can use multiple lines. Keep it under 256 characters.</p>
                             </div>
@@ -1484,14 +1484,14 @@ app.get("/control", (req, res) => {
                                   className="flex-1"
                                   style={{accentColor: theme.primaryColor}}
                                 />
-                                <div className="px-5 py-2 rounded-xl font-black text-lg" style={{backgroundColor: \`${theme.primaryColor}20\`, color: theme.primaryColor}}>
+                                <div className="px-5 py-2 rounded-xl font-black text-lg" style={{backgroundColor: %%BACKTICK%%${theme.primaryColor}20%%BACKTICK%%, color: theme.primaryColor}}>
                                   {newCommand.cooldown}s
                                 </div>
                               </div>
                               <p className="text-xs text-gray-500 mt-2 font-medium">Prevents spam by limiting how often this command can be used</p>
                             </div>
 
-                            <div className={\`${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-xl p-4 flex items-center justify-between\`}>
+                            <div className={%%BACKTICK%%${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-xl p-4 flex items-center justify-between%%BACKTICK%%}>
                               <div>
                                 <div className="font-bold">Enable Command</div>
                                 <div className="text-sm text-gray-400 mt-1">Command will be active immediately after saving</div>
@@ -1501,7 +1501,7 @@ app.get("/control", (req, res) => {
                                 className="relative w-16 h-8 rounded-full transition-all"
                                 style={{backgroundColor: newCommand.enabled ? theme.primaryColor : '#374151'}}
                               >
-                                <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${newCommand.enabled ? 'translate-x-8' : ''}\`}></div>
+                                <div className={%%BACKTICK%%absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${newCommand.enabled ? 'translate-x-8' : ''}%%BACKTICK%%}></div>
                               </button>
                             </div>
 
@@ -1515,8 +1515,8 @@ app.get("/control", (req, res) => {
                               <button
                                 onClick={saveCommand}
                                 disabled={!newCommand.name || !newCommand.response}
-                                className={\`flex-1 btn-premium px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed\`}
-                                style={{background: \`linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})\`}}
+                                className={%%BACKTICK%%flex-1 btn-premium px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed%%BACKTICK%%}
+                                style={{background: %%BACKTICK%%linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})%%BACKTICK%%}}
                               >
                                 <Check />
                                 {editingCommand !== null ? 'UPDATE COMMAND' : 'CREATE COMMAND'}
@@ -1530,8 +1530,8 @@ app.get("/control", (req, res) => {
                     {/* Save Settings Button */}
                     <button
                       onClick={saveSettings}
-                      className={\`w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg ${theme.animations ? 'hover:scale-105' : ''}\`}
-                      style={{background: settingsSaved ? 'linear-gradient(135deg, #10b981, #059669)' : \`linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})\`}}
+                      className={%%BACKTICK%%w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg ${theme.animations ? 'hover:scale-105' : ''}%%BACKTICK%%}
+                      style={{background: settingsSaved ? 'linear-gradient(135deg, #10b981, #059669)' : %%BACKTICK%%linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})%%BACKTICK%%}}
                     >
                       <Settings />
                       {settingsSaved ? '✓ COMMANDS SAVED!' : 'SAVE ALL COMMANDS'}
@@ -1540,13 +1540,13 @@ app.get("/control", (req, res) => {
                 )}
 
                 {activeTab === 'gpt' && (
-                  <div className={\`${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in hover-lift\`}>
-                    <h2 className="text-3xl font-black mb-6 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, ${theme.accentColor}, ${theme.primaryColor})\`}}>
+                  <div className={%%BACKTICK%%${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in hover-lift%%BACKTICK%%}>
+                    <h2 className="text-3xl font-black mb-6 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: %%BACKTICK%%linear-gradient(to right, ${theme.accentColor}, ${theme.primaryColor})%%BACKTICK%%}}>
                       <Brain />
                       GPT SYSTEM PROMPT
                     </h2>
                     <div className="space-y-5">
-                      <div className={\`${theme.glassEffect ? 'glass-medium' : 'bg-black/30'} rounded-2xl p-5 border\`} style={{borderColor: \`${theme.primaryColor}30\`}}>
+                      <div className={%%BACKTICK%%${theme.glassEffect ? 'glass-medium' : 'bg-black/30'} rounded-2xl p-5 border%%BACKTICK%%} style={{borderColor: %%BACKTICK%%${theme.primaryColor}30%%BACKTICK%%}}>
                         <div className="flex items-start gap-3">
                           <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-1" />
                           <div>
@@ -1560,13 +1560,13 @@ app.get("/control", (req, res) => {
                         onChange={(e) => setGptPrompt(e.target.value)}
                         rows="14"
                         className="w-full bg-black/40 border-2 rounded-2xl px-6 py-4 focus:outline-none transition-all font-medium custom-scrollbar resize-none input-glow"
-                        style={{borderColor: \`${theme.primaryColor}40\`}}
+                        style={{borderColor: %%BACKTICK%%${theme.primaryColor}40%%BACKTICK%%}}
                         placeholder="Enter system prompt for GPT..."
                       />
                       <button
                         onClick={saveGptPrompt}
-                        className={\`w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg ${theme.animations ? 'hover:scale-105' : ''}\`}
-                        style={{background: promptSaved ? 'linear-gradient(135deg, #10b981, #059669)' : \`linear-gradient(135deg, ${theme.accentColor}, ${theme.primaryColor})\`}}
+                        className={%%BACKTICK%%w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg ${theme.animations ? 'hover:scale-105' : ''}%%BACKTICK%%}
+                        style={{background: promptSaved ? 'linear-gradient(135deg, #10b981, #059669)' : %%BACKTICK%%linear-gradient(135deg, ${theme.accentColor}, ${theme.primaryColor})%%BACKTICK%%}}
                       >
                         <Brain />
                         {promptSaved ? '✓ PROMPT SAVED!' : 'SAVE GPT PROMPT'}
@@ -1578,7 +1578,7 @@ app.get("/control", (req, res) => {
                 {activeTab === 'advanced' && (
                   <div className="space-y-6 animate-fade-in">
                     {/* Chat Filter */}
-                    <div className={\`${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 hover-lift\`}>
+                    <div className={%%BACKTICK%%${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 hover-lift%%BACKTICK%%}>
                       <h2 className="text-3xl font-black mb-6 flex items-center gap-3" style={{color: theme.primaryColor}}>
                         <Filter />
                         CHAT FILTER
@@ -1594,7 +1594,7 @@ app.get("/control", (req, res) => {
                             className="relative w-16 h-8 rounded-full transition-all"
                             style={{backgroundColor: settings.chatFilter.enabled ? theme.primaryColor : '#374151'}}
                           >
-                            <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${settings.chatFilter.enabled ? 'translate-x-8' : ''}\`}></div>
+                            <div className={%%BACKTICK%%absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${settings.chatFilter.enabled ? 'translate-x-8' : ''}%%BACKTICK%%}></div>
                           </button>
                         </div>
 
@@ -1605,8 +1605,8 @@ app.get("/control", (req, res) => {
                               <button
                                 key={mode}
                                 onClick={() => setSettings({...settings, chatFilter: {...settings.chatFilter, filterMode: mode}})}
-                                className={\`px-6 py-4 rounded-xl font-bold transition-all capitalize ${settings.chatFilter.filterMode === mode ? '' : 'bg-white/5'}\`}
-                                style={settings.chatFilter.filterMode === mode ? {background: \`linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})\`} : {}}
+                                className={%%BACKTICK%%px-6 py-4 rounded-xl font-bold transition-all capitalize ${settings.chatFilter.filterMode === mode ? '' : 'bg-white/5'}%%BACKTICK%%}
+                                style={settings.chatFilter.filterMode === mode ? {background: %%BACKTICK%%linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})%%BACKTICK%%} : {}}
                               >
                                 {mode}
                               </button>
@@ -1619,8 +1619,8 @@ app.get("/control", (req, res) => {
                             <label className="block font-bold text-lg">Keywords</label>
                             <button
                               onClick={addFilterKeyword}
-                              className={\`p-2 rounded-xl transition-all ${theme.animations ? 'hover:scale-110' : ''}\`}
-                              style={{background: \`linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})\`}}
+                              className={%%BACKTICK%%p-2 rounded-xl transition-all ${theme.animations ? 'hover:scale-110' : ''}%%BACKTICK%%}
+                              style={{background: %%BACKTICK%%linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})%%BACKTICK%%}}
                             >
                               <Plus />
                             </button>
@@ -1634,7 +1634,7 @@ app.get("/control", (req, res) => {
                                   onChange={(e) => updateFilterKeyword(index, e.target.value)}
                                   placeholder="Enter keyword..."
                                   className="flex-1 bg-black/40 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium input-glow"
-                                  style={{borderColor: \`${theme.primaryColor}40\`}}
+                                  style={{borderColor: %%BACKTICK%%${theme.primaryColor}40%%BACKTICK%%}}
                                 />
                                 <button
                                   onClick={() => removeFilterKeyword(index)}
@@ -1646,7 +1646,7 @@ app.get("/control", (req, res) => {
                             ))}
                             {settings.chatFilter.keywords.length === 0 && (
                               <div className="text-center py-8 text-gray-500">
-                                <Filter className={\`w-16 h-16 mx-auto mb-3 opacity-20 ${theme.animations ? 'animate-bounce-soft' : ''}\`} />
+                                <Filter className={%%BACKTICK%%w-16 h-16 mx-auto mb-3 opacity-20 ${theme.animations ? 'animate-bounce-soft' : ''}%%BACKTICK%%} />
                                 <p className="text-sm font-medium">No keywords added</p>
                               </div>
                             )}
@@ -1656,7 +1656,7 @@ app.get("/control", (req, res) => {
                     </div>
 
                     {/* Auto Responses */}
-                    <div className={\`${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 hover-lift\`}>
+                    <div className={%%BACKTICK%%${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 hover-lift%%BACKTICK%%}>
                       <div className="flex items-center justify-between mb-6">
                         <h2 className="text-3xl font-black flex items-center gap-3" style={{color: theme.accentColor}}>
                           <Zap />
@@ -1664,8 +1664,8 @@ app.get("/control", (req, res) => {
                         </h2>
                         <button
                           onClick={addAutoResponse}
-                          className={\`btn-premium p-3 rounded-xl transition-all ${theme.animations ? 'hover:scale-110' : ''}\`}
-                          style={{background: \`linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})\`}}
+                          className={%%BACKTICK%%btn-premium p-3 rounded-xl transition-all ${theme.animations ? 'hover:scale-110' : ''}%%BACKTICK%%}
+                          style={{background: %%BACKTICK%%linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})%%BACKTICK%%}}
                         >
                           <Plus />
                         </button>
@@ -1680,12 +1680,12 @@ app.get("/control", (req, res) => {
                           className="relative w-16 h-8 rounded-full transition-all"
                           style={{backgroundColor: settings.autoResponses.enabled ? theme.primaryColor : '#374151'}}
                         >
-                          <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${settings.autoResponses.enabled ? 'translate-x-8' : ''}\`}></div>
+                          <div className={%%BACKTICK%%absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${settings.autoResponses.enabled ? 'translate-x-8' : ''}%%BACKTICK%%}></div>
                         </button>
                       </div>
                       <div className="space-y-3">
                         {settings.autoResponses.responses.map((resp, index) => (
-                          <div key={index} className={\`${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10 space-y-3\`}>
+                          <div key={index} className={%%BACKTICK%%${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10 space-y-3%%BACKTICK%%}>
                             <div className="flex items-center justify-between">
                               <div className="font-bold text-lg">Response #{index + 1}</div>
                               <button
@@ -1701,7 +1701,7 @@ app.get("/control", (req, res) => {
                               onChange={(e) => updateAutoResponse(index, 'trigger', e.target.value)}
                               placeholder="Trigger word"
                               className="w-full bg-black/40 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium input-glow"
-                              style={{borderColor: \`${theme.primaryColor}40\`}}
+                              style={{borderColor: %%BACKTICK%%${theme.primaryColor}40%%BACKTICK%%}}
                             />
                             <input
                               type="text"
@@ -1709,7 +1709,7 @@ app.get("/control", (req, res) => {
                               onChange={(e) => updateAutoResponse(index, 'response', e.target.value)}
                               placeholder="Auto response"
                               className="w-full bg-black/40 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium input-glow"
-                              style={{borderColor: \`${theme.primaryColor}40\`}}
+                              style={{borderColor: %%BACKTICK%%${theme.primaryColor}40%%BACKTICK%%}}
                             />
                             <div>
                               <label className="block text-sm font-bold mb-2">Delay (ms)</label>
@@ -1718,7 +1718,7 @@ app.get("/control", (req, res) => {
                                 value={resp.delay}
                                 onChange={(e) => updateAutoResponse(index, 'delay', parseInt(e.target.value) || 0)}
                                 className="w-full bg-black/40 border-2 rounded-xl px-4 py-3 focus:outline-none font-bold input-glow"
-                                style={{borderColor: \`${theme.primaryColor}40\`}}
+                                style={{borderColor: %%BACKTICK%%${theme.primaryColor}40%%BACKTICK%%}}
                               />
                             </div>
                           </div>
@@ -1729,8 +1729,8 @@ app.get("/control", (req, res) => {
                     {/* Save Button */}
                     <button
                       onClick={saveSettings}
-                      className={\`w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg ${theme.animations ? 'hover:scale-105' : ''}\`}
-                      style={{background: settingsSaved ? 'linear-gradient(135deg, #10b981, #059669)' : \`linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})\`}}
+                      className={%%BACKTICK%%w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg ${theme.animations ? 'hover:scale-105' : ''}%%BACKTICK%%}
+                      style={{background: settingsSaved ? 'linear-gradient(135deg, #10b981, #059669)' : %%BACKTICK%%linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})%%BACKTICK%%}}
                     >
                       <Settings />
                       {settingsSaved ? '✓ SETTINGS SAVED!' : 'SAVE ALL SETTINGS'}
@@ -1739,8 +1739,8 @@ app.get("/control", (req, res) => {
                 )}
 
                 {activeTab === 'customize' && (
-                  <div className={\`${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in hover-lift\`}>
-                    <h2 className="text-3xl font-black mb-6 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, ${theme.primaryColor}, ${theme.secondaryColor})\`}}>
+                  <div className={%%BACKTICK%%${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in hover-lift%%BACKTICK%%}>
+                    <h2 className="text-3xl font-black mb-6 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: %%BACKTICK%%linear-gradient(to right, ${theme.primaryColor}, ${theme.secondaryColor})%%BACKTICK%%}}>
                       <Palette />
                       CUSTOMIZE PANEL
                     </h2>
@@ -1756,13 +1756,13 @@ app.get("/control", (req, res) => {
                             <button
                               key={preset.name}
                               onClick={() => setTheme({...theme, primaryColor: preset.primary, secondaryColor: preset.secondary, accentColor: preset.accent})}
-                              className={\`${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-xl p-4 text-left transition-all border border-white/10 hover-lift group\`}
-                              style={theme.animations ? {animationDelay: \`${idx * 0.05}s\`} : {}}
+                              className={%%BACKTICK%%${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-xl p-4 text-left transition-all border border-white/10 hover-lift group%%BACKTICK%%}
+                              style={theme.animations ? {animationDelay: %%BACKTICK%%${idx * 0.05}s%%BACKTICK%%} : {}}
                             >
                               <div className="flex gap-2 mb-3">
-                                <div className={\`w-8 h-8 rounded-full ${theme.animations ? 'group-hover:scale-110' : ''} transition-transform\`} style={{backgroundColor: preset.primary}}></div>
-                                <div className={\`w-8 h-8 rounded-full ${theme.animations ? 'group-hover:scale-110' : ''} transition-transform\`} style={{backgroundColor: preset.secondary, transitionDelay: '0.05s'}}></div>
-                                <div className={\`w-8 h-8 rounded-full ${theme.animations ? 'group-hover:scale-110' : ''} transition-transform\`} style={{backgroundColor: preset.accent, transitionDelay: '0.1s'}}></div>
+                                <div className={%%BACKTICK%%w-8 h-8 rounded-full ${theme.animations ? 'group-hover:scale-110' : ''} transition-transform%%BACKTICK%%} style={{backgroundColor: preset.primary}}></div>
+                                <div className={%%BACKTICK%%w-8 h-8 rounded-full ${theme.animations ? 'group-hover:scale-110' : ''} transition-transform%%BACKTICK%%} style={{backgroundColor: preset.secondary, transitionDelay: '0.05s'}}></div>
+                                <div className={%%BACKTICK%%w-8 h-8 rounded-full ${theme.animations ? 'group-hover:scale-110' : ''} transition-transform%%BACKTICK%%} style={{backgroundColor: preset.accent, transitionDelay: '0.1s'}}></div>
                               </div>
                               <div className="font-bold text-sm">{preset.name}</div>
                             </button>
@@ -1777,7 +1777,7 @@ app.get("/control", (req, res) => {
                           { key: 'secondaryColor', label: 'Secondary Color', icon: '✨' },
                           { key: 'accentColor', label: 'Accent Color', icon: '💫' }
                         ].map((color, idx) => (
-                          <div key={color.key} className={\`${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                          <div key={color.key} className={%%BACKTICK%%${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10%%BACKTICK%%}>
                             <label className="block font-bold text-sm mb-3">{color.icon} {color.label}</label>
                             <div className="relative">
                               <input
@@ -1795,7 +1795,7 @@ app.get("/control", (req, res) => {
                       </div>
 
                       {/* Background Style */}
-                      <div className={\`${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10\`}>
+                      <div className={%%BACKTICK%%${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10%%BACKTICK%%}>
                         <label className="block font-bold text-xl mb-4">Background Style</label>
                         <div className="grid grid-cols-3 gap-3">
                           {[
@@ -1806,8 +1806,8 @@ app.get("/control", (req, res) => {
                             <button
                               key={style.value}
                               onClick={() => setTheme({...theme, bgStyle: style.value})}
-                              className={\`px-4 py-4 rounded-xl font-bold transition-all ${theme.bgStyle === style.value ? '' : 'bg-white/5'}\`}
-                              style={theme.bgStyle === style.value ? {background: \`linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})\`} : {}}
+                              className={%%BACKTICK%%px-4 py-4 rounded-xl font-bold transition-all ${theme.bgStyle === style.value ? '' : 'bg-white/5'}%%BACKTICK%%}
+                              style={theme.bgStyle === style.value ? {background: %%BACKTICK%%linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})%%BACKTICK%%} : {}}
                             >
                               <div className="text-2xl mb-1">{style.icon}</div>
                               <div className="text-sm">{style.label}</div>
@@ -1822,7 +1822,7 @@ app.get("/control", (req, res) => {
                           { key: 'glassEffect', label: 'Glass Effect', desc: 'Frosted glass morphism', icon: '🔮' },
                           { key: 'animations', label: 'Animations', desc: 'Enable smooth animations', icon: '🎭' }
                         ].map(toggle => (
-                          <div key={toggle.key} className={\`setting-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 flex items-center justify-between border border-white/10\`}>
+                          <div key={toggle.key} className={%%BACKTICK%%setting-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 flex items-center justify-between border border-white/10%%BACKTICK%%}>
                             <div className="flex items-center gap-4">
                               <div className="text-3xl">{toggle.icon}</div>
                               <div>
@@ -1832,10 +1832,10 @@ app.get("/control", (req, res) => {
                             </div>
                             <button
                               onClick={() => setTheme({...theme, [toggle.key]: !theme[toggle.key]})}
-                              className={\`relative w-16 h-8 rounded-full transition-all\`}
+                              className={%%BACKTICK%%relative w-16 h-8 rounded-full transition-all%%BACKTICK%%}
                               style={{backgroundColor: theme[toggle.key] ? theme.primaryColor : '#374151'}}
                             >
-                              <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${theme[toggle.key] ? 'translate-x-8' : ''}\`}></div>
+                              <div className={%%BACKTICK%%absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${theme[toggle.key] ? 'translate-x-8' : ''}%%BACKTICK%%}></div>
                             </button>
                           </div>
                         ))}
@@ -1844,8 +1844,8 @@ app.get("/control", (req, res) => {
                       {/* Save Button */}
                       <button
                         onClick={saveTheme}
-                        className={\`w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg ${theme.animations ? 'hover:scale-105' : ''}\`}
-                        style={{background: themeSaved ? 'linear-gradient(135deg, #10b981, #059669)' : \`linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})\`}}
+                        className={%%BACKTICK%%w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg ${theme.animations ? 'hover:scale-105' : ''}%%BACKTICK%%}
+                        style={{background: themeSaved ? 'linear-gradient(135deg, #10b981, #059669)' : %%BACKTICK%%linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})%%BACKTICK%%}}
                       >
                         <Palette />
                         {themeSaved ? '✓ SAVED! RELOADING...' : 'SAVE & APPLY THEME'}
@@ -1855,7 +1855,7 @@ app.get("/control", (req, res) => {
                 )}
 
                 {activeTab === 'settings' && (
-                  <div className={\`${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in hover-lift\`}>
+                  <div className={%%BACKTICK%%${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in hover-lift%%BACKTICK%%}>
                     <h2 className="text-3xl font-black mb-6 flex items-center gap-3" style={{color: theme.secondaryColor}}>
                       <Settings />
                       BOT SETTINGS
@@ -1865,7 +1865,7 @@ app.get("/control", (req, res) => {
                         { key: 'autoReconnect', label: 'Auto Reconnect', desc: 'Automatically reconnect on disconnect', icon: '🔄' },
                         { key: 'welcomeMessages', label: 'Welcome Messages', desc: 'Send welcome messages to new members', icon: '👋' }
                       ].map(setting => (
-                        <div key={setting.key} className={\`setting-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 flex items-center justify-between border border-white/10\`}>
+                        <div key={setting.key} className={%%BACKTICK%%setting-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 flex items-center justify-between border border-white/10%%BACKTICK%%}>
                           <div className="flex items-center gap-4">
                             <div className="text-3xl">{setting.icon}</div>
                             <div>
@@ -1878,12 +1878,12 @@ app.get("/control", (req, res) => {
                             className="relative w-16 h-8 rounded-full transition-all"
                             style={{backgroundColor: settings[setting.key] ? theme.primaryColor : '#374151'}}
                           >
-                            <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${settings[setting.key] ? 'translate-x-8' : ''}\`}></div>
+                            <div className={%%BACKTICK%%absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg ${settings[setting.key] ? 'translate-x-8' : ''}%%BACKTICK%%}></div>
                           </button>
                         </div>
                       ))}
                       
-                      <div className={\`setting-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10\`}>
+                      <div className={%%BACKTICK%%setting-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10%%BACKTICK%%}>
                         <label className="block font-bold text-lg mb-4 flex items-center gap-2">
                           <Clock />
                           Command Cooldown (seconds)
@@ -1899,13 +1899,13 @@ app.get("/control", (req, res) => {
                             className="flex-1"
                             style={{accentColor: theme.primaryColor}}
                           />
-                          <div className="px-6 py-3 rounded-xl font-black text-xl min-w-[80px] text-center" style={{backgroundColor: \`${theme.primaryColor}20\`, color: theme.primaryColor}}>
+                          <div className="px-6 py-3 rounded-xl font-black text-xl min-w-[80px] text-center" style={{backgroundColor: %%BACKTICK%%${theme.primaryColor}20%%BACKTICK%%, color: theme.primaryColor}}>
                             {settings.commandCooldown}s
                           </div>
                         </div>
                       </div>
                       
-                      <div className={\`setting-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10\`}>
+                      <div className={%%BACKTICK%%setting-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10%%BACKTICK%%}>
                         <label className="block font-bold text-lg mb-4 flex items-center gap-2">
                           <Brain />
                           Max GPT Tokens
@@ -1921,14 +1921,14 @@ app.get("/control", (req, res) => {
                             className="flex-1"
                             style={{accentColor: theme.primaryColor}}
                           />
-                          <div className="px-6 py-3 rounded-xl font-black text-xl min-w-[80px] text-center" style={{backgroundColor: \`${theme.primaryColor}20\`, color: theme.primaryColor}}>
+                          <div className="px-6 py-3 rounded-xl font-black text-xl min-w-[80px] text-center" style={{backgroundColor: %%BACKTICK%%${theme.primaryColor}20%%BACKTICK%%, color: theme.primaryColor}}>
                             {settings.maxTokens}
                           </div>
                         </div>
                       </div>
 
                       {/* Notifications */}
-                      <div className={\`setting-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10\`}>
+                      <div className={%%BACKTICK%%setting-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10%%BACKTICK%%}>
                         <h3 className="font-bold text-xl mb-5 flex items-center gap-2">
                           <Bell />
                           Notifications
@@ -1950,7 +1950,7 @@ app.get("/control", (req, res) => {
                                 className="relative w-14 h-7 rounded-full transition-all"
                                 style={{backgroundColor: settings.notifications[notif.key] ? theme.primaryColor : '#374151'}}
                               >
-                                <div className={\`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform shadow-lg ${settings.notifications[notif.key] ? 'translate-x-7' : ''}\`}></div>
+                                <div className={%%BACKTICK%%absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform shadow-lg ${settings.notifications[notif.key] ? 'translate-x-7' : ''}%%BACKTICK%%}></div>
                               </button>
                             </div>
                           ))}
@@ -1958,7 +1958,7 @@ app.get("/control", (req, res) => {
                       </div>
 
                       {/* Performance */}
-                      <div className={\`setting-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10\`}>
+                      <div className={%%BACKTICK%%setting-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10%%BACKTICK%%}>
                         <h3 className="font-bold text-xl mb-5 flex items-center gap-2">
                           <Sliders />
                           Performance
@@ -1971,7 +1971,7 @@ app.get("/control", (req, res) => {
                               value={settings.performance.messageDelay}
                               onChange={(e) => setSettings({...settings, performance: {...settings.performance, messageDelay: parseInt(e.target.value)}})}
                               className="w-full bg-black/40 border-2 rounded-xl px-5 py-3 focus:outline-none font-bold input-glow"
-                              style={{borderColor: \`${theme.primaryColor}40\`}}
+                              style={{borderColor: %%BACKTICK%%${theme.primaryColor}40%%BACKTICK%%}}
                             />
                           </div>
                           <div>
@@ -1981,7 +1981,7 @@ app.get("/control", (req, res) => {
                               value={settings.performance.maxMessagesPerSecond}
                               onChange={(e) => setSettings({...settings, performance: {...settings.performance, maxMessagesPerSecond: parseInt(e.target.value)}})}
                               className="w-full bg-black/40 border-2 rounded-xl px-5 py-3 focus:outline-none font-bold input-glow"
-                              style={{borderColor: \`${theme.primaryColor}40\`}}
+                              style={{borderColor: %%BACKTICK%%${theme.primaryColor}40%%BACKTICK%%}}
                             />
                           </div>
                           <div>
@@ -1991,14 +1991,14 @@ app.get("/control", (req, res) => {
                               value={settings.performance.autoReconnectDelay}
                               onChange={(e) => setSettings({...settings, performance: {...settings.performance, autoReconnectDelay: parseInt(e.target.value)}})}
                               className="w-full bg-black/40 border-2 rounded-xl px-5 py-3 focus:outline-none font-bold input-glow"
-                              style={{borderColor: \`${theme.primaryColor}40\`}}
+                              style={{borderColor: %%BACKTICK%%${theme.primaryColor}40%%BACKTICK%%}}
                             />
                           </div>
                         </div>
                       </div>
 
                       {/* Chat Logs */}
-                      <div className={\`setting-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10\`}>
+                      <div className={%%BACKTICK%%setting-card ${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10%%BACKTICK%%}>
                         <h3 className="font-bold text-xl mb-5">📝 Chat Logs</h3>
                         <div className="space-y-3">
                           <div className="flex items-center justify-between bg-black/30 rounded-xl p-4">
@@ -2008,7 +2008,7 @@ app.get("/control", (req, res) => {
                               className="relative w-14 h-7 rounded-full transition-all"
                               style={{backgroundColor: settings.chatLogs.enabled ? theme.primaryColor : '#374151'}}
                             >
-                              <div className={\`absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform shadow-lg ${settings.chatLogs.enabled ? 'translate-x-7' : ''}\`}></div>
+                              <div className={%%BACKTICK%%absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform shadow-lg ${settings.chatLogs.enabled ? 'translate-x-7' : ''}%%BACKTICK%%}></div>
                             </button>
                           </div>
                           <div>
@@ -2018,7 +2018,7 @@ app.get("/control", (req, res) => {
                               value={settings.chatLogs.maxHistory}
                               onChange={(e) => setSettings({...settings, chatLogs: {...settings.chatLogs, maxHistory: parseInt(e.target.value)}})}
                               className="w-full bg-black/40 border-2 rounded-xl px-5 py-3 focus:outline-none font-bold input-glow"
-                              style={{borderColor: \`${theme.primaryColor}40\`}}
+                              style={{borderColor: %%BACKTICK%%${theme.primaryColor}40%%BACKTICK%%}}
                             />
                           </div>
                         </div>
@@ -2026,8 +2026,8 @@ app.get("/control", (req, res) => {
 
                       <button
                         onClick={saveSettings}
-                        className={\`w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg ${theme.animations ? 'hover:scale-105' : ''}\`}
-                        style={{background: settingsSaved ? 'linear-gradient(135deg, #10b981, #059669)' : \`linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})\`}}
+                        className={%%BACKTICK%%w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg ${theme.animations ? 'hover:scale-105' : ''}%%BACKTICK%%}
+                        style={{background: settingsSaved ? 'linear-gradient(135deg, #10b981, #059669)' : %%BACKTICK%%linear-gradient(135deg, ${theme.primaryColor}, ${theme.secondaryColor})%%BACKTICK%%}}
                       >
                         <Settings />
                         {settingsSaved ? '✓ SETTINGS SAVED!' : 'SAVE ALL SETTINGS'}
@@ -2039,7 +2039,7 @@ app.get("/control", (req, res) => {
 
               {/* Live Logs Sidebar */}
               <div className="lg:col-span-1">
-                <div className={\`${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 sticky top-6 hover-lift\`}>
+                <div className={%%BACKTICK%%${theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 sticky top-6 hover-lift%%BACKTICK%%}>
                   <div className="flex items-center justify-between mb-5">
                     <h2 className="text-2xl font-black flex items-center gap-2" style={{color: '#10b981'}}>
                       <Activity />
@@ -2047,7 +2047,7 @@ app.get("/control", (req, res) => {
                     </h2>
                     <button 
                       onClick={() => setLogs([])}
-                      className={\`p-3 rounded-xl transition-all ${theme.animations ? 'hover:scale-110 hover:rotate-180' : ''}\`} 
+                      className={%%BACKTICK%%p-3 rounded-xl transition-all ${theme.animations ? 'hover:scale-110 hover:rotate-180' : ''}%%BACKTICK%%} 
                       style={{backgroundColor: 'rgba(255,255,255,0.1)'}}
                     >
                       <RefreshCw />
@@ -2056,29 +2056,29 @@ app.get("/control", (req, res) => {
                   <div ref={logsRef} className="space-y-2 max-h-[700px] overflow-y-auto custom-scrollbar">
                     {logs.length === 0 ? (
                       <div className="text-center py-16 text-gray-500">
-                        <Activity className={\`w-16 h-16 mx-auto mb-4 opacity-20 ${theme.animations ? 'animate-bounce-soft' : ''}\`} />
+                        <Activity className={%%BACKTICK%%w-16 h-16 mx-auto mb-4 opacity-20 ${theme.animations ? 'animate-bounce-soft' : ''}%%BACKTICK%%} />
                         <p className="text-sm font-medium">No logs yet</p>
                       </div>
                     ) : (
                       logs.map((log, idx) => (
                         <div
                           key={idx}
-                          className={\`${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-xl p-4 text-sm border ${theme.animations ? 'animate-slide-in-right' : ''} ${
+                          className={%%BACKTICK%%${theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-xl p-4 text-sm border ${theme.animations ? 'animate-slide-in-right' : ''} ${
                             log.type === 'error' ? 'border-red-500/50 bg-red-500/10' :
                             log.type === 'success' ? 'border-green-500/50 bg-green-500/10' :
                             log.type === 'command' ? 'border-blue-500/50 bg-blue-500/10' :
                             'border-white/10'
-                          }\`}
-                          style={theme.animations ? {animationDelay: \`${idx * 0.03}s\`} : {}}
+                          }%%BACKTICK%%}
+                          style={theme.animations ? {animationDelay: %%BACKTICK%%${idx * 0.03}s%%BACKTICK%%} : {}}
                         >
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-xs text-gray-400 font-mono">{log.time}</span>
-                            <span className={\`text-xs px-2 py-1 rounded-full font-bold uppercase ${
+                            <span className={%%BACKTICK%%text-xs px-2 py-1 rounded-full font-bold uppercase ${
                               log.type === 'error' ? 'bg-red-500/30 text-red-300' :
                               log.type === 'success' ? 'bg-green-500/30 text-green-300' :
                               log.type === 'command' ? 'bg-blue-500/30 text-blue-300' :
                               'bg-gray-500/30 text-gray-300'
-                            }\`}>
+                            }%%BACKTICK%%}>
                               {log.type}
                             </span>
                           </div>
@@ -2102,8 +2102,8 @@ app.get("/control", (req, res) => {
 </body>
 </html>
 `;
-  // Unescape backticks that are meant for client-side template literals
-  const unescapedHtml = html.replace(/\\`/g, '`');
+  // Replace placeholders with actual backticks for client-side template literals
+  const unescapedHtml = html.replace(/%%BACKTICK%%/g, '`');
   res.send(unescapedHtml);
 });
 
