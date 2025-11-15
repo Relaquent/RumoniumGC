@@ -283,21 +283,21 @@ app.get("/control", (req, res) => {
     }
     
     .glass-ultra {
-      background: rgba(255, 255, 255, 0.03);
+      background: rgba(0, 0, 0, 0.4);
       backdrop-filter: blur(40px) saturate(180%);
       border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
     }
     
     .glass-strong {
-      background: rgba(255, 255, 255, 0.06);
+      background: rgba(0, 0, 0, 0.5);
       backdrop-filter: blur(30px) saturate(150%);
       border: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
     }
 
     .glass-medium {
-      background: rgba(255, 255, 255, 0.04);
+      background: rgba(0, 0, 0, 0.3);
       backdrop-filter: blur(20px) saturate(120%);
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
@@ -1046,9 +1046,9 @@ app.get("/control", (req, res) => {
           {/* Ultra Animated Background */}
           {theme.animations && (
             <div className="fixed inset-0 overflow-hidden pointer-events-none">
-              <div className="absolute top-0 left-1/4 w-[700px] h-[700px] rounded-full mix-blend-multiply filter blur-[150px] opacity-20 animate-float" style={{backgroundColor: theme.primaryColor}}></div>
-              <div className="absolute top-1/3 right-1/4 w-[700px] h-[700px] rounded-full mix-blend-multiply filter blur-[150px] opacity-20 animate-float-reverse" style={{backgroundColor: theme.secondaryColor}}></div>
-              <div className="absolute bottom-0 left-1/2 w-[700px] h-[700px] rounded-full mix-blend-multiply filter blur-[150px] opacity-20 animate-float" style={{backgroundColor: theme.accentColor, animationDelay: '3s'}}></div>
+              <div className="absolute top-0 left-1/4 w-[700px] h-[700px] rounded-full mix-blend-multiply filter blur-[150px] opacity-5 animate-float" style={{backgroundColor: theme.primaryColor}}></div>
+              <div className="absolute top-1/3 right-1/4 w-[700px] h-[700px] rounded-full mix-blend-multiply filter blur-[150px] opacity-5 animate-float-reverse" style={{backgroundColor: theme.secondaryColor}}></div>
+              <div className="absolute bottom-0 left-1/2 w-[700px] h-[700px] rounded-full mix-blend-multiply filter blur-[150px] opacity-5 animate-float" style={{backgroundColor: theme.accentColor, animationDelay: '3s'}}></div>
             </div>
           )}
 
