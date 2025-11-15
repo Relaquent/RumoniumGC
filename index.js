@@ -23,9 +23,17 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Store chat messages and settings
+// Store chat messages, settings, and theme
 let chatHistory = [];
 let gptSystemPrompt = "You're like a Turkish nationalist uncle who answers in the user's language. You answer questions knowledgeably and in a nationalistic manner. If you get a question that's hostile towards Turks, you give them a piece of your mind. You're ironic and witty. You're sincere.";
+let panelTheme = {
+  primaryColor: '#9333ea', // purple-600
+  secondaryColor: '#3b82f6', // blue-600
+  accentColor: '#ec4899', // pink-600
+  bgStyle: 'gradient', // gradient, solid, animated
+  glassEffect: true,
+  animations: true
+};
 
 app.get("/", (req, res) => {
   res.send("✅ Bot is running and online! (Render)");
@@ -71,6 +79,11 @@ app.get("/control", (req, res) => {
       to { opacity: 1; transform: translateX(0); }
     }
     
+    @keyframes slide-up {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
     @keyframes glow {
       0%, 100% { box-shadow: 0 0 20px rgba(147, 51, 234, 0.3); }
       50% { box-shadow: 0 0 40px rgba(147, 51, 234, 0.6); }
@@ -82,6 +95,10 @@ app.get("/control", (req, res) => {
     
     .animate-slide-in {
       animation: slide-in 0.3s ease-out;
+    }
+    
+    .animate-slide-up {
+      animation: slide-up 0.3s ease-out;
     }
     
     .animate-gradient {
@@ -144,6 +161,14 @@ app.get("/control", (req, res) => {
     .hover-lift:hover {
       transform: translateY(-4px);
       box-shadow: 0 10px 30px rgba(147, 51, 234, 0.3);
+    }
+    
+    .chat-input-container {
+      position: sticky;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
   </style>
 </head>
@@ -239,9 +264,19 @@ app.get("/control", (req, res) => {
         <line x1="12" y1="17" x2="12" y2="21"></line>
       </svg>
     );
+    
+    const Palette = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="13.5" cy="6.5" r=".5"></circle>
+        <circle cx="17.5" cy="10.5" r=".5"></circle>
+        <circle cx="8.5" cy="7.5" r=".5"></circle>
+        <circle cx="6.5" cy="12.5" r=".5"></circle>
+        <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path>
+      </svg>
+    );
 
     function BotControlPanel() {
-      const [activeTab, setActiveTab] = useState('minecraft');
+      const [activeTab, setActiveTab] = useState('chat');
       const [message, setMessage] = useState('');
       const [minecraftChat, setMinecraftChat] = useState([]);
       const [logs, setLogs] = useState([]);
@@ -260,6 +295,15 @@ app.get("/control", (req, res) => {
       });
       const [gptPrompt, setGptPrompt] = useState('');
       const [promptSaved, setPromptSaved] = useState(false);
+      const [theme, setTheme] = useState({
+        primaryColor: '#9333ea',
+        secondaryColor: '#3b82f6',
+        accentColor: '#ec4899',
+        bgStyle: 'gradient',
+        glassEffect: true,
+        animations: true
+      });
+      const [themeSaved, setThemeSaved] = useState(false);
       
       const minecraftChatRef = useRef(null);
       const logsRef = useRef(null);
@@ -269,6 +313,11 @@ app.get("/control", (req, res) => {
         fetch('/api/gpt-prompt')
           .then(res => res.json())
           .then(data => setGptPrompt(data.prompt));
+
+        // Fetch theme
+        fetch('/api/theme')
+          .then(res => res.json())
+          .then(data => setTheme(data));
 
         // Socket.IO listeners
         socket.on('minecraft-chat', (data) => {
@@ -345,34 +394,67 @@ app.get("/control", (req, res) => {
         }
       };
 
+      const saveTheme = async () => {
+        try {
+          const response = await fetch('/api/theme', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(theme)
+          });
+          
+          if (response.ok) {
+            setThemeSaved(true);
+            setTimeout(() => setThemeSaved(false), 3000);
+            window.location.reload(); // Reload to apply new theme
+          }
+        } catch (err) {
+          console.error('Failed to save theme:', err);
+        }
+      };
+
+      const themePresets = [
+        { name: 'Purple Dream', primary: '#9333ea', secondary: '#3b82f6', accent: '#ec4899' },
+        { name: 'Ocean Blue', primary: '#0ea5e9', secondary: '#06b6d4', accent: '#14b8a6' },
+        { name: 'Sunset Orange', primary: '#f97316', secondary: '#ef4444', accent: '#ec4899' },
+        { name: 'Forest Green', primary: '#10b981', secondary: '#059669', accent: '#84cc16' },
+        { name: 'Royal Purple', primary: '#7c3aed', secondary: '#8b5cf6', accent: '#a78bfa' },
+        { name: 'Crimson Red', primary: '#dc2626', secondary: '#b91c1c', accent: '#f87171' }
+      ];
+
       return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 text-white p-4 md:p-6 overflow-hidden">
-          {/* Ultra-modern animated background */}
-          <div className="fixed inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-purple-600 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-float"></div>
-            <div className="absolute top-1/3 right-1/4 w-[600px] h-[600px] bg-blue-600 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-float" style={{animationDelay: '2s'}}></div>
-            <div className="absolute bottom-0 left-1/2 w-[600px] h-[600px] bg-indigo-600 rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-float" style={{animationDelay: '4s'}}></div>
-          </div>
+        <div className={\`min-h-screen text-white p-4 md:p-6 overflow-hidden \${
+          theme.bgStyle === 'gradient' ? 'bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950' :
+          theme.bgStyle === 'solid' ? 'bg-slate-950' : 'bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950'
+        }\`}>
+          {/* Animated background effects */}
+          {theme.animations && (
+            <div className="fixed inset-0 overflow-hidden pointer-events-none">
+              <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-float" style={{backgroundColor: theme.primaryColor}}></div>
+              <div className="absolute top-1/3 right-1/4 w-[600px] h-[600px] rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-float" style={{backgroundColor: theme.secondaryColor, animationDelay: '2s'}}></div>
+              <div className="absolute bottom-0 left-1/2 w-[600px] h-[600px] rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-float" style={{backgroundColor: theme.accentColor, animationDelay: '4s'}}></div>
+            </div>
+          )}
 
           <div className="max-w-[1800px] mx-auto relative z-10">
             {/* Ultra-modern Header */}
             <div className="mb-6 animate-fade-in">
-              <div className="glass-morphism-strong rounded-3xl p-6 neon-border">
+              <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 neon-border\`}>
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h1 className="text-5xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent animate-gradient mb-2">
+                    <h1 className={\`text-5xl font-black bg-clip-text text-transparent \${theme.animations ? 'animate-gradient' : ''}\`} style={{backgroundImage: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.accentColor}, \${theme.secondaryColor})\`, backgroundSize: '200% 200%'}}>
                       RumoniumGC
                     </h1>
                     <p className="text-gray-400 font-medium">Premium Control Center v1.2.0</p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="glass-morphism rounded-2xl px-6 py-3 flex items-center gap-3">
+                    <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl px-6 py-3 flex items-center gap-3\`}>
                       <div className={\`w-3 h-3 rounded-full \${botStatus === 'online' ? 'bg-green-400 animate-pulse' : 'bg-red-400'}\`}></div>
                       <span className="text-sm font-bold uppercase tracking-wider">{botStatus}</span>
                     </div>
                     <button 
                       onClick={() => setBotStatus(botStatus === 'online' ? 'offline' : 'online')}
-                      className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 px-8 py-3 rounded-2xl font-bold transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/50 flex items-center gap-3 animate-glow"
+                      className={\`px-8 py-3 rounded-2xl font-bold transition-all duration-300 flex items-center gap-3 \${theme.animations ? 'hover:scale-105 animate-glow' : ''}\`}
+                      style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
                     >
                       <Power />
                       TOGGLE
@@ -383,16 +465,16 @@ app.get("/control", (req, res) => {
                 {/* Modern Stats Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
-                    { Icon: Clock, label: 'UPTIME', value: stats.uptime, gradient: 'from-purple-500 via-purple-600 to-pink-500' },
-                    { Icon: Zap, label: 'COMMANDS', value: stats.commands, gradient: 'from-blue-500 via-blue-600 to-cyan-500' },
-                    { Icon: MessageSquare, label: 'MESSAGES', value: stats.messages, gradient: 'from-indigo-500 via-indigo-600 to-purple-500' },
-                    { Icon: Users, label: 'USERS', value: stats.users, gradient: 'from-cyan-500 via-cyan-600 to-blue-500' }
+                    { Icon: Clock, label: 'UPTIME', value: stats.uptime, gradient: \`linear-gradient(to bottom right, \${theme.primaryColor}, \${theme.accentColor})\` },
+                    { Icon: Zap, label: 'COMMANDS', value: stats.commands, gradient: \`linear-gradient(to bottom right, \${theme.secondaryColor}, \${theme.primaryColor})\` },
+                    { Icon: MessageSquare, label: 'MESSAGES', value: stats.messages, gradient: \`linear-gradient(to bottom right, \${theme.accentColor}, \${theme.primaryColor})\` },
+                    { Icon: Users, label: 'USERS', value: stats.users, gradient: \`linear-gradient(to bottom right, \${theme.secondaryColor}, \${theme.accentColor})\` }
                   ].map((stat, idx) => (
                     <div 
                       key={idx}
-                      className="glass-morphism rounded-2xl p-5 hover-lift group cursor-pointer"
+                      className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 \${theme.animations ? 'hover-lift' : ''} group cursor-pointer\`}
                     >
-                      <div className={\`w-14 h-14 rounded-xl bg-gradient-to-br \${stat.gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform\`}>
+                      <div className={\`w-14 h-14 rounded-xl flex items-center justify-center mb-4 \${theme.animations ? 'group-hover:scale-110' : ''} transition-transform\`} style={{background: stat.gradient}}>
                         <stat.Icon />
                       </div>
                       <div className="text-3xl font-black mb-1">{stat.value}</div>
@@ -404,12 +486,12 @@ app.get("/control", (req, res) => {
             </div>
 
             {/* Modern Navigation */}
-            <div className="glass-morphism-strong rounded-3xl p-2 mb-6 flex gap-2 overflow-x-auto">
+            <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-2 mb-6 flex gap-2 overflow-x-auto\`}>
               {[
-                { id: 'minecraft', Icon: Monitor, label: 'Minecraft Chat' },
-                { id: 'chat', Icon: MessageSquare, label: 'Send Message' },
+                { id: 'chat', Icon: Monitor, label: 'Live Chat' },
                 { id: 'commands', Icon: Terminal, label: 'Commands' },
                 { id: 'gpt', Icon: Brain, label: 'GPT Config' },
+                { id: 'customize', Icon: Palette, label: 'Customize' },
                 { id: 'settings', Icon: Settings, label: 'Settings' }
               ].map(tab => (
                 <button
@@ -417,9 +499,10 @@ app.get("/control", (req, res) => {
                   onClick={() => setActiveTab(tab.id)}
                   className={\`flex-1 min-w-[140px] flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-bold transition-all duration-300 \${
                     activeTab === tab.id
-                      ? 'bg-gradient-to-r from-purple-600 to-blue-600 shadow-2xl shadow-purple-500/50 scale-105'
+                      ? ''
                       : 'hover:bg-white/5'
                   }\`}
+                  style={activeTab === tab.id ? {background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`, boxShadow: \`0 20px 60px \${theme.primaryColor}50\`} : {}}
                 >
                   <tab.Icon />
                   {tab.label}
@@ -431,15 +514,19 @@ app.get("/control", (req, res) => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Main Content */}
               <div className="lg:col-span-2 space-y-6">
-                {activeTab === 'minecraft' && (
-                  <div className="glass-morphism-strong rounded-3xl p-6 animate-fade-in hover-lift">
-                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
-                      <Monitor />
-                      LIVE MINECRAFT CHAT
-                    </h2>
+                {activeTab === 'chat' && (
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl overflow-hidden animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
+                    <div className="p-6 border-b border-white/10">
+                      <h2 className="text-2xl font-black flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, #10b981, #059669)\`}}>
+                        <Monitor />
+                        LIVE MINECRAFT CHAT
+                      </h2>
+                    </div>
+                    
+                    {/* Chat Display */}
                     <div 
                       ref={minecraftChatRef}
-                      className="h-[500px] overflow-y-auto custom-scrollbar space-y-2 bg-black/30 rounded-2xl p-4 border border-green-500/20"
+                      className="h-[450px] overflow-y-auto custom-scrollbar space-y-2 bg-black/30 p-4"
                     >
                       {minecraftChat.length === 0 ? (
                         <div className="flex items-center justify-center h-full text-gray-500">
@@ -452,7 +539,7 @@ app.get("/control", (req, res) => {
                         minecraftChat.map((msg, idx) => (
                           <div
                             key={idx}
-                            className="minecraft-message text-sm bg-black/40 rounded-lg px-4 py-2 border-l-4 border-green-500/50 hover:bg-black/60 transition-colors animate-slide-in"
+                            className={\`minecraft-message text-sm bg-black/40 rounded-lg px-4 py-2 border-l-4 border-green-500/50 hover:bg-black/60 transition-colors \${theme.animations ? 'animate-slide-up' : ''}\`}
                           >
                             <span className="text-gray-500 text-xs mr-2">[{msg.time}]</span>
                             <span className="text-green-400 font-bold">{msg.message}</span>
@@ -460,69 +547,67 @@ app.get("/control", (req, res) => {
                         ))
                       )}
                     </div>
-                  </div>
-                )}
 
-                {activeTab === 'chat' && (
-                  <div className="glass-morphism-strong rounded-3xl p-6 animate-fade-in hover-lift">
-                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-                      <MessageSquare />
-                      SEND MESSAGE
-                    </h2>
-                    <div className="space-y-4">
-                      <div className="flex gap-3">
-                        <input
-                          type="text"
-                          value={message}
-                          onChange={(e) => setMessage(e.target.value)}
-                          onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-                          placeholder="Type your message..."
-                          className="flex-1 bg-black/30 border-2 border-purple-500/30 rounded-2xl px-6 py-4 focus:outline-none focus:border-purple-500 transition-all font-medium placeholder-gray-500"
-                        />
-                        <button
-                          onClick={sendMessage}
-                          className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 px-8 py-4 rounded-2xl font-bold transition-all duration-300 hover:scale-105 hover:shadow-2xl flex items-center gap-2"
-                        >
-                          <Send />
-                          SEND
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        {['Hello Guild!', 'GG WP!', 'Good Game!', 'Thanks!'].map(quick => (
+                    {/* Chat Input - Sticky at bottom */}
+                    <div className="chat-input-container p-4">
+                      <div className="space-y-3">
+                        <div className="flex gap-3">
+                          <input
+                            type="text"
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                            placeholder="Type your message..."
+                            className="flex-1 bg-black/30 border-2 rounded-2xl px-6 py-4 focus:outline-none transition-all font-medium placeholder-gray-500"
+                            style={{borderColor: \`\${theme.primaryColor}30\`}}
+                          />
                           <button
-                            key={quick}
-                            onClick={() => setMessage(quick)}
-                            className="glass-morphism hover:glass-morphism-strong rounded-xl px-4 py-3 text-sm font-bold transition-all hover:scale-105 border border-white/10 hover:border-purple-500/50"
+                            onClick={sendMessage}
+                            className={\`px-8 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center gap-2 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                            style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
                           >
-                            {quick}
+                            <Send />
+                            SEND
                           </button>
-                        ))}
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          {['Hello Guild!', 'GG WP!', 'Good Game!', 'Thanks!'].map(quick => (
+                            <button
+                              key={quick}
+                              onClick={() => setMessage(quick)}
+                              className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-xl px-4 py-2 text-sm font-bold transition-all border border-white/10\`}
+                              style={{borderColor: theme.animations ? \`\${theme.primaryColor}30\` : 'rgba(255,255,255,0.1)'}}
+                            >
+                              {quick}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </div>
                   </div>
                 )}
 
                 {activeTab === 'commands' && (
-                  <div className="glass-morphism-strong rounded-3xl p-6 animate-fade-in hover-lift">
-                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
+                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.accentColor})\`}}>
                       <Terminal />
                       QUICK COMMANDS
                     </h2>
                     <div className="grid grid-cols-2 gap-4">
                       {[
-                        { cmd: '!help', desc: 'Show help menu', color: 'from-purple-600 to-pink-600' },
-                        { cmd: '!about', desc: 'Bot info', color: 'from-blue-600 to-cyan-600' },
-                        { cmd: '!when', desc: 'Castle countdown', color: 'from-indigo-600 to-purple-600' },
-                        { cmd: '/chat g', desc: 'Guild chat', color: 'from-cyan-600 to-blue-600' },
-                        { cmd: '/locraw', desc: 'Get location', color: 'from-green-600 to-emerald-600' },
-                        { cmd: '!bw Relaquent', desc: 'Check stats', color: 'from-orange-600 to-red-600' }
+                        { cmd: '!help', desc: 'Show help menu', color: theme.primaryColor },
+                        { cmd: '!about', desc: 'Bot info', color: theme.secondaryColor },
+                        { cmd: '!when', desc: 'Castle countdown', color: theme.accentColor },
+                        { cmd: '/chat g', desc: 'Guild chat', color: theme.primaryColor },
+                        { cmd: '/locraw', desc: 'Get location', color: theme.secondaryColor },
+                        { cmd: '!bw Relaquent', desc: 'Check stats', color: theme.accentColor }
                       ].map(item => (
                         <button
                           key={item.cmd}
                           onClick={() => executeCommand(item.cmd)}
-                          className="glass-morphism rounded-2xl p-5 text-left transition-all hover-lift group border border-white/10 hover:border-white/30"
+                          className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 text-left transition-all group border border-white/10 \${theme.animations ? 'hover-lift' : ''}\`}
                         >
-                          <div className={\`inline-block px-3 py-1 rounded-lg bg-gradient-to-r \${item.color} font-mono font-bold text-sm mb-2\`}>
+                          <div className="inline-block px-3 py-1 rounded-lg font-mono font-bold text-sm mb-2" style={{backgroundColor: \`\${item.color}40\`, color: item.color}}>
                             {item.cmd}
                           </div>
                           <div className="text-xs text-gray-400 font-medium">{item.desc}</div>
@@ -533,25 +618,27 @@ app.get("/control", (req, res) => {
                 )}
 
                 {activeTab === 'gpt' && (
-                  <div className="glass-morphism-strong rounded-3xl p-6 animate-fade-in hover-lift">
-                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-gradient-to-r from-pink-400 to-purple-400 bg-clip-text text-transparent">
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
+                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.accentColor}, \${theme.primaryColor})\`}}>
                       <Brain />
                       GPT SYSTEM PROMPT
                     </h2>
                     <div className="space-y-4">
-                      <div className="bg-black/30 rounded-2xl p-4 border border-purple-500/20">
+                      <div className="bg-black/30 rounded-2xl p-4 border" style={{borderColor: \`\${theme.primaryColor}20\`}}>
                         <p className="text-sm text-gray-400 mb-2 font-medium">Configure how the AI responds to !ask commands:</p>
                       </div>
                       <textarea
                         value={gptPrompt}
                         onChange={(e) => setGptPrompt(e.target.value)}
                         rows="12"
-                        className="w-full bg-black/30 border-2 border-purple-500/30 rounded-2xl px-6 py-4 focus:outline-none focus:border-purple-500 transition-all font-medium custom-scrollbar resize-none"
+                        className="w-full bg-black/30 border-2 rounded-2xl px-6 py-4 focus:outline-none transition-all font-medium custom-scrollbar resize-none"
+                        style={{borderColor: \`\${theme.primaryColor}30\`}}
                         placeholder="Enter system prompt for GPT..."
                       />
                       <button
                         onClick={saveGptPrompt}
-                        className={\`w-full bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 px-6 py-4 rounded-2xl font-bold transition-all duration-300 hover:scale-105 hover:shadow-2xl flex items-center justify-center gap-3 \${promptSaved ? 'from-green-600 to-emerald-600' : ''}\`}
+                        className={\`w-full px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                        style={{background: promptSaved ? 'linear-gradient(to right, #10b981, #059669)' : \`linear-gradient(to right, \${theme.accentColor}, \${theme.primaryColor})\`}}
                       >
                         <Brain />
                         {promptSaved ? '✓ SAVED!' : 'SAVE PROMPT'}
@@ -560,9 +647,129 @@ app.get("/control", (req, res) => {
                   </div>
                 )}
 
+                {activeTab === 'customize' && (
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
+                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}>
+                      <Palette />
+                      CUSTOMIZE PANEL
+                    </h2>
+                    <div className="space-y-6">
+                      {/* Theme Presets */}
+                      <div>
+                        <label className="block font-bold text-lg mb-3">Quick Presets</label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {themePresets.map(preset => (
+                            <button
+                              key={preset.name}
+                              onClick={() => setTheme({...theme, primaryColor: preset.primary, secondaryColor: preset.secondary, accentColor: preset.accent})}
+                              className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-xl p-4 text-left transition-all border border-white/10 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                            >
+                              <div className="flex gap-2 mb-2">
+                                <div className="w-6 h-6 rounded-full" style={{backgroundColor: preset.primary}}></div>
+                                <div className="w-6 h-6 rounded-full" style={{backgroundColor: preset.secondary}}></div>
+                                <div className="w-6 h-6 rounded-full" style={{backgroundColor: preset.accent}}></div>
+                              </div>
+                              <div className="font-bold text-sm">{preset.name}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Color Pickers */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10\`}>
+                          <label className="block font-bold text-sm mb-3">Primary Color</label>
+                          <input
+                            type="color"
+                            value={theme.primaryColor}
+                            onChange={(e) => setTheme({...theme, primaryColor: e.target.value})}
+                            className="w-full h-16 rounded-xl cursor-pointer"
+                          />
+                        </div>
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10\`}>
+                          <label className="block font-bold text-sm mb-3">Secondary Color</label>
+                          <input
+                            type="color"
+                            value={theme.secondaryColor}
+                            onChange={(e) => setTheme({...theme, secondaryColor: e.target.value})}
+                            className="w-full h-16 rounded-xl cursor-pointer"
+                          />
+                        </div>
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10\`}>
+                          <label className="block font-bold text-sm mb-3">Accent Color</label>
+                          <input
+                            type="color"
+                            value={theme.accentColor}
+                            onChange={(e) => setTheme({...theme, accentColor: e.target.value})}
+                            className="w-full h-16 rounded-xl cursor-pointer"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Background Style */}
+                      <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <label className="block font-bold text-lg mb-3">Background Style</label>
+                        <div className="grid grid-cols-3 gap-3">
+                          {['gradient', 'solid', 'animated'].map(style => (
+                            <button
+                              key={style}
+                              onClick={() => setTheme({...theme, bgStyle: style})}
+                              className={\`px-4 py-3 rounded-xl font-bold transition-all capitalize \${theme.bgStyle === style ? '' : 'bg-white/5'}\`}
+                              style={theme.bgStyle === style ? {background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`} : {}}
+                            >
+                              {style}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Toggle Options */}
+                      <div className="space-y-3">
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 flex items-center justify-between border border-white/10\`}>
+                          <div>
+                            <div className="font-bold text-lg">Glass Effect</div>
+                            <div className="text-sm text-gray-400 mt-1">Frosted glass morphism</div>
+                          </div>
+                          <button
+                            onClick={() => setTheme({...theme, glassEffect: !theme.glassEffect})}
+                            className={\`relative w-16 h-8 rounded-full transition-all\`}
+                            style={{backgroundColor: theme.glassEffect ? theme.primaryColor : '#374151'}}
+                          >
+                            <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${theme.glassEffect ? 'translate-x-8' : ''}\`}></div>
+                          </button>
+                        </div>
+
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 flex items-center justify-between border border-white/10\`}>
+                          <div>
+                            <div className="font-bold text-lg">Animations</div>
+                            <div className="text-sm text-gray-400 mt-1">Enable smooth animations</div>
+                          </div>
+                          <button
+                            onClick={() => setTheme({...theme, animations: !theme.animations})}
+                            className={\`relative w-16 h-8 rounded-full transition-all\`}
+                            style={{backgroundColor: theme.animations ? theme.primaryColor : '#374151'}}
+                          >
+                            <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${theme.animations ? 'translate-x-8' : ''}\`}></div>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Save Button */}
+                      <button
+                        onClick={saveTheme}
+                        className={\`w-full px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                        style={{background: themeSaved ? 'linear-gradient(to right, #10b981, #059669)' : \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                      >
+                        <Palette />
+                        {themeSaved ? '✓ SAVED! RELOADING...' : 'SAVE & APPLY THEME'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {activeTab === 'settings' && (
-                  <div className="glass-morphism-strong rounded-3xl p-6 animate-fade-in hover-lift">
-                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
+                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.secondaryColor}, \${theme.primaryColor})\`}}>
                       <Settings />
                       BOT SETTINGS
                     </h2>
@@ -571,35 +778,38 @@ app.get("/control", (req, res) => {
                         { key: 'autoReconnect', label: 'Auto Reconnect', desc: 'Automatically reconnect on disconnect' },
                         { key: 'welcomeMessages', label: 'Welcome Messages', desc: 'Send welcome messages to new members' }
                       ].map(setting => (
-                        <div key={setting.key} className="glass-morphism rounded-2xl p-5 flex items-center justify-between border border-white/10 hover:border-purple-500/50 transition-all">
+                        <div key={setting.key} className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 flex items-center justify-between border border-white/10\`}>
                           <div>
                             <div className="font-bold text-lg">{setting.label}</div>
                             <div className="text-sm text-gray-400 mt-1">{setting.desc}</div>
                           </div>
                           <button
                             onClick={() => setSettings({...settings, [setting.key]: !settings[setting.key]})}
-                            className={\`relative w-16 h-8 rounded-full transition-all \${settings[setting.key] ? 'bg-gradient-to-r from-purple-600 to-blue-600' : 'bg-gray-700'}\`}
+                            className="relative w-16 h-8 rounded-full transition-all"
+                            style={{backgroundColor: settings[setting.key] ? theme.primaryColor : '#374151'}}
                           >
                             <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${settings[setting.key] ? 'translate-x-8' : ''}\`}></div>
                           </button>
                         </div>
                       ))}
-                      <div className="glass-morphism rounded-2xl p-5 border border-white/10">
+                      <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
                         <label className="block font-bold text-lg mb-3">Command Cooldown (seconds)</label>
                         <input
                           type="number"
                           value={settings.commandCooldown}
                           onChange={(e) => setSettings({...settings, commandCooldown: parseInt(e.target.value)})}
-                          className="w-full bg-black/30 border-2 border-purple-500/30 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500 font-bold text-lg"
+                          className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-bold text-lg"
+                          style={{borderColor: \`\${theme.primaryColor}30\`}}
                         />
                       </div>
-                      <div className="glass-morphism rounded-2xl p-5 border border-white/10">
+                      <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
                         <label className="block font-bold text-lg mb-3">Max GPT Tokens</label>
                         <input
                           type="number"
                           value={settings.maxTokens}
                           onChange={(e) => setSettings({...settings, maxTokens: parseInt(e.target.value)})}
-                          className="w-full bg-black/30 border-2 border-purple-500/30 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500 font-bold text-lg"
+                          className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-bold text-lg"
+                          style={{borderColor: \`\${theme.primaryColor}30\`}}
                         />
                       </div>
                     </div>
@@ -609,13 +819,13 @@ app.get("/control", (req, res) => {
 
               {/* Live Logs Sidebar */}
               <div className="lg:col-span-1">
-                <div className="glass-morphism-strong rounded-3xl p-6 sticky top-6 hover-lift">
+                <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 sticky top-6 \${theme.animations ? 'hover-lift' : ''}\`}>
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-black flex items-center gap-2 bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text text-transparent">
+                    <h2 className="text-xl font-black flex items-center gap-2 bg-clip-text text-transparent" style={{backgroundImage: 'linear-gradient(to right, #10b981, #059669)'}}>
                       <Activity />
                       LIVE LOGS
                     </h2>
-                    <button className="p-2 hover:bg-white/10 rounded-xl transition-all hover:scale-110">
+                    <button className={\`p-2 rounded-xl transition-all \${theme.animations ? 'hover:scale-110' : ''}\`} style={{backgroundColor: 'rgba(255,255,255,0.1)'}}>
                       <RefreshCw />
                     </button>
                   </div>
@@ -629,7 +839,7 @@ app.get("/control", (req, res) => {
                       logs.map((log, idx) => (
                         <div
                           key={idx}
-                          className={\`glass-morphism rounded-xl p-4 text-sm animate-slide-in border \${
+                          className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-xl p-4 text-sm border \${theme.animations ? 'animate-slide-in' : ''} \${
                             log.type === 'error' ? 'border-red-500/50 bg-red-500/10' :
                             log.type === 'success' ? 'border-green-500/50 bg-green-500/10' :
                             log.type === 'command' ? 'border-blue-500/50 bg-blue-500/10' :
@@ -667,6 +877,27 @@ app.get("/control", (req, res) => {
 </body>
 </html>
   `);
+});
+
+// API endpoint to get/set theme
+app.get("/api/theme", (req, res) => {
+  res.json(panelTheme);
+});
+
+app.post("/api/theme", (req, res) => {
+  const newTheme = req.body;
+  if (newTheme) {
+    panelTheme = { ...panelTheme, ...newTheme };
+    console.log("🎨 Panel theme updated");
+    io.emit('bot-log', {
+      time: new Date().toLocaleTimeString(),
+      type: 'success',
+      msg: 'Panel theme customization saved'
+    });
+    res.json({ success: true });
+  } else {
+    res.status(400).json({ success: false });
+  }
 });
 
 // API endpoint to get GPT prompt
