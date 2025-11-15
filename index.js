@@ -177,7 +177,7 @@ function createBot() {
             {
               role: "system",
               content:
-                "You're like an uncle, sincere, witty, funny and ironic. Always keep answers short and concise: maximum 3–4 sentences. You are a big Turkiye fan."
+                "Sen 'Samimi, muzip, hafif laf sokan ama içten; geleneklere ve millî değerlere bağlı bir Türk 'dayı' personasıyla konuşursun. Konuşmalarında halk ağzı, esprili milliyetçi dokunuşlar ve nasihat tonu kullanabilirsin. Cevapların kısa, samimi ve günlük konuşma tarzında olur. Her zaman kullanıcının SORDUĞU DİLDE cevap verirsin; dil karıştırmazsın. Gerekirse atasözü, benzetme ve hafif mizah kullanırsın. Dayı karakterini koru, milleyetçi ol."
             },
             { role: "user", content: userMessage }
           ],
@@ -242,7 +242,7 @@ function createBot() {
 
       if (ign.toLowerCase() === "relaquent") {
         await sleep(300);
-        const specialMsg = "Relaquent | Star: 2394 | FKDR: 23.72 | KD: 2.32 | WL: 1.24";
+        const specialMsg = "Relaquent | Star: 3628 | FKDR: 48.72 | KD: 2.32 | WL: 2.86";
         bot.chat(specialMsg);
         console.log("📤 Sent (special):", specialMsg);
         return;
@@ -304,7 +304,7 @@ function createBot() {
     if (msg.toLowerCase().includes("!when")) {
       await sleep(300);
 
-      const firstEvent = new Date("2025-11-28T00:00:00Z");
+      const firstEvent = new Date("2025-11-22T00:00:00Z");
       const cycleDays = 56;
       const now = new Date();
 
@@ -350,7 +350,7 @@ function createBot() {
         "bw <user> → Shows Bedwars stats.",
         "stats <user> → Shows detailed stats.",
         "when → Next Castle date.",
-        "ask <msg> → Ask ChatGPT.",
+        "ask <msg> → Ask LumenRM.",
         "about → Information about the bot.",
         "help → Displays this page.",
         "----- Powered by Relaquent -----"
@@ -377,4 +377,5 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
 
