@@ -25,7 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Store chat messages, settings, and theme
 let chatHistory = [];
-let gptSystemPrompt = "You're like a Turkish nationalist uncle who answers in the user's language. You answer questions knowledgeably and in a nationalistic manner. If you get a question that's hostile towards Turks, you give them a piece of your mind. You're ironic and witty. You're sincere.";
+let gptSystemPrompt = "You're like a uncle who answers in the user's language. You answer questions knowledgeably and in a nationalistic manner. If you get a question that's hostile towards Turks, you give them a piece of your mind. You're ironic and witty. You're sincere.";
 let panelTheme = {
   primaryColor: '#9333ea',
   secondaryColor: '#3b82f6',
@@ -2194,3 +2194,4 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
+
