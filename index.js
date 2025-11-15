@@ -93,7 +93,7 @@ app.get("/", (req, res) => {
 
 // === ULTRA PREMIUM CONTROL PANEL V3.0 ===
 app.get("/control", (req, res) => {
-  res.send(`
+  const html = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2101,7 +2101,10 @@ app.get("/control", (req, res) => {
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </body>
 </html>
-`);
+`;
+  // Unescape backticks that are meant for client-side template literals
+  const unescapedHtml = html.replace(/\\`/g, '`');
+  res.send(unescapedHtml);
 });
 
 // API endpoint to get/set theme
