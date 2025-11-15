@@ -25,7 +25,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Store chat messages, settings, and theme
 let chatHistory = [];
-let gptSystemPrompt = "You're like a uncle who answers in the user's language. You answer questions knowledgeably and in a nationalistic manner. If you get a question that's hostile towards Turks, you give them a piece of your mind. You're ironic and witty. You're sincere.";
+let gptSystemPrompt = "You're like a Turkish nationalist uncle who answers in the user's language. You answer questions knowledgeably and in a nationalistic manner. If you get a question that's hostile towards Turks, you give them a piece of your mind. You're ironic and witty. You're sincere.";
 let panelTheme = {
   primaryColor: '#9333ea',
   secondaryColor: '#3b82f6',
@@ -1636,6 +1636,7 @@ app.get("/panel", (req, res) => {
 
 // POST /chat -> send message to bot
 let bot; // global bot
+let botReady = false; // Track if bot is ready
 let startTime = Date.now();
 let commandCount = 0;
 let messageCount = 0;
@@ -1644,19 +1645,24 @@ app.post("/chat", (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).send("❌ Message required.");
 
-  if (bot && bot.chat) {
-    bot.chat(message);
-    console.log(`🌐 Web chat sent: ${message}`);
-    
-    io.emit('bot-log', {
-      time: new Date().toLocaleTimeString(),
-      type: 'info',
-      msg: `Web message sent: ${message}`
-    });
-    
-    res.json({ success: true, message: `✅ Sent: ${message}` });
+  if (bot && botReady && bot.chat && bot._client) {
+    try {
+      bot.chat(message);
+      console.log(`🌐 Web chat sent: ${message}`);
+      
+      io.emit('bot-log', {
+        time: new Date().toLocaleTimeString(),
+        type: 'info',
+        msg: `Web message sent: ${message}`
+      });
+      
+      res.json({ success: true, message: `✅ Sent: ${message}` });
+    } catch (err) {
+      console.error('Error sending message:', err);
+      res.status(500).json({ success: false, message: "❌ Error sending message." });
+    }
   } else {
-    res.status(500).json({ success: false, message: "❌ Bot not connected yet." });
+    res.status(500).json({ success: false, message: "❌ Bot not ready yet. Please wait..." });
   }
 });
 
@@ -1761,17 +1767,46 @@ function createBot() {
 
   bot.once("spawn", () => {
     console.log("✅ Bot connected to Hypixel, switching to Guild chat...");
-    io.emit('bot-status', 'online');
+    io.emit('bot-status', 'connecting');
     io.emit('bot-log', {
       time: new Date().toLocaleTimeString(),
       type: 'success',
       msg: 'Bot connected to Hypixel'
     });
     
-    setTimeout(() => bot.chat("/chat g"), 1500);
+    setTimeout(() => {
+      if (bot && bot.chat && bot._client) {
+        try {
+          bot.chat("/chat g");
+          // Wait a bit more before marking as ready
+          setTimeout(() => {
+            botReady = true;
+            io.emit('bot-status', 'online');
+            io.emit('bot-log', {
+              time: new Date().toLocaleTimeString(),
+              type: 'success',
+              msg: 'Bot is now ready to send messages'
+            });
+          }, 2000);
+        } catch (err) {
+          console.error('Error switching to guild chat:', err);
+          io.emit('bot-log', {
+            time: new Date().toLocaleTimeString(),
+            type: 'error',
+            msg: 'Error switching to guild chat'
+          });
+        }
+      }
+    }, 1500);
 
     setInterval(() => {
-      bot.chat("/locraw");
+      if (bot && botReady && bot.chat && bot._client) {
+        try {
+          bot.chat("/locraw");
+        } catch (err) {
+          console.error('Error sending /locraw:', err);
+        }
+      }
     }, 60 * 1000);
   });
 
@@ -1786,6 +1821,30 @@ function createBot() {
     messageCount++;
     
     if (!msg.startsWith("Guild >")) return;
+    if (!botReady || !bot || !bot.chat || !bot._client) {
+      console.log('Bot not ready, skipping message processing');
+      return;
+    }
+
+    // Safe chat function with error handling
+    const safeChat = async (message) => {
+      if (!botReady || !bot || !bot.chat || !bot._client) {
+        console.error('Cannot send message: bot not ready');
+        return false;
+      }
+      try {
+        bot.chat(message);
+        return true;
+      } catch (err) {
+        console.error('Error sending chat message:', err);
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'error',
+          msg: `Failed to send message: ${err.message}`
+        });
+        return false;
+      }
+    };
 
     // Check chat filter
     if (botSettings.chatFilter.enabled && botSettings.chatFilter.keywords.length > 0) {
@@ -1818,7 +1877,7 @@ function createBot() {
       for (const resp of botSettings.autoResponses.responses) {
         if (resp.trigger && msg.toLowerCase().includes(resp.trigger.toLowerCase())) {
           await sleep(resp.delay || 1000);
-          bot.chat(resp.response);
+          await safeChat(resp.response);
           io.emit('bot-log', {
             time: new Date().toLocaleTimeString(),
             type: 'info',
@@ -1834,7 +1893,7 @@ function createBot() {
       if (cmd.name && msg.toLowerCase().includes(cmd.name.toLowerCase())) {
         commandCount++;
         await sleep(botSettings.performance.messageDelay);
-        bot.chat(cmd.response);
+        await safeChat(cmd.response);
         io.emit('bot-log', {
           time: new Date().toLocaleTimeString(),
           type: 'command',
@@ -1861,7 +1920,7 @@ function createBot() {
 
         if (timePassed < (botSettings.commandCooldown * 1000)) {
           const secondsLeft = Math.ceil(((botSettings.commandCooldown * 1000) - timePassed) / 1000);
-          bot.chat(`${username}, you must wait ${secondsLeft}s before using "ask" command again.`);
+          await safeChat(`${username}, you must wait ${secondsLeft}s before using "ask" command again.`);
           io.emit('bot-log', {
             time: new Date().toLocaleTimeString(),
             type: 'info',
@@ -1873,7 +1932,7 @@ function createBot() {
         askCooldowns[username] = now;
       }
 
-      bot.chat("Thinking...");
+      await safeChat("Thinking...");
       io.emit('bot-log', {
         time: new Date().toLocaleTimeString(),
         type: 'command',
@@ -1908,7 +1967,7 @@ function createBot() {
         for (const line of lines) {
           const chunks = splitMessage(line);
           for (const chunk of chunks) {
-            bot.chat(chunk);
+            await safeChat(chunk);
             io.emit('bot-log', {
               time: new Date().toLocaleTimeString(),
               type: 'success',
@@ -1920,7 +1979,7 @@ function createBot() {
 
       } catch (err) {
         console.error("⚠️ OpenAI API error:", err.message);
-        bot.chat("Error: Could not get response from GPT.");
+        await safeChat("Error: Could not get response from GPT.");
         io.emit('bot-log', {
           time: new Date().toLocaleTimeString(),
           type: 'error',
@@ -1942,7 +2001,7 @@ function createBot() {
 
         if (username.toLowerCase() === "caillou16") {
           const specialMsg = "Welcome back Caillou16 the bald.";
-          bot.chat(specialMsg);
+          await safeChat(specialMsg);
           io.emit('bot-log', {
             time: new Date().toLocaleTimeString(),
             type: 'info',
@@ -1951,7 +2010,7 @@ function createBot() {
         } else {
           const randomMsg = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
           const finalMsg = randomMsg.replace("{username}", username);
-          bot.chat(finalMsg);
+          await safeChat(finalMsg);
           io.emit('bot-log', {
             time: new Date().toLocaleTimeString(),
             type: 'info',
@@ -1981,7 +2040,7 @@ function createBot() {
       if (ign.toLowerCase() === "relaquent") {
         await sleep(botSettings.performance.messageDelay);
         const specialMsg = "Relaquent | Star: 3628 | FKDR: 48.72 | KD: 2.32 | WL: 2.86";
-        bot.chat(specialMsg);
+        await safeChat(specialMsg);
         io.emit('bot-log', {
           time: new Date().toLocaleTimeString(),
           type: 'command',
@@ -1994,14 +2053,14 @@ function createBot() {
       try {
         const stats = await getPlayerStats(ign);
         const line = `${ign} | Star: ${stats.star} | FKDR: ${stats.fkdr} | KD: ${stats.kd} | WL: ${stats.wl}`;
-        bot.chat(line);
+        await safeChat(line);
         io.emit('bot-log', {
           time: new Date().toLocaleTimeString(),
           type: 'command',
           msg: `!bw command executed for ${ign}`
         });
       } catch (err) {
-        bot.chat(`Error - ${ign} | No data found.`);
+        await safeChat(`Error - ${ign} | No data found.`);
         io.emit('bot-log', {
           time: new Date().toLocaleTimeString(),
           type: 'error',
@@ -2023,14 +2082,14 @@ function createBot() {
       try {
         const stats = await getPlayerStats(ign);
         const line = `${ign} | Star: ${stats.star} | Finals: ${stats.finals} | Wins: ${stats.wins} | Beds: ${stats.beds}`;
-        bot.chat(line);
+        await safeChat(line);
         io.emit('bot-log', {
           time: new Date().toLocaleTimeString(),
           type: 'command',
           msg: `!stats command executed for ${ign}`
         });
       } catch (err) {
-        bot.chat(`Error - ${ign} | No data found.`);
+        await safeChat(`Error - ${ign} | No data found.`);
         io.emit('bot-log', {
           time: new Date().toLocaleTimeString(),
           type: 'error',
@@ -2052,7 +2111,7 @@ function createBot() {
       const playerObj = bot.players[ign];
       if (playerObj && typeof playerObj.ping === "number") {
         const line = `RumoGC - ${ign}: ${playerObj.ping}ms`;
-        bot.chat(line);
+        await safeChat(line);
         io.emit('bot-log', {
           time: new Date().toLocaleTimeString(),
           type: 'command',
@@ -2060,7 +2119,7 @@ function createBot() {
         });
       } else {
         const line = `Error - ${ign}: I can only check my ping for now.`;
-        bot.chat(line);
+        await safeChat(line);
       }
       return;
     }
@@ -2094,7 +2153,7 @@ function createBot() {
         response = "Castle might be currently active!";
       }
 
-      bot.chat(response);
+      await safeChat(response);
       io.emit('bot-log', {
         time: new Date().toLocaleTimeString(),
         type: 'command',
@@ -2108,7 +2167,7 @@ function createBot() {
       commandCount++;
       await sleep(botSettings.performance.messageDelay);
       const aboutMsg = "RumoniumGC is automated by Relaquent, v2.0 - Last Update 15/11/25";
-      bot.chat(aboutMsg);
+      await safeChat(aboutMsg);
       io.emit('bot-log', {
         time: new Date().toLocaleTimeString(),
         type: 'command',
@@ -2132,7 +2191,7 @@ function createBot() {
         "----- Powered by Relaquent -----"
       ];
       for (const line of helpMsg) {
-        bot.chat(line);
+        await safeChat(line);
         await sleep(500);
       }
       io.emit('bot-log', {
@@ -2156,6 +2215,7 @@ function createBot() {
 
   bot.on("kicked", (reason) => {
     console.log("❌ Kicked from server:", reason);
+    botReady = false;
     io.emit('bot-status', 'offline');
     io.emit('bot-log', {
       time: new Date().toLocaleTimeString(),
@@ -2170,6 +2230,7 @@ function createBot() {
 
   bot.on("end", () => {
     console.log("🔌 Disconnected, reconnecting...");
+    botReady = false;
     io.emit('bot-status', 'offline');
     io.emit('bot-log', {
       time: new Date().toLocaleTimeString(),
@@ -2184,6 +2245,7 @@ function createBot() {
 
   bot.on("error", (err) => {
     console.error("❌ Bot error:", err.message);
+    botReady = false;
     io.emit('bot-log', {
       time: new Date().toLocaleTimeString(),
       type: 'error',
@@ -2194,4 +2256,3 @@ function createBot() {
 
 // === 6. Start Bot ===
 createBot();
-
