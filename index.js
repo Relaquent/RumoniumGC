@@ -44,7 +44,7 @@ let botSettings = {
   chatFilter: {
     enabled: false,
     keywords: [],
-    filterMode: 'blacklist'
+    filterMode: 'blacklist' // blacklist or whitelist
   },
   autoResponses: {
     enabled: true,
@@ -54,20 +54,8 @@ let botSettings = {
     ]
   },
   customCommands: [
-    { 
-      name: '!discord', 
-      response: 'Join our Discord: discord.gg/example', 
-      cooldown: 30,
-      enabled: true,
-      description: 'Shows Discord invite link'
-    },
-    { 
-      name: '!rules', 
-      response: 'Check guild rules at: rumoniumgc.com/rules', 
-      cooldown: 60,
-      enabled: true,
-      description: 'Shows guild rules link'
-    }
+    { name: '!discord', response: 'Join our Discord: discord.gg/example', cooldown: 30 },
+    { name: '!rules', response: 'Check guild rules at: rumoniumgc.com/rules', cooldown: 60 }
   ],
   chatLogs: {
     enabled: true,
@@ -91,231 +79,115 @@ app.get("/", (req, res) => {
   res.send("✅ Bot is running and online! (Render)");
 });
 
-// === ULTRA PREMIUM CONTROL PANEL V3.0 ===
+// === PREMIUM CONTROL PANEL ===
 app.get("/control", (req, res) => {
-  const html = String.raw`
+  res.send(`
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RumoniumGC Ultra Premium Panel v3.0</title>
+  <title>RumoniumGC Premium Control Panel v2.0</title>
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
     
     * {
       font-family: 'Inter', sans-serif;
     }
     
-    .font-mono {
-      font-family: 'JetBrains Mono', monospace;
-    }
-    
-    @keyframes gradient-x {
+    @keyframes gradient-shift {
       0%, 100% { background-position: 0% 50%; }
       50% { background-position: 100% 50%; }
     }
     
-    @keyframes gradient-y {
-      0%, 100% { background-position: 50% 0%; }
-      50% { background-position: 50% 100%; }
-    }
-    
-    @keyframes gradient-xy {
-      0%, 100% { background-position: 0% 0%; }
-      25% { background-position: 100% 0%; }
-      50% { background-position: 100% 100%; }
-      75% { background-position: 0% 100%; }
-    }
-    
     @keyframes float {
-      0%, 100% { transform: translateY(0px) rotate(0deg); }
-      33% { transform: translateY(-15px) rotate(2deg); }
-      66% { transform: translateY(-25px) rotate(-2deg); }
-    }
-    
-    @keyframes float-reverse {
-      0%, 100% { transform: translateY(0px) rotate(0deg); }
-      33% { transform: translateY(20px) rotate(-2deg); }
-      66% { transform: translateY(10px) rotate(2deg); }
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-20px); }
     }
     
     @keyframes fade-in {
-      from { opacity: 0; transform: translateY(20px); }
+      from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
     
-    @keyframes slide-in-left {
-      from { opacity: 0; transform: translateX(-30px); }
-      to { opacity: 1; transform: translateX(0); }
-    }
-    
-    @keyframes slide-in-right {
-      from { opacity: 0; transform: translateX(30px); }
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateX(-10px); }
       to { opacity: 1; transform: translateX(0); }
     }
     
     @keyframes slide-up {
-      from { opacity: 0; transform: translateY(15px); }
+      from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
     
-    @keyframes glow-pulse {
-      0%, 100% { 
-        box-shadow: 0 0 20px rgba(147, 51, 234, 0.4),
-                    0 0 40px rgba(147, 51, 234, 0.2),
-                    inset 0 0 20px rgba(147, 51, 234, 0.1);
-      }
-      50% { 
-        box-shadow: 0 0 40px rgba(147, 51, 234, 0.6),
-                    0 0 80px rgba(147, 51, 234, 0.3),
-                    inset 0 0 30px rgba(147, 51, 234, 0.2);
-      }
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(147, 51, 234, 0.3); }
+      50% { box-shadow: 0 0 40px rgba(147, 51, 234, 0.6); }
     }
 
     @keyframes pulse-ring {
-      0% { 
-        transform: scale(0.9); 
-        opacity: 1; 
-      }
-      50% {
-        transform: scale(1.2);
-        opacity: 0.8;
-      }
-      100% { 
-        transform: scale(1.5); 
-        opacity: 0; 
-      }
-    }
-    
-    @keyframes shimmer {
-      0% { background-position: -1000px 0; }
-      100% { background-position: 1000px 0; }
-    }
-
-    @keyframes bounce-soft {
-      0%, 100% { transform: translateY(0); }
-      50% { transform: translateY(-10px); }
-    }
-
-    @keyframes rotate-slow {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-
-    @keyframes scale-pulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.05); }
+      0% { transform: scale(0.95); opacity: 1; }
+      100% { transform: scale(1.4); opacity: 0; }
     }
     
     .animate-fade-in {
-      animation: fade-in 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+      animation: fade-in 0.5s ease-out;
     }
     
-    .animate-slide-in-left {
-      animation: slide-in-left 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-    }
-    
-    .animate-slide-in-right {
-      animation: slide-in-right 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    .animate-slide-in {
+      animation: slide-in 0.3s ease-out;
     }
     
     .animate-slide-up {
-      animation: slide-up 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      animation: slide-up 0.3s ease-out;
     }
     
-    .animate-gradient-x {
+    .animate-gradient {
       background-size: 200% 200%;
-      animation: gradient-x 8s ease infinite;
-    }
-
-    .animate-gradient-y {
-      background-size: 200% 200%;
-      animation: gradient-y 8s ease infinite;
-    }
-
-    .animate-gradient-xy {
-      background-size: 400% 400%;
-      animation: gradient-xy 15s ease infinite;
+      animation: gradient-shift 8s ease infinite;
     }
     
     .animate-float {
-      animation: float 8s ease-in-out infinite;
-    }
-
-    .animate-float-reverse {
-      animation: float-reverse 10s ease-in-out infinite;
+      animation: float 6s ease-in-out infinite;
     }
     
-    .animate-glow-pulse {
-      animation: glow-pulse 4s ease-in-out infinite;
+    .animate-glow {
+      animation: glow 3s ease-in-out infinite;
     }
 
-    .animate-pulse-ring {
-      animation: pulse-ring 2.5s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
-    }
-
-    .animate-shimmer {
-      background: linear-gradient(
-        90deg,
-        rgba(255,255,255,0) 0%,
-        rgba(255,255,255,0.1) 50%,
-        rgba(255,255,255,0) 100%
-      );
-      background-size: 1000px 100%;
-      animation: shimmer 3s infinite;
-    }
-
-    .animate-bounce-soft {
-      animation: bounce-soft 2s ease-in-out infinite;
-    }
-
-    .animate-rotate-slow {
-      animation: rotate-slow 20s linear infinite;
-    }
-
-    .animate-scale-pulse {
-      animation: scale-pulse 2s ease-in-out infinite;
+    .pulse-ring {
+      animation: pulse-ring 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
     }
     
-    .glass-ultra {
-      background: rgba(0, 0, 0, 0.4);
-      backdrop-filter: blur(40px) saturate(180%);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
-    }
-    
-    .glass-strong {
-      background: rgba(0, 0, 0, 0.5);
-      backdrop-filter: blur(30px) saturate(150%);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-    }
-
-    .glass-medium {
-      background: rgba(0, 0, 0, 0.3);
-      backdrop-filter: blur(20px) saturate(120%);
+    .glass-morphism {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(20px);
       border: 1px solid rgba(255, 255, 255, 0.1);
     }
     
+    .glass-morphism-strong {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(30px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
     .custom-scrollbar::-webkit-scrollbar {
-      width: 10px;
-      height: 10px;
+      width: 8px;
+      height: 8px;
     }
     
     .custom-scrollbar::-webkit-scrollbar-track {
-      background: rgba(255, 255, 255, 0.03);
+      background: rgba(255, 255, 255, 0.05);
       border-radius: 10px;
     }
     
     .custom-scrollbar::-webkit-scrollbar-thumb {
       background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
       border-radius: 10px;
-      border: 2px solid rgba(255, 255, 255, 0.1);
     }
     
     .custom-scrollbar::-webkit-scrollbar-thumb:hover {
@@ -323,47 +195,34 @@ app.get("/control", (req, res) => {
     }
     
     .minecraft-message {
-      font-family: 'JetBrains Mono', monospace;
-      text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+      font-family: 'Courier New', monospace;
+      text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.3);
     }
     
-    .neon-glow {
-      box-shadow: 
-        0 0 10px currentColor,
-        0 0 20px currentColor,
-        0 0 40px currentColor,
-        inset 0 0 10px currentColor;
+    .neon-border {
+      box-shadow: 0 0 10px rgba(147, 51, 234, 0.5), 0 0 20px rgba(59, 130, 246, 0.3);
     }
     
     .hover-lift {
-      transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     
     .hover-lift:hover {
-      transform: translateY(-6px) scale(1.02);
-      box-shadow: 0 20px 60px rgba(147, 51, 234, 0.4);
-    }
-
-    .hover-scale:hover {
-      transform: scale(1.05);
-    }
-
-    .hover-rotate:hover {
-      transform: rotate(5deg) scale(1.05);
+      transform: translateY(-4px);
+      box-shadow: 0 10px 30px rgba(147, 51, 234, 0.3);
     }
     
     .chat-input-container {
       position: sticky;
       bottom: 0;
-      background: rgba(0, 0, 0, 0.7);
-      backdrop-filter: blur(30px);
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(20px);
       border-top: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .chat-bubble {
       position: relative;
       overflow: hidden;
-      transition: all 0.3s ease;
     }
 
     .chat-bubble::before {
@@ -373,12 +232,8 @@ app.get("/control", (req, res) => {
       left: -100%;
       width: 100%;
       height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
-      transition: left 0.6s;
-    }
-
-    .chat-bubble:hover {
-      transform: translateX(5px);
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+      transition: left 0.5s;
     }
 
     .chat-bubble:hover::before {
@@ -386,106 +241,11 @@ app.get("/control", (req, res) => {
     }
 
     .setting-card {
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.3s ease;
     }
 
     .setting-card:hover {
-      transform: translateX(8px);
-      border-color: rgba(147, 51, 234, 0.5);
-    }
-
-    .btn-premium {
-      position: relative;
-      overflow: hidden;
-      transition: all 0.4s ease;
-    }
-
-    .btn-premium::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-      transition: left 0.5s;
-    }
-
-    .btn-premium:hover::before {
-      left: 100%;
-    }
-
-    .btn-premium:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 40px rgba(147, 51, 234, 0.5);
-    }
-
-    .stat-card {
-      position: relative;
-      overflow: hidden;
-    }
-
-    .stat-card::after {
-      content: '';
-      position: absolute;
-      top: -50%;
-      right: -50%;
-      width: 200%;
-      height: 200%;
-      background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
-      opacity: 0;
-      transition: opacity 0.5s;
-    }
-
-    .stat-card:hover::after {
-      opacity: 1;
-      animation: rotate-slow 10s linear infinite;
-    }
-
-    .tab-indicator {
-      position: absolute;
-      bottom: 0;
-      height: 3px;
-      background: linear-gradient(90deg, transparent, currentColor, transparent);
-      transition: all 0.3s ease;
-    }
-
-    .command-card {
-      position: relative;
-      overflow: hidden;
-      transition: all 0.3s ease;
-    }
-
-    .command-card::before {
-      content: '';
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(135deg, transparent 0%, rgba(255,255,255,0.05) 50%, transparent 100%);
-      opacity: 0;
-      transition: opacity 0.3s;
-    }
-
-    .command-card:hover::before {
-      opacity: 1;
-    }
-
-    .command-card:hover {
-      border-color: rgba(147, 51, 234, 0.6);
-      transform: translateY(-4px);
-    }
-
-    .input-glow:focus {
-      box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.3);
-    }
-
-    .badge-pulse {
-      animation: scale-pulse 2s ease-in-out infinite;
-    }
-
-    @media (max-width: 768px) {
-      .hover-lift:hover {
-        transform: none;
-      }
+      transform: translateX(5px);
     }
   </style>
 </head>
@@ -496,7 +256,7 @@ app.get("/control", (req, res) => {
     const { useState, useEffect, useRef } = React;
     const socket = io();
     
-    // Enhanced Icons
+    // Modern Icons as SVG components
     const Activity = () => (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
@@ -654,47 +414,6 @@ app.get("/control", (req, res) => {
       </svg>
     );
 
-    const Copy = () => (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-      </svg>
-    );
-
-    const Edit = () => (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-      </svg>
-    );
-
-    const Check = () => (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="20 6 9 17 4 12"></polyline>
-      </svg>
-    );
-
-    const X = () => (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18"></line>
-        <line x1="6" y1="6" x2="18" y2="18"></line>
-      </svg>
-    );
-
-    const Star = () => (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-      </svg>
-    );
-
-    const Info = () => (
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"></circle>
-        <line x1="12" y1="16" x2="12" y2="12"></line>
-        <line x1="12" y1="8" x2="12.01" y2="8"></line>
-      </svg>
-    );
-
     function BotControlPanel() {
       const [activeTab, setActiveTab] = useState('chat');
       const [message, setMessage] = useState('');
@@ -753,20 +472,12 @@ app.get("/control", (req, res) => {
       const [settingsSaved, setSettingsSaved] = useState(false);
       const [chatSearch, setChatSearch] = useState('');
       const [filterActive, setFilterActive] = useState(false);
-      const [editingCommand, setEditingCommand] = useState(null);
-      const [showCommandModal, setShowCommandModal] = useState(false);
-      const [newCommand, setNewCommand] = useState({
-        name: '',
-        response: '',
-        cooldown: 30,
-        enabled: true,
-        description: ''
-      });
       
       const minecraftChatRef = useRef(null);
       const logsRef = useRef(null);
 
       useEffect(() => {
+        // Fetch initial data
         fetch('/api/gpt-prompt')
           .then(res => res.json())
           .then(data => setGptPrompt(data.prompt));
@@ -779,6 +490,7 @@ app.get("/control", (req, res) => {
           .then(res => res.json())
           .then(data => setSettings(data));
 
+        // Socket.IO listeners
         socket.on('minecraft-chat', (data) => {
           setMinecraftChat(prev => [...prev, data].slice(-500));
           setStats(prev => ({ ...prev, messages: prev.messages + 1 }));
@@ -896,51 +608,15 @@ app.get("/control", (req, res) => {
         const url = URL.createObjectURL(dataBlob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = %%BACKTICK%%chat-logs-\%%DOLLAR_BRACE%%new Date().toISOString()}.json%%BACKTICK%%;
+        link.download = \`chat-logs-\${new Date().toISOString()}.json\`;
         link.click();
       };
 
       const addCustomCommand = () => {
-        setNewCommand({
-          name: '',
-          response: '',
-          cooldown: 30,
-          enabled: true,
-          description: ''
+        setSettings({
+          ...settings,
+          customCommands: [...settings.customCommands, { name: '!newcmd', response: 'Response', cooldown: 30 }]
         });
-        setEditingCommand(null);
-        setShowCommandModal(true);
-      };
-
-      const editCommand = (index) => {
-        setNewCommand(settings.customCommands[index]);
-        setEditingCommand(index);
-        setShowCommandModal(true);
-      };
-
-      const saveCommand = () => {
-        if (!newCommand.name || !newCommand.response) return;
-
-        if (editingCommand !== null) {
-          const updated = [...settings.customCommands];
-          updated[editingCommand] = newCommand;
-          setSettings({ ...settings, customCommands: updated });
-        } else {
-          setSettings({
-            ...settings,
-            customCommands: [...settings.customCommands, newCommand]
-          });
-        }
-        
-        setShowCommandModal(false);
-        setNewCommand({
-          name: '',
-          response: '',
-          cooldown: 30,
-          enabled: true,
-          description: ''
-        });
-        setEditingCommand(null);
       };
 
       const removeCustomCommand = (index) => {
@@ -950,19 +626,10 @@ app.get("/control", (req, res) => {
         });
       };
 
-      const toggleCommandEnabled = (index) => {
+      const updateCustomCommand = (index, field, value) => {
         const updated = [...settings.customCommands];
-        updated[index].enabled = !updated[index].enabled;
+        updated[index][field] = value;
         setSettings({ ...settings, customCommands: updated });
-      };
-
-      const duplicateCommand = (index) => {
-        const cmd = {...settings.customCommands[index]};
-        cmd.name = cmd.name + '_copy';
-        setSettings({
-          ...settings,
-          customCommands: [...settings.customCommands, cmd]
-        });
       };
 
       const addFilterKeyword = () => {
@@ -1033,58 +700,48 @@ app.get("/control", (req, res) => {
         { name: 'Sunset Orange', primary: '#f97316', secondary: '#ef4444', accent: '#ec4899' },
         { name: 'Forest Green', primary: '#10b981', secondary: '#059669', accent: '#84cc16' },
         { name: 'Royal Purple', primary: '#7c3aed', secondary: '#8b5cf6', accent: '#a78bfa' },
-        { name: 'Crimson Red', primary: '#dc2626', secondary: '#b91c1c', accent: '#f87171' },
-        { name: 'Cyber Neon', primary: '#00ff9f', secondary: '#00b8ff', accent: '#ff00e5' },
-        { name: 'Golden Hour', primary: '#f59e0b', secondary: '#eab308', accent: '#fb923c' }
+        { name: 'Crimson Red', primary: '#dc2626', secondary: '#b91c1c', accent: '#f87171' }
       ];
 
       return (
-        <div className={%%BACKTICK%%min-h-screen text-white p-4 md:p-6 overflow-hidden relative \%%DOLLAR_BRACE%%
+        <div className={\`min-h-screen text-white p-4 md:p-6 overflow-hidden \${
           theme.bgStyle === 'gradient' ? 'bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950' :
           theme.bgStyle === 'solid' ? 'bg-slate-950' : 'bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950'
-        }%%BACKTICK%%}>
-          {/* Ultra Animated Background */}
+        }\`}>
+          {/* Animated background effects */}
           {theme.animations && (
             <div className="fixed inset-0 overflow-hidden pointer-events-none">
-              <div className="absolute top-0 left-1/4 w-[700px] h-[700px] rounded-full mix-blend-multiply filter blur-[150px] opacity-5 animate-float" style={{backgroundColor: theme.primaryColor}}></div>
-              <div className="absolute top-1/3 right-1/4 w-[700px] h-[700px] rounded-full mix-blend-multiply filter blur-[150px] opacity-5 animate-float-reverse" style={{backgroundColor: theme.secondaryColor}}></div>
-              <div className="absolute bottom-0 left-1/2 w-[700px] h-[700px] rounded-full mix-blend-multiply filter blur-[150px] opacity-5 animate-float" style={{backgroundColor: theme.accentColor, animationDelay: '3s'}}></div>
+              <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-float" style={{backgroundColor: theme.primaryColor}}></div>
+              <div className="absolute top-1/3 right-1/4 w-[600px] h-[600px] rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-float" style={{backgroundColor: theme.secondaryColor, animationDelay: '2s'}}></div>
+              <div className="absolute bottom-0 left-1/2 w-[600px] h-[600px] rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-float" style={{backgroundColor: theme.accentColor, animationDelay: '4s'}}></div>
             </div>
           )}
 
-          <div className="max-w-[1900px] mx-auto relative z-10">
-            {/* Ultra Premium Header */}
+          <div className="max-w-[1800px] mx-auto relative z-10">
+            {/* Ultra-modern Header */}
             <div className="mb-6 animate-fade-in">
-              <div className={%%BACKTICK%%\%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-8 \%%DOLLAR_BRACE%%theme.animations ? 'animate-glow-pulse' : ''}%%BACKTICK%%}>
+              <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 neon-border\`}>
                 <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-6">
-                    <div className={%%BACKTICK%%w-20 h-20 rounded-2xl flex items-center justify-center \%%DOLLAR_BRACE%%theme.animations ? 'animate-gradient-xy' : ''}%%BACKTICK%%} style={{background: %%BACKTICK%%linear-gradient(135deg, \%%DOLLAR_BRACE%%theme.primaryColor}, \%%DOLLAR_BRACE%%theme.accentColor}, \%%DOLLAR_BRACE%%theme.secondaryColor})%%BACKTICK%%}}>
-                      <Terminal className="w-10 h-10" />
-                    </div>
-                    <div>
-                      <h1 className={%%BACKTICK%%text-6xl font-black bg-clip-text text-transparent \%%DOLLAR_BRACE%%theme.animations ? 'animate-gradient-x' : ''}%%BACKTICK%%} style={{backgroundImage: %%BACKTICK%%linear-gradient(to right, \%%DOLLAR_BRACE%%theme.primaryColor}, \%%DOLLAR_BRACE%%theme.accentColor}, \%%DOLLAR_BRACE%%theme.secondaryColor}, \%%DOLLAR_BRACE%%theme.primaryColor})%%BACKTICK%%, backgroundSize: '200% 200%'}}>
-                        RumoniumGC
-                      </h1>
-                      <p className="text-gray-400 font-bold text-lg mt-1">Ultra Premium Control Center v3.0</p>
-                    </div>
+                  <div>
+                    <h1 className={\`text-5xl font-black bg-clip-text text-transparent \${theme.animations ? 'animate-gradient' : ''}\`} style={{backgroundImage: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.accentColor}, \${theme.secondaryColor})\`, backgroundSize: '200% 200%'}}>
+                      RumoniumGC
+                    </h1>
+                    <p className="text-gray-400 font-medium">Premium Control Center v2.0</p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className={%%BACKTICK%%\%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-strong' : 'bg-slate-900/50'} rounded-2xl px-8 py-4 flex items-center gap-4%%BACKTICK%%}>
+                    <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl px-6 py-3 flex items-center gap-3\`}>
                       <div className="relative">
-                        <div className={%%BACKTICK%%w-4 h-4 rounded-full \%%DOLLAR_BRACE%%botStatus === 'online' ? 'bg-green-400' : 'bg-red-400'} \%%DOLLAR_BRACE%%theme.animations ? 'animate-scale-pulse' : ''}%%BACKTICK%%}></div>
-                        {botStatus === 'online' && theme.animations && (
-                          <>
-                            <div className="absolute inset-0 w-4 h-4 rounded-full bg-green-400 animate-pulse-ring"></div>
-                            <div className="absolute inset-0 w-4 h-4 rounded-full bg-green-400 animate-pulse-ring" style={{animationDelay: '0.5s'}}></div>
-                          </>
+                        <div className={\`w-3 h-3 rounded-full \${botStatus === 'online' ? 'bg-green-400' : 'bg-red-400'}\`}></div>
+                        {botStatus === 'online' && (
+                          <div className="absolute inset-0 w-3 h-3 rounded-full bg-green-400 pulse-ring"></div>
                         )}
                       </div>
-                      <span className="text-base font-black uppercase tracking-wider">{botStatus}</span>
+                      <span className="text-sm font-bold uppercase tracking-wider">{botStatus}</span>
                     </div>
                     <button 
                       onClick={() => setBotStatus(botStatus === 'online' ? 'offline' : 'online')}
-                      className={%%BACKTICK%%btn-premium px-10 py-4 rounded-2xl font-black transition-all duration-300 flex items-center gap-3 text-lg%%BACKTICK%%}
-                      style={{background: %%BACKTICK%%linear-gradient(135deg, \%%DOLLAR_BRACE%%theme.primaryColor}, \%%DOLLAR_BRACE%%theme.secondaryColor})%%BACKTICK%%}}
+                      className={\`px-8 py-3 rounded-2xl font-bold transition-all duration-300 flex items-center gap-3 \${theme.animations ? 'hover:scale-105 animate-glow' : ''}\`}
+                      style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
                     >
                       <Power />
                       TOGGLE
@@ -1092,23 +749,22 @@ app.get("/control", (req, res) => {
                   </div>
                 </div>
 
-                {/* Ultra Modern Stats Grid */}
+                {/* Modern Stats Grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {[
-                    { Icon: Clock, label: 'UPTIME', value: stats.uptime, gradient: %%BACKTICK%%linear-gradient(135deg, \%%DOLLAR_BRACE%%theme.primaryColor}, \%%DOLLAR_BRACE%%theme.accentColor})%%BACKTICK%%, delay: '0s' },
-                    { Icon: Zap, label: 'COMMANDS', value: stats.commands, gradient: %%BACKTICK%%linear-gradient(135deg, \%%DOLLAR_BRACE%%theme.secondaryColor}, \%%DOLLAR_BRACE%%theme.primaryColor})%%BACKTICK%%, delay: '0.1s' },
-                    { Icon: MessageSquare, label: 'MESSAGES', value: stats.messages, gradient: %%BACKTICK%%linear-gradient(135deg, \%%DOLLAR_BRACE%%theme.accentColor}, \%%DOLLAR_BRACE%%theme.primaryColor})%%BACKTICK%%, delay: '0.2s' },
-                    { Icon: Users, label: 'USERS', value: stats.users, gradient: %%BACKTICK%%linear-gradient(135deg, \%%DOLLAR_BRACE%%theme.secondaryColor}, \%%DOLLAR_BRACE%%theme.accentColor})%%BACKTICK%%, delay: '0.3s' }
+                    { Icon: Clock, label: 'UPTIME', value: stats.uptime, gradient: \`linear-gradient(to bottom right, \${theme.primaryColor}, \${theme.accentColor})\` },
+                    { Icon: Zap, label: 'COMMANDS', value: stats.commands, gradient: \`linear-gradient(to bottom right, \${theme.secondaryColor}, \${theme.primaryColor})\` },
+                    { Icon: MessageSquare, label: 'MESSAGES', value: stats.messages, gradient: \`linear-gradient(to bottom right, \${theme.accentColor}, \${theme.primaryColor})\` },
+                    { Icon: Users, label: 'USERS', value: stats.users, gradient: \`linear-gradient(to bottom right, \${theme.secondaryColor}, \${theme.accentColor})\` }
                   ].map((stat, idx) => (
                     <div 
                       key={idx}
-                      className={%%BACKTICK%%stat-card \%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 hover-lift group cursor-pointer%%BACKTICK%%}
-                      style={theme.animations ? {animationDelay: stat.delay} : {}}
+                      className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 \${theme.animations ? 'hover-lift' : ''} group cursor-pointer\`}
                     >
-                      <div className={%%BACKTICK%%w-16 h-16 rounded-xl flex items-center justify-center mb-4 \%%DOLLAR_BRACE%%theme.animations ? 'group-hover:scale-110 group-hover:rotate-3' : ''} transition-all duration-300%%BACKTICK%%} style={{background: stat.gradient}}>
+                      <div className={\`w-14 h-14 rounded-xl flex items-center justify-center mb-4 \${theme.animations ? 'group-hover:scale-110' : ''} transition-transform\`} style={{background: stat.gradient}}>
                         <stat.Icon />
                       </div>
-                      <div className="text-4xl font-black mb-2">{stat.value}</div>
+                      <div className="text-3xl font-black mb-1">{stat.value}</div>
                       <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">{stat.label}</div>
                     </div>
                   ))}
@@ -1116,35 +772,28 @@ app.get("/control", (req, res) => {
               </div>
             </div>
 
-            {/* Ultra Modern Navigation */}
-            <div className={%%BACKTICK%%\%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-strong' : 'bg-slate-900/80'} rounded-3xl p-2 mb-6 flex gap-2 overflow-x-auto relative%%BACKTICK%%}>
+            {/* Modern Navigation */}
+            <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-2 mb-6 flex gap-2 overflow-x-auto\`}>
               {[
-                { id: 'chat', Icon: Monitor, label: 'Live Chat', color: '#10b981' },
-                { id: 'commands', Icon: Terminal, label: 'Commands', color: theme.primaryColor },
-                { id: 'gpt', Icon: Brain, label: 'GPT Config', color: theme.accentColor },
-                { id: 'advanced', Icon: Sliders, label: 'Advanced', color: theme.secondaryColor },
-                { id: 'customize', Icon: Palette, label: 'Customize', color: '#f59e0b' },
-                { id: 'settings', Icon: Settings, label: 'Settings', color: '#6366f1' }
-              ].map((tab, idx) => (
+                { id: 'chat', Icon: Monitor, label: 'Live Chat' },
+                { id: 'commands', Icon: Terminal, label: 'Commands' },
+                { id: 'gpt', Icon: Brain, label: 'GPT Config' },
+                { id: 'advanced', Icon: Sliders, label: 'Advanced' },
+                { id: 'customize', Icon: Palette, label: 'Customize' },
+                { id: 'settings', Icon: Settings, label: 'Settings' }
+              ].map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={%%BACKTICK%%flex-1 min-w-[140px] flex items-center justify-center gap-3 px-6 py-5 rounded-2xl font-black transition-all duration-300 relative overflow-hidden group \%%DOLLAR_BRACE%%
-                    activeTab === tab.id ? '' : 'hover:bg-white/5'
-                  }%%BACKTICK%%}
-                  style={activeTab === tab.id ? {
-                    background: %%BACKTICK%%linear-gradient(135deg, \%%DOLLAR_BRACE%%tab.color}dd, \%%DOLLAR_BRACE%%tab.color})%%BACKTICK%%, 
-                    boxShadow: %%BACKTICK%%0 20px 60px \%%DOLLAR_BRACE%%tab.color}40%%BACKTICK%%
-                  } : {}}
+                  className={\`flex-1 min-w-[120px] flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-bold transition-all duration-300 \${
+                    activeTab === tab.id
+                      ? ''
+                      : 'hover:bg-white/5'
+                  }\`}
+                  style={activeTab === tab.id ? {background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`, boxShadow: \`0 20px 60px \${theme.primaryColor}50\`} : {}}
                 >
-                  {theme.animations && activeTab !== tab.id && (
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent group-hover:animate-shimmer"></div>
-                  )}
                   <tab.Icon />
-                  <span className="text-sm">{tab.label}</span>
-                  {activeTab === tab.id && (
-                    <div className="absolute bottom-0 left-1/4 right-1/4 h-1 rounded-full bg-white animate-fade-in"></div>
-                  )}
+                  {tab.label}
                 </button>
               ))}
             </div>
@@ -1154,63 +803,55 @@ app.get("/control", (req, res) => {
               {/* Main Content */}
               <div className="lg:col-span-2 space-y-6">
                 {activeTab === 'chat' && (
-                  <div className={%%BACKTICK%%\%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl overflow-hidden animate-fade-in hover-lift%%BACKTICK%%}>
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl overflow-hidden animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
                     <div className="p-6 border-b border-white/10">
                       <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-3xl font-black flex items-center gap-3" style={{color: '#10b981'}}>
+                        <h2 className="text-2xl font-black flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, #10b981, #059669)\`}}>
                           <Monitor />
                           LIVE MINECRAFT CHAT
                         </h2>
                         <div className="flex items-center gap-3">
                           <button
                             onClick={() => setFilterActive(!filterActive)}
-                            className={%%BACKTICK%%p-3 rounded-xl transition-all \%%DOLLAR_BRACE%%filterActive ? 'bg-green-500/20 text-green-400 neon-glow' : 'bg-white/5'} \%%DOLLAR_BRACE%%theme.animations ? 'hover-scale' : ''}%%BACKTICK%%}
+                            className={\`p-3 rounded-xl transition-all \${filterActive ? 'bg-green-500/20 text-green-400' : 'bg-white/5'} \${theme.animations ? 'hover:scale-110' : ''}\`}
                           >
                             <Filter />
                           </button>
                           <button
                             onClick={exportChatLogs}
-                            className={%%BACKTICK%%p-3 rounded-xl bg-white/5 transition-all \%%DOLLAR_BRACE%%theme.animations ? 'hover-scale' : ''}%%BACKTICK%%}
+                            className={\`p-3 rounded-xl bg-white/5 transition-all \${theme.animations ? 'hover:scale-110' : ''}\`}
                           >
                             <Download />
                           </button>
                         </div>
                       </div>
                       
-                      {/* Enhanced Search Bar */}
+                      {/* Search Bar */}
                       <div className="relative">
                         <input
                           type="text"
                           value={chatSearch}
                           onChange={(e) => setChatSearch(e.target.value)}
                           placeholder="Search messages..."
-                          className="w-full bg-black/40 border-2 rounded-2xl px-6 py-4 pl-14 focus:outline-none transition-all font-medium placeholder-gray-500 input-glow"
-                          style={{borderColor: %%BACKTICK%%\%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}
+                          className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 pl-12 focus:outline-none transition-all font-medium placeholder-gray-500"
+                          style={{borderColor: \`\${theme.primaryColor}30\`}}
                         />
-                        <div className="absolute left-5 top-1/2 transform -translate-y-1/2 text-gray-400">
+                        <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
                           <Search />
                         </div>
-                        {chatSearch && (
-                          <button
-                            onClick={() => setChatSearch('')}
-                            className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors"
-                          >
-                            <X />
-                          </button>
-                        )}
                       </div>
                     </div>
                     
                     {/* Chat Display */}
                     <div 
                       ref={minecraftChatRef}
-                      className="h-[500px] overflow-y-auto custom-scrollbar space-y-2 bg-black/40 p-4"
+                      className="h-[450px] overflow-y-auto custom-scrollbar space-y-2 bg-black/30 p-4"
                     >
                       {filteredChat.length === 0 ? (
                         <div className="flex items-center justify-center h-full text-gray-500">
                           <div className="text-center">
-                            <Monitor className={%%BACKTICK%%w-20 h-20 mx-auto mb-4 opacity-30 \%%DOLLAR_BRACE%%theme.animations ? 'animate-bounce-soft' : ''}%%BACKTICK%%} />
-                            <p className="font-bold text-lg">{chatSearch ? 'No messages found' : 'Waiting for messages...'}</p>
+                            <Monitor className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                            <p className="font-medium">{chatSearch ? 'No messages found' : 'Waiting for messages...'}</p>
                           </div>
                         </div>
                       ) : (
@@ -1222,22 +863,19 @@ app.get("/control", (req, res) => {
                           return (
                             <div
                               key={idx}
-                              className={%%BACKTICK%%chat-bubble minecraft-message text-sm rounded-xl px-5 py-4 border-l-4 transition-all \%%DOLLAR_BRACE%%
-                                isCommand ? 'bg-blue-500/10 border-blue-500 hover:bg-blue-500/20' :
-                                isJoin ? 'bg-green-500/10 border-green-500 hover:bg-green-500/20' :
-                                isLeave ? 'bg-red-500/10 border-red-500 hover:bg-red-500/20' :
-                                'bg-black/50 border-purple-500/40 hover:bg-black/70'
-                              } \%%DOLLAR_BRACE%%theme.animations ? 'animate-slide-up' : ''}%%BACKTICK%%}
-                              style={theme.animations ? {animationDelay: %%BACKTICK%%%%DOLLAR_BRACE%%idx * 0.02}s%%BACKTICK%%} : {}}
+                              className={\`chat-bubble minecraft-message text-sm rounded-xl px-4 py-3 border-l-4 transition-all \${
+                                isCommand ? 'bg-blue-500/10 border-blue-500/50 hover:bg-blue-500/20' :
+                                isJoin ? 'bg-green-500/10 border-green-500/50 hover:bg-green-500/20' :
+                                isLeave ? 'bg-red-500/10 border-red-500/50 hover:bg-red-500/20' :
+                                'bg-black/40 border-purple-500/30 hover:bg-black/60'
+                              } \${theme.animations ? 'animate-slide-up' : ''}\`}
                             >
                               <div className="flex items-center justify-between">
-                                <div className="flex-1">
-                                  <span className="text-gray-500 text-xs mr-2 font-mono">[{msg.time}]</span>
+                                <div>
+                                  <span className="text-gray-500 text-xs mr-2">[{msg.time}]</span>
                                   <span className="text-green-400 font-bold">{msg.message}</span>
                                 </div>
-                                {isCommand && <span className="text-xs bg-blue-500/30 text-blue-300 px-3 py-1 rounded-full font-bold ml-2">CMD</span>}
-                                {isJoin && <span className="text-xs bg-green-500/30 text-green-300 px-3 py-1 rounded-full font-bold ml-2">JOIN</span>}
-                                {isLeave && <span className="text-xs bg-red-500/30 text-red-300 px-3 py-1 rounded-full font-bold ml-2">LEAVE</span>}
+                                {isCommand && <span className="text-xs bg-blue-500/30 text-blue-300 px-2 py-1 rounded-full">CMD</span>}
                               </div>
                             </div>
                           );
@@ -1245,9 +883,9 @@ app.get("/control", (req, res) => {
                       )}
                     </div>
 
-                    {/* Enhanced Chat Input */}
-                    <div className="chat-input-container p-5">
-                      <div className="space-y-4">
+                    {/* Chat Input - Sticky at bottom */}
+                    <div className="chat-input-container p-4">
+                      <div className="space-y-3">
                         <div className="flex gap-3">
                           <input
                             type="text"
@@ -1255,25 +893,24 @@ app.get("/control", (req, res) => {
                             onChange={(e) => setMessage(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                             placeholder="Type your message..."
-                            className="flex-1 bg-black/40 border-2 rounded-2xl px-6 py-4 focus:outline-none transition-all font-medium placeholder-gray-500 input-glow"
-                            style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}
+                            className="flex-1 bg-black/30 border-2 rounded-2xl px-6 py-4 focus:outline-none transition-all font-medium placeholder-gray-500"
+                            style={{borderColor: \`\${theme.primaryColor}30\`}}
                           />
                           <button
                             onClick={sendMessage}
-                            className={%%BACKTICK%%btn-premium px-10 py-4 rounded-2xl font-black transition-all duration-300 flex items-center gap-3 text-lg %%DOLLAR_BRACE%%theme.animations ? 'hover:scale-105' : ''}%%BACKTICK%%}
-                            style={{background: %%BACKTICK%%linear-gradient(135deg, %%DOLLAR_BRACE%%theme.primaryColor}, %%DOLLAR_BRACE%%theme.secondaryColor})%%BACKTICK%%}}
+                            className={\`px-8 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center gap-2 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                            style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
                           >
                             <Send />
                             SEND
                           </button>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          {['Hello Guild!', 'GG WP!', 'Good Game!', 'Thanks!'].map((quick, idx) => (
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          {['Hello Guild!', 'GG WP!', 'Good Game!', 'Thanks!'].map(quick => (
                             <button
                               key={quick}
                               onClick={() => setMessage(quick)}
-                              className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-xl px-4 py-3 text-sm font-bold transition-all border border-white/10 %%DOLLAR_BRACE%%theme.animations ? 'hover-scale' : ''}%%BACKTICK%%}
-                              style={theme.animations ? {animationDelay: %%BACKTICK%%%%DOLLAR_BRACE%%idx * 0.1}s%%BACKTICK%%} : {}}
+                              className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-xl px-4 py-2 text-sm font-bold transition-all border border-white/10 \${theme.animations ? 'hover:scale-105' : ''}\`}
                             >
                               {quick}
                             </button>
@@ -1285,291 +922,60 @@ app.get("/control", (req, res) => {
                 )}
 
                 {activeTab === 'commands' && (
-                  <div className="space-y-6 animate-fade-in">
-                    {/* Quick Commands */}
-                    <div className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 hover-lift%%BACKTICK%%}>
-                      <h2 className="text-3xl font-black mb-6 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: %%BACKTICK%%linear-gradient(to right, %%DOLLAR_BRACE%%theme.primaryColor}, %%DOLLAR_BRACE%%theme.accentColor})%%BACKTICK%%}}>
-                        <Terminal />
-                        QUICK COMMANDS
-                      </h2>
-                      <div className="grid grid-cols-2 gap-4">
-                        {[
-                          { cmd: '!help', desc: 'Show help menu', color: theme.primaryColor },
-                          { cmd: '!about', desc: 'Bot info', color: theme.secondaryColor },
-                          { cmd: '!when', desc: 'Castle countdown', color: theme.accentColor },
-                          { cmd: '/chat g', desc: 'Guild chat', color: '#10b981' },
-                          { cmd: '/locraw', desc: 'Get location', color: '#f59e0b' },
-                          { cmd: '!bw Relaquent', desc: 'Check stats', color: '#ec4899' }
-                        ].map((item, idx) => (
-                          <button
-                            key={item.cmd}
-                            onClick={() => executeCommand(item.cmd)}
-                            className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 text-left transition-all group border border-white/10 hover-lift%%BACKTICK%%}
-                            style={theme.animations ? {animationDelay: %%BACKTICK%%%%DOLLAR_BRACE%%idx * 0.05}s%%BACKTICK%%} : {}}
-                          >
-                            <div className="inline-block px-4 py-2 rounded-lg font-mono font-black text-sm mb-3" style={{backgroundColor: %%BACKTICK%%%%DOLLAR_BRACE%%item.color}30%%BACKTICK%%, color: item.color}}>
-                              {item.cmd}
-                            </div>
-                            <div className="text-sm text-gray-400 font-medium">{item.desc}</div>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Custom Commands Manager */}
-                    <div className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 hover-lift%%BACKTICK%%}>
-                      <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-3xl font-black flex items-center gap-3" style={{color: theme.secondaryColor}}>
-                          <Command />
-                          CUSTOM COMMANDS
-                        </h2>
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
+                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.accentColor})\`}}>
+                      <Terminal />
+                      QUICK COMMANDS
+                    </h2>
+                    <div className="grid grid-cols-2 gap-4">
+                      {[
+                        { cmd: '!help', desc: 'Show help menu', color: theme.primaryColor },
+                        { cmd: '!about', desc: 'Bot info', color: theme.secondaryColor },
+                        { cmd: '!when', desc: 'Castle countdown', color: theme.accentColor },
+                        { cmd: '/chat g', desc: 'Guild chat', color: theme.primaryColor },
+                        { cmd: '/locraw', desc: 'Get location', color: theme.secondaryColor },
+                        { cmd: '!bw Relaquent', desc: 'Check stats', color: theme.accentColor }
+                      ].map(item => (
                         <button
-                          onClick={addCustomCommand}
-                          className={%%BACKTICK%%btn-premium px-6 py-3 rounded-2xl font-black transition-all duration-300 flex items-center gap-2 %%DOLLAR_BRACE%%theme.animations ? 'hover:scale-105' : ''}%%BACKTICK%%}
-                          style={{background: %%BACKTICK%%linear-gradient(135deg, %%DOLLAR_BRACE%%theme.primaryColor}, %%DOLLAR_BRACE%%theme.secondaryColor})%%BACKTICK%%}}
+                          key={item.cmd}
+                          onClick={() => executeCommand(item.cmd)}
+                          className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 text-left transition-all group border border-white/10 \${theme.animations ? 'hover-lift' : ''}\`}
                         >
-                          <Plus />
-                          NEW COMMAND
+                          <div className="inline-block px-3 py-1 rounded-lg font-mono font-bold text-sm mb-2" style={{backgroundColor: \`\${item.color}40\`, color: item.color}}>
+                            {item.cmd}
+                          </div>
+                          <div className="text-xs text-gray-400 font-medium">{item.desc}</div>
                         </button>
-                      </div>
-
-                      {settings.customCommands.length === 0 ? (
-                        <div className="text-center py-16 text-gray-500">
-                          <Command className={%%BACKTICK%%w-24 h-24 mx-auto mb-6 opacity-20 %%DOLLAR_BRACE%%theme.animations ? 'animate-bounce-soft' : ''}%%BACKTICK%%} />
-                          <p className="font-bold text-xl mb-2">No custom commands yet</p>
-                          <p className="text-sm">Create your first custom command to get started!</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {settings.customCommands.map((cmd, index) => (
-                            <div 
-                              key={index} 
-                              className={%%BACKTICK%%command-card %%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10%%BACKTICK%%}
-                            >
-                              <div className="flex items-start justify-between mb-3">
-                                <div className="flex items-center gap-4 flex-1">
-                                  <div className={%%BACKTICK%%w-12 h-12 rounded-xl flex items-center justify-center font-black text-xl %%DOLLAR_BRACE%%cmd.enabled ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-500'}%%BACKTICK%%}>
-                                    {cmd.enabled ? <Check /> : <X />}
-                                  </div>
-                                  <div className="flex-1">
-                                    <div className="flex items-center gap-3 mb-2">
-                                      <code className="px-3 py-1 rounded-lg bg-purple-500/20 text-purple-300 font-mono font-bold text-sm">
-                                        {cmd.name}
-                                      </code>
-                                      <span className="text-xs px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 font-bold">
-                                        {cmd.cooldown}s cooldown
-                                      </span>
-                                    </div>
-                                    <p className="text-sm text-gray-400 font-medium mb-1">{cmd.description || 'No description'}</p>
-                                    <p className="text-xs text-gray-500 font-mono bg-black/30 rounded px-2 py-1 inline-block">
-                                      Response: {cmd.response.substring(0, 50)}{cmd.response.length > 50 ? '...' : ''}
-                                    </p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <button
-                                    onClick={() => toggleCommandEnabled(index)}
-                                    className={%%BACKTICK%%p-2 rounded-xl transition-all %%DOLLAR_BRACE%%cmd.enabled ? 'bg-green-500/20 text-green-400 hover:bg-green-500/30' : 'bg-gray-500/20 text-gray-400 hover:bg-gray-500/30'}%%BACKTICK%%}
-                                    title={cmd.enabled ? 'Disable' : 'Enable'}
-                                  >
-                                    <Power />
-                                  </button>
-                                  <button
-                                    onClick={() => duplicateCommand(index)}
-                                    className="p-2 rounded-xl bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 transition-all"
-                                    title="Duplicate"
-                                  >
-                                    <Copy />
-                                  </button>
-                                  <button
-                                    onClick={() => editCommand(index)}
-                                    className="p-2 rounded-xl bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all"
-                                    title="Edit"
-                                  >
-                                    <Edit />
-                                  </button>
-                                  <button
-                                    onClick={() => removeCustomCommand(index)}
-                                    className="p-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
-                                    title="Delete"
-                                  >
-                                    <Trash />
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      ))}
                     </div>
-
-                    {/* Command Creation Modal */}
-                    {showCommandModal && (
-                      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-                        <div className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-ultra' : 'bg-slate-900'} rounded-3xl p-8 max-w-2xl w-full border-2 %%DOLLAR_BRACE%%theme.animations ? 'animate-slide-up' : ''}%%BACKTICK%%} style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}>
-                          <div className="flex items-center justify-between mb-6">
-                            <h3 className="text-3xl font-black flex items-center gap-3" style={{color: theme.primaryColor}}>
-                              <Command />
-                              {editingCommand !== null ? 'EDIT COMMAND' : 'CREATE NEW COMMAND'}
-                            </h3>
-                            <button
-                              onClick={() => setShowCommandModal(false)}
-                              className="p-3 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
-                            >
-                              <X />
-                            </button>
-                          </div>
-
-                          <div className="space-y-5">
-                            <div>
-                              <label className="block text-sm font-bold mb-2 flex items-center gap-2">
-                                <Terminal className="w-4 h-4" />
-                                Command Name
-                              </label>
-                              <input
-                                type="text"
-                                value={newCommand.name}
-                                onChange={(e) => setNewCommand({...newCommand, name: e.target.value})}
-                                placeholder="e.g., !mycommand"
-                                className="w-full bg-black/40 border-2 rounded-xl px-5 py-3 focus:outline-none font-mono font-bold input-glow"
-                                style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}
-                              />
-                              <p className="text-xs text-gray-500 mt-2 font-medium">Use ! prefix for commands (e.g., !help, !discord)</p>
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-bold mb-2 flex items-center gap-2">
-                                <Info className="w-4 h-4" />
-                                Description
-                              </label>
-                              <input
-                                type="text"
-                                value={newCommand.description}
-                                onChange={(e) => setNewCommand({...newCommand, description: e.target.value})}
-                                placeholder="Brief description of what this command does"
-                                className="w-full bg-black/40 border-2 rounded-xl px-5 py-3 focus:outline-none font-medium input-glow"
-                                style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-bold mb-2 flex items-center gap-2">
-                                <MessageSquare className="w-4 h-4" />
-                                Response Message
-                              </label>
-                              <textarea
-                                value={newCommand.response}
-                                onChange={(e) => setNewCommand({...newCommand, response: e.target.value})}
-                                placeholder="The message the bot will send when this command is triggered"
-                                rows="4"
-                                className="w-full bg-black/40 border-2 rounded-xl px-5 py-3 focus:outline-none font-medium custom-scrollbar resize-none input-glow"
-                                style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}
-                              />
-                              <p className="text-xs text-gray-500 mt-2 font-medium">You can use multiple lines. Keep it under 256 characters.</p>
-                            </div>
-
-                            <div>
-                              <label className="block text-sm font-bold mb-2 flex items-center gap-2">
-                                <Clock className="w-4 h-4" />
-                                Cooldown (seconds)
-                              </label>
-                              <div className="flex items-center gap-4">
-                                <input
-                                  type="range"
-                                  min="0"
-                                  max="300"
-                                  step="5"
-                                  value={newCommand.cooldown}
-                                  onChange={(e) => setNewCommand({...newCommand, cooldown: parseInt(e.target.value)})}
-                                  className="flex-1"
-                                  style={{accentColor: theme.primaryColor}}
-                                />
-                                <div className="px-5 py-2 rounded-xl font-black text-lg" style={{backgroundColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}20%%BACKTICK%%, color: theme.primaryColor}}>
-                                  {newCommand.cooldown}s
-                                </div>
-                              </div>
-                              <p className="text-xs text-gray-500 mt-2 font-medium">Prevents spam by limiting how often this command can be used</p>
-                            </div>
-
-                            <div className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-xl p-4 flex items-center justify-between%%BACKTICK%%}>
-                              <div>
-                                <div className="font-bold">Enable Command</div>
-                                <div className="text-sm text-gray-400 mt-1">Command will be active immediately after saving</div>
-                              </div>
-                              <button
-                                onClick={() => setNewCommand({...newCommand, enabled: !newCommand.enabled})}
-                                className="relative w-16 h-8 rounded-full transition-all"
-                                style={{backgroundColor: newCommand.enabled ? theme.primaryColor : '#374151'}}
-                              >
-                                <div className={%%BACKTICK%%absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg %%DOLLAR_BRACE%%newCommand.enabled ? 'translate-x-8' : ''}%%BACKTICK%%}></div>
-                              </button>
-                            </div>
-
-                            <div className="flex gap-3 pt-4">
-                              <button
-                                onClick={() => setShowCommandModal(false)}
-                                className="flex-1 px-6 py-4 rounded-2xl font-bold bg-gray-500/20 text-gray-300 hover:bg-gray-500/30 transition-all"
-                              >
-                                CANCEL
-                              </button>
-                              <button
-                                onClick={saveCommand}
-                                disabled={!newCommand.name || !newCommand.response}
-                                className={%%BACKTICK%%flex-1 btn-premium px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed%%BACKTICK%%}
-                                style={{background: %%BACKTICK%%linear-gradient(135deg, %%DOLLAR_BRACE%%theme.primaryColor}, %%DOLLAR_BRACE%%theme.secondaryColor})%%BACKTICK%%}}
-                              >
-                                <Check />
-                                {editingCommand !== null ? 'UPDATE COMMAND' : 'CREATE COMMAND'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Save Settings Button */}
-                    <button
-                      onClick={saveSettings}
-                      className={%%BACKTICK%%w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg %%DOLLAR_BRACE%%theme.animations ? 'hover:scale-105' : ''}%%BACKTICK%%}
-                      style={{background: settingsSaved ? 'linear-gradient(135deg, #10b981, #059669)' : %%BACKTICK%%linear-gradient(135deg, %%DOLLAR_BRACE%%theme.primaryColor}, %%DOLLAR_BRACE%%theme.secondaryColor})%%BACKTICK%%}}
-                    >
-                      <Settings />
-                      {settingsSaved ? '✓ COMMANDS SAVED!' : 'SAVE ALL COMMANDS'}
-                    </button>
                   </div>
                 )}
 
                 {activeTab === 'gpt' && (
-                  <div className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in hover-lift%%BACKTICK%%}>
-                    <h2 className="text-3xl font-black mb-6 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: %%BACKTICK%%linear-gradient(to right, %%DOLLAR_BRACE%%theme.accentColor}, %%DOLLAR_BRACE%%theme.primaryColor})%%BACKTICK%%}}>
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
+                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.accentColor}, \${theme.primaryColor})\`}}>
                       <Brain />
                       GPT SYSTEM PROMPT
                     </h2>
-                    <div className="space-y-5">
-                      <div className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-black/30'} rounded-2xl p-5 border%%BACKTICK%%} style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}30%%BACKTICK%%}}>
-                        <div className="flex items-start gap-3">
-                          <Info className="w-5 h-5 text-blue-400 flex-shrink-0 mt-1" />
-                          <div>
-                            <p className="text-sm text-gray-300 font-bold mb-1">Configure AI Personality</p>
-                            <p className="text-xs text-gray-400">This prompt defines how the AI responds to !ask commands. Be specific about tone, style, and behavior.</p>
-                          </div>
-                        </div>
+                    <div className="space-y-4">
+                      <div className="bg-black/30 rounded-2xl p-4 border" style={{borderColor: \`\${theme.primaryColor}20\`}}>
+                        <p className="text-sm text-gray-400 mb-2 font-medium">Configure how the AI responds to !ask commands:</p>
                       </div>
                       <textarea
                         value={gptPrompt}
                         onChange={(e) => setGptPrompt(e.target.value)}
-                        rows="14"
-                        className="w-full bg-black/40 border-2 rounded-2xl px-6 py-4 focus:outline-none transition-all font-medium custom-scrollbar resize-none input-glow"
-                        style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}
+                        rows="12"
+                        className="w-full bg-black/30 border-2 rounded-2xl px-6 py-4 focus:outline-none transition-all font-medium custom-scrollbar resize-none"
+                        style={{borderColor: \`\${theme.primaryColor}30\`}}
                         placeholder="Enter system prompt for GPT..."
                       />
                       <button
                         onClick={saveGptPrompt}
-                        className={%%BACKTICK%%w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg %%DOLLAR_BRACE%%theme.animations ? 'hover:scale-105' : ''}%%BACKTICK%%}
-                        style={{background: promptSaved ? 'linear-gradient(135deg, #10b981, #059669)' : %%BACKTICK%%linear-gradient(135deg, %%DOLLAR_BRACE%%theme.accentColor}, %%DOLLAR_BRACE%%theme.primaryColor})%%BACKTICK%%}}
+                        className={\`w-full px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                        style={{background: promptSaved ? 'linear-gradient(to right, #10b981, #059669)' : \`linear-gradient(to right, \${theme.accentColor}, \${theme.primaryColor})\`}}
                       >
                         <Brain />
-                        {promptSaved ? '✓ PROMPT SAVED!' : 'SAVE GPT PROMPT'}
+                        {promptSaved ? '✓ SAVED!' : 'SAVE PROMPT'}
                       </button>
                     </div>
                   </div>
@@ -1578,15 +984,15 @@ app.get("/control", (req, res) => {
                 {activeTab === 'advanced' && (
                   <div className="space-y-6 animate-fade-in">
                     {/* Chat Filter */}
-                    <div className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 hover-lift%%BACKTICK%%}>
-                      <h2 className="text-3xl font-black mb-6 flex items-center gap-3" style={{color: theme.primaryColor}}>
+                    <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 \${theme.animations ? 'hover-lift' : ''}\`}>
+                      <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}>
                         <Filter />
                         CHAT FILTER
                       </h2>
-                      <div className="space-y-5">
+                      <div className="space-y-4">
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="font-bold text-xl">Enable Filter</div>
+                            <div className="font-bold text-lg">Enable Filter</div>
                             <div className="text-sm text-gray-400 mt-1">Filter messages by keywords</div>
                           </div>
                           <button
@@ -1594,7 +1000,7 @@ app.get("/control", (req, res) => {
                             className="relative w-16 h-8 rounded-full transition-all"
                             style={{backgroundColor: settings.chatFilter.enabled ? theme.primaryColor : '#374151'}}
                           >
-                            <div className={%%BACKTICK%%absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg %%DOLLAR_BRACE%%settings.chatFilter.enabled ? 'translate-x-8' : ''}%%BACKTICK%%}></div>
+                            <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${settings.chatFilter.enabled ? 'translate-x-8' : ''}\`}></div>
                           </button>
                         </div>
 
@@ -1605,8 +1011,8 @@ app.get("/control", (req, res) => {
                               <button
                                 key={mode}
                                 onClick={() => setSettings({...settings, chatFilter: {...settings.chatFilter, filterMode: mode}})}
-                                className={%%BACKTICK%%px-6 py-4 rounded-xl font-bold transition-all capitalize %%DOLLAR_BRACE%%settings.chatFilter.filterMode === mode ? '' : 'bg-white/5'}%%BACKTICK%%}
-                                style={settings.chatFilter.filterMode === mode ? {background: %%BACKTICK%%linear-gradient(135deg, %%DOLLAR_BRACE%%theme.primaryColor}, %%DOLLAR_BRACE%%theme.secondaryColor})%%BACKTICK%%} : {}}
+                                className={\`px-4 py-3 rounded-xl font-bold transition-all capitalize \${settings.chatFilter.filterMode === mode ? '' : 'bg-white/5'}\`}
+                                style={settings.chatFilter.filterMode === mode ? {background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`} : {}}
                               >
                                 {mode}
                               </button>
@@ -1619,8 +1025,8 @@ app.get("/control", (req, res) => {
                             <label className="block font-bold text-lg">Keywords</label>
                             <button
                               onClick={addFilterKeyword}
-                              className={%%BACKTICK%%p-2 rounded-xl transition-all %%DOLLAR_BRACE%%theme.animations ? 'hover:scale-110' : ''}%%BACKTICK%%}
-                              style={{background: %%BACKTICK%%linear-gradient(135deg, %%DOLLAR_BRACE%%theme.primaryColor}, %%DOLLAR_BRACE%%theme.secondaryColor})%%BACKTICK%%}}
+                              className={\`p-2 rounded-xl transition-all \${theme.animations ? 'hover:scale-110' : ''}\`}
+                              style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
                             >
                               <Plus />
                             </button>
@@ -1633,8 +1039,8 @@ app.get("/control", (req, res) => {
                                   value={keyword}
                                   onChange={(e) => updateFilterKeyword(index, e.target.value)}
                                   placeholder="Enter keyword..."
-                                  className="flex-1 bg-black/40 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium input-glow"
-                                  style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}
+                                  className="flex-1 bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium"
+                                  style={{borderColor: \`\${theme.primaryColor}30\`}}
                                 />
                                 <button
                                   onClick={() => removeFilterKeyword(index)}
@@ -1645,9 +1051,8 @@ app.get("/control", (req, res) => {
                               </div>
                             ))}
                             {settings.chatFilter.keywords.length === 0 && (
-                              <div className="text-center py-8 text-gray-500">
-                                <Filter className={%%BACKTICK%%w-16 h-16 mx-auto mb-3 opacity-20 %%DOLLAR_BRACE%%theme.animations ? 'animate-bounce-soft' : ''}%%BACKTICK%%} />
-                                <p className="text-sm font-medium">No keywords added</p>
+                              <div className="text-center py-6 text-gray-500">
+                                <p className="text-sm">No keywords added</p>
                               </div>
                             )}
                           </div>
@@ -1655,24 +1060,88 @@ app.get("/control", (req, res) => {
                       </div>
                     </div>
 
+                    {/* Custom Commands */}
+                    <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 \${theme.animations ? 'hover-lift' : ''}\`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-black flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.secondaryColor}, \${theme.accentColor})\`}}>
+                          <Command />
+                          CUSTOM COMMANDS
+                        </h2>
+                        <button
+                          onClick={addCustomCommand}
+                          className={\`p-3 rounded-xl transition-all \${theme.animations ? 'hover:scale-110' : ''}\`}
+                          style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                        >
+                          <Plus />
+                        </button>
+                      </div>
+                      <div className="space-y-3">
+                        {settings.customCommands.map((cmd, index) => (
+                          <div key={index} className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10 space-y-3\`}>
+                            <div className="flex items-center justify-between">
+                              <div className="font-bold text-lg">Command #{index + 1}</div>
+                              <button
+                                onClick={() => removeCustomCommand(index)}
+                                className="p-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                              >
+                                <Trash />
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              value={cmd.name}
+                              onChange={(e) => updateCustomCommand(index, 'name', e.target.value)}
+                              placeholder="Command name (e.g., !mycommand)"
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                            <textarea
+                              value={cmd.response}
+                              onChange={(e) => updateCustomCommand(index, 'response', e.target.value)}
+                              placeholder="Response message"
+                              rows="3"
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium custom-scrollbar resize-none"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                            <div>
+                              <label className="block text-sm font-bold mb-2">Cooldown (seconds)</label>
+                              <input
+                                type="number"
+                                value={cmd.cooldown}
+                                onChange={(e) => updateCustomCommand(index, 'cooldown', parseInt(e.target.value) || 0)}
+                                className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-bold"
+                                style={{borderColor: \`\${theme.primaryColor}30\`}}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                        {settings.customCommands.length === 0 && (
+                          <div className="text-center py-8 text-gray-500">
+                            <Command className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                            <p className="font-medium">No custom commands yet</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
                     {/* Auto Responses */}
-                    <div className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 hover-lift%%BACKTICK%%}>
-                      <div className="flex items-center justify-between mb-6">
-                        <h2 className="text-3xl font-black flex items-center gap-3" style={{color: theme.accentColor}}>
+                    <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 \${theme.animations ? 'hover-lift' : ''}\`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-black flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.accentColor}, \${theme.secondaryColor})\`}}>
                           <Zap />
                           AUTO RESPONSES
                         </h2>
                         <button
                           onClick={addAutoResponse}
-                          className={%%BACKTICK%%btn-premium p-3 rounded-xl transition-all %%DOLLAR_BRACE%%theme.animations ? 'hover:scale-110' : ''}%%BACKTICK%%}
-                          style={{background: %%BACKTICK%%linear-gradient(135deg, %%DOLLAR_BRACE%%theme.primaryColor}, %%DOLLAR_BRACE%%theme.secondaryColor})%%BACKTICK%%}}
+                          className={\`p-3 rounded-xl transition-all \${theme.animations ? 'hover:scale-110' : ''}\`}
+                          style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
                         >
                           <Plus />
                         </button>
                       </div>
-                      <div className="flex items-center justify-between mb-6 bg-black/30 rounded-2xl p-5">
+                      <div className="flex items-center justify-between mb-4 bg-black/30 rounded-2xl p-4">
                         <div>
-                          <div className="font-bold text-xl">Enable Auto Responses</div>
+                          <div className="font-bold text-lg">Enable Auto Responses</div>
                           <div className="text-sm text-gray-400 mt-1">Automatically reply to triggers</div>
                         </div>
                         <button
@@ -1680,12 +1149,12 @@ app.get("/control", (req, res) => {
                           className="relative w-16 h-8 rounded-full transition-all"
                           style={{backgroundColor: settings.autoResponses.enabled ? theme.primaryColor : '#374151'}}
                         >
-                          <div className={%%BACKTICK%%absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg %%DOLLAR_BRACE%%settings.autoResponses.enabled ? 'translate-x-8' : ''}%%BACKTICK%%}></div>
+                          <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${settings.autoResponses.enabled ? 'translate-x-8' : ''}\`}></div>
                         </button>
                       </div>
                       <div className="space-y-3">
                         {settings.autoResponses.responses.map((resp, index) => (
-                          <div key={index} className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10 space-y-3%%BACKTICK%%}>
+                          <div key={index} className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10 space-y-3\`}>
                             <div className="flex items-center justify-between">
                               <div className="font-bold text-lg">Response #{index + 1}</div>
                               <button
@@ -1700,16 +1169,16 @@ app.get("/control", (req, res) => {
                               value={resp.trigger}
                               onChange={(e) => updateAutoResponse(index, 'trigger', e.target.value)}
                               placeholder="Trigger word"
-                              className="w-full bg-black/40 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium input-glow"
-                              style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
                             />
                             <input
                               type="text"
                               value={resp.response}
                               onChange={(e) => updateAutoResponse(index, 'response', e.target.value)}
                               placeholder="Auto response"
-                              className="w-full bg-black/40 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium input-glow"
-                              style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
                             />
                             <div>
                               <label className="block text-sm font-bold mb-2">Delay (ms)</label>
@@ -1717,8 +1186,8 @@ app.get("/control", (req, res) => {
                                 type="number"
                                 value={resp.delay}
                                 onChange={(e) => updateAutoResponse(index, 'delay', parseInt(e.target.value) || 0)}
-                                className="w-full bg-black/40 border-2 rounded-xl px-4 py-3 focus:outline-none font-bold input-glow"
-                                style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}
+                                className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-bold"
+                                style={{borderColor: \`\${theme.primaryColor}30\`}}
                               />
                             </div>
                           </div>
@@ -1729,8 +1198,8 @@ app.get("/control", (req, res) => {
                     {/* Save Button */}
                     <button
                       onClick={saveSettings}
-                      className={%%BACKTICK%%w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg %%DOLLAR_BRACE%%theme.animations ? 'hover:scale-105' : ''}%%BACKTICK%%}
-                      style={{background: settingsSaved ? 'linear-gradient(135deg, #10b981, #059669)' : %%BACKTICK%%linear-gradient(135deg, %%DOLLAR_BRACE%%theme.primaryColor}, %%DOLLAR_BRACE%%theme.secondaryColor})%%BACKTICK%%}}
+                      className={\`w-full px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                      style={{background: settingsSaved ? 'linear-gradient(to right, #10b981, #059669)' : \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
                     >
                       <Settings />
                       {settingsSaved ? '✓ SETTINGS SAVED!' : 'SAVE ALL SETTINGS'}
@@ -1739,30 +1208,26 @@ app.get("/control", (req, res) => {
                 )}
 
                 {activeTab === 'customize' && (
-                  <div className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in hover-lift%%BACKTICK%%}>
-                    <h2 className="text-3xl font-black mb-6 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: %%BACKTICK%%linear-gradient(to right, %%DOLLAR_BRACE%%theme.primaryColor}, %%DOLLAR_BRACE%%theme.secondaryColor})%%BACKTICK%%}}>
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
+                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}>
                       <Palette />
                       CUSTOMIZE PANEL
                     </h2>
                     <div className="space-y-6">
                       {/* Theme Presets */}
                       <div>
-                        <label className="block font-bold text-xl mb-4 flex items-center gap-2">
-                          <Star className="text-yellow-400" />
-                          Quick Presets
-                        </label>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                          {themePresets.map((preset, idx) => (
+                        <label className="block font-bold text-lg mb-3">Quick Presets</label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {themePresets.map(preset => (
                             <button
                               key={preset.name}
                               onClick={() => setTheme({...theme, primaryColor: preset.primary, secondaryColor: preset.secondary, accentColor: preset.accent})}
-                              className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-xl p-4 text-left transition-all border border-white/10 hover-lift group%%BACKTICK%%}
-                              style={theme.animations ? {animationDelay: %%BACKTICK%%%%DOLLAR_BRACE%%idx * 0.05}s%%BACKTICK%%} : {}}
+                              className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-xl p-4 text-left transition-all border border-white/10 \${theme.animations ? 'hover:scale-105' : ''}\`}
                             >
-                              <div className="flex gap-2 mb-3">
-                                <div className={%%BACKTICK%%w-8 h-8 rounded-full %%DOLLAR_BRACE%%theme.animations ? 'group-hover:scale-110' : ''} transition-transform%%BACKTICK%%} style={{backgroundColor: preset.primary}}></div>
-                                <div className={%%BACKTICK%%w-8 h-8 rounded-full %%DOLLAR_BRACE%%theme.animations ? 'group-hover:scale-110' : ''} transition-transform%%BACKTICK%%} style={{backgroundColor: preset.secondary, transitionDelay: '0.05s'}}></div>
-                                <div className={%%BACKTICK%%w-8 h-8 rounded-full %%DOLLAR_BRACE%%theme.animations ? 'group-hover:scale-110' : ''} transition-transform%%BACKTICK%%} style={{backgroundColor: preset.accent, transitionDelay: '0.1s'}}></div>
+                              <div className="flex gap-2 mb-2">
+                                <div className="w-6 h-6 rounded-full" style={{backgroundColor: preset.primary}}></div>
+                                <div className="w-6 h-6 rounded-full" style={{backgroundColor: preset.secondary}}></div>
+                                <div className="w-6 h-6 rounded-full" style={{backgroundColor: preset.accent}}></div>
                               </div>
                               <div className="font-bold text-sm">{preset.name}</div>
                             </button>
@@ -1772,45 +1237,47 @@ app.get("/control", (req, res) => {
 
                       {/* Color Pickers */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {[
-                          { key: 'primaryColor', label: 'Primary Color', icon: '🎨' },
-                          { key: 'secondaryColor', label: 'Secondary Color', icon: '✨' },
-                          { key: 'accentColor', label: 'Accent Color', icon: '💫' }
-                        ].map((color, idx) => (
-                          <div key={color.key} className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10%%BACKTICK%%}>
-                            <label className="block font-bold text-sm mb-3">{color.icon} {color.label}</label>
-                            <div className="relative">
-                              <input
-                                type="color"
-                                value={theme[color.key]}
-                                onChange={(e) => setTheme({...theme, [color.key]: e.target.value})}
-                                className="w-full h-20 rounded-xl cursor-pointer border-4 border-white/10"
-                              />
-                              <div className="mt-3 text-center font-mono font-bold text-sm" style={{color: theme[color.key]}}>
-                                {theme[color.key].toUpperCase()}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10\`}>
+                          <label className="block font-bold text-sm mb-3">Primary Color</label>
+                          <input
+                            type="color"
+                            value={theme.primaryColor}
+                            onChange={(e) => setTheme({...theme, primaryColor: e.target.value})}
+                            className="w-full h-16 rounded-xl cursor-pointer"
+                          />
+                        </div>
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10\`}>
+                          <label className="block font-bold text-sm mb-3">Secondary Color</label>
+                          <input
+                            type="color"
+                            value={theme.secondaryColor}
+                            onChange={(e) => setTheme({...theme, secondaryColor: e.target.value})}
+                            className="w-full h-16 rounded-xl cursor-pointer"
+                          />
+                        </div>
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10\`}>
+                          <label className="block font-bold text-sm mb-3">Accent Color</label>
+                          <input
+                            type="color"
+                            value={theme.accentColor}
+                            onChange={(e) => setTheme({...theme, accentColor: e.target.value})}
+                            className="w-full h-16 rounded-xl cursor-pointer"
+                          />
+                        </div>
                       </div>
 
                       {/* Background Style */}
-                      <div className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10%%BACKTICK%%}>
-                        <label className="block font-bold text-xl mb-4">Background Style</label>
+                      <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <label className="block font-bold text-lg mb-3">Background Style</label>
                         <div className="grid grid-cols-3 gap-3">
-                          {[
-                            { value: 'gradient', label: 'Gradient', icon: '🌈' },
-                            { value: 'solid', label: 'Solid', icon: '🎨' },
-                            { value: 'animated', label: 'Animated', icon: '✨' }
-                          ].map(style => (
+                          {['gradient', 'solid', 'animated'].map(style => (
                             <button
-                              key={style.value}
-                              onClick={() => setTheme({...theme, bgStyle: style.value})}
-                              className={%%BACKTICK%%px-4 py-4 rounded-xl font-bold transition-all %%DOLLAR_BRACE%%theme.bgStyle === style.value ? '' : 'bg-white/5'}%%BACKTICK%%}
-                              style={theme.bgStyle === style.value ? {background: %%BACKTICK%%linear-gradient(135deg, %%DOLLAR_BRACE%%theme.primaryColor}, %%DOLLAR_BRACE%%theme.secondaryColor})%%BACKTICK%%} : {}}
+                              key={style}
+                              onClick={() => setTheme({...theme, bgStyle: style})}
+                              className={\`px-4 py-3 rounded-xl font-bold transition-all capitalize \${theme.bgStyle === style ? '' : 'bg-white/5'}\`}
+                              style={theme.bgStyle === style ? {background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`} : {}}
                             >
-                              <div className="text-2xl mb-1">{style.icon}</div>
-                              <div className="text-sm">{style.label}</div>
+                              {style}
                             </button>
                           ))}
                         </div>
@@ -1818,34 +1285,40 @@ app.get("/control", (req, res) => {
 
                       {/* Toggle Options */}
                       <div className="space-y-3">
-                        {[
-                          { key: 'glassEffect', label: 'Glass Effect', desc: 'Frosted glass morphism', icon: '🔮' },
-                          { key: 'animations', label: 'Animations', desc: 'Enable smooth animations', icon: '🎭' }
-                        ].map(toggle => (
-                          <div key={toggle.key} className={%%BACKTICK%%setting-card %%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 flex items-center justify-between border border-white/10%%BACKTICK%%}>
-                            <div className="flex items-center gap-4">
-                              <div className="text-3xl">{toggle.icon}</div>
-                              <div>
-                                <div className="font-bold text-lg">{toggle.label}</div>
-                                <div className="text-sm text-gray-400 mt-1">{toggle.desc}</div>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => setTheme({...theme, [toggle.key]: !theme[toggle.key]})}
-                              className={%%BACKTICK%%relative w-16 h-8 rounded-full transition-all%%BACKTICK%%}
-                              style={{backgroundColor: theme[toggle.key] ? theme.primaryColor : '#374151'}}
-                            >
-                              <div className={%%BACKTICK%%absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg %%DOLLAR_BRACE%%theme[toggle.key] ? 'translate-x-8' : ''}%%BACKTICK%%}></div>
-                            </button>
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 flex items-center justify-between border border-white/10\`}>
+                          <div>
+                            <div className="font-bold text-lg">Glass Effect</div>
+                            <div className="text-sm text-gray-400 mt-1">Frosted glass morphism</div>
                           </div>
-                        ))}
+                          <button
+                            onClick={() => setTheme({...theme, glassEffect: !theme.glassEffect})}
+                            className={\`relative w-16 h-8 rounded-full transition-all\`}
+                            style={{backgroundColor: theme.glassEffect ? theme.primaryColor : '#374151'}}
+                          >
+                            <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${theme.glassEffect ? 'translate-x-8' : ''}\`}></div>
+                          </button>
+                        </div>
+
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 flex items-center justify-between border border-white/10\`}>
+                          <div>
+                            <div className="font-bold text-lg">Animations</div>
+                            <div className="text-sm text-gray-400 mt-1">Enable smooth animations</div>
+                          </div>
+                          <button
+                            onClick={() => setTheme({...theme, animations: !theme.animations})}
+                            className={\`relative w-16 h-8 rounded-full transition-all\`}
+                            style={{backgroundColor: theme.animations ? theme.primaryColor : '#374151'}}
+                          >
+                            <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${theme.animations ? 'translate-x-8' : ''}\`}></div>
+                          </button>
+                        </div>
                       </div>
 
                       {/* Save Button */}
                       <button
                         onClick={saveTheme}
-                        className={%%BACKTICK%%w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg %%DOLLAR_BRACE%%theme.animations ? 'hover:scale-105' : ''}%%BACKTICK%%}
-                        style={{background: themeSaved ? 'linear-gradient(135deg, #10b981, #059669)' : %%BACKTICK%%linear-gradient(135deg, %%DOLLAR_BRACE%%theme.primaryColor}, %%DOLLAR_BRACE%%theme.secondaryColor})%%BACKTICK%%}}
+                        className={\`w-full px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                        style={{background: themeSaved ? 'linear-gradient(to right, #10b981, #059669)' : \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
                       >
                         <Palette />
                         {themeSaved ? '✓ SAVED! RELOADING...' : 'SAVE & APPLY THEME'}
@@ -1855,102 +1328,74 @@ app.get("/control", (req, res) => {
                 )}
 
                 {activeTab === 'settings' && (
-                  <div className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in hover-lift%%BACKTICK%%}>
-                    <h2 className="text-3xl font-black mb-6 flex items-center gap-3" style={{color: theme.secondaryColor}}>
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
+                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.secondaryColor}, \${theme.primaryColor})\`}}>
                       <Settings />
                       BOT SETTINGS
                     </h2>
                     <div className="space-y-4">
                       {[
-                        { key: 'autoReconnect', label: 'Auto Reconnect', desc: 'Automatically reconnect on disconnect', icon: '🔄' },
-                        { key: 'welcomeMessages', label: 'Welcome Messages', desc: 'Send welcome messages to new members', icon: '👋' }
+                        { key: 'autoReconnect', label: 'Auto Reconnect', desc: 'Automatically reconnect on disconnect' },
+                        { key: 'welcomeMessages', label: 'Welcome Messages', desc: 'Send welcome messages to new members' }
                       ].map(setting => (
-                        <div key={setting.key} className={%%BACKTICK%%setting-card %%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 flex items-center justify-between border border-white/10%%BACKTICK%%}>
-                          <div className="flex items-center gap-4">
-                            <div className="text-3xl">{setting.icon}</div>
-                            <div>
-                              <div className="font-bold text-lg">{setting.label}</div>
-                              <div className="text-sm text-gray-400 mt-1">{setting.desc}</div>
-                            </div>
+                        <div key={setting.key} className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 flex items-center justify-between border border-white/10\`}>
+                          <div>
+                            <div className="font-bold text-lg">{setting.label}</div>
+                            <div className="text-sm text-gray-400 mt-1">{setting.desc}</div>
                           </div>
                           <button
                             onClick={() => setSettings({...settings, [setting.key]: !settings[setting.key]})}
                             className="relative w-16 h-8 rounded-full transition-all"
                             style={{backgroundColor: settings[setting.key] ? theme.primaryColor : '#374151'}}
                           >
-                            <div className={%%BACKTICK%%absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg %%DOLLAR_BRACE%%settings[setting.key] ? 'translate-x-8' : ''}%%BACKTICK%%}></div>
+                            <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${settings[setting.key] ? 'translate-x-8' : ''}\`}></div>
                           </button>
                         </div>
                       ))}
                       
-                      <div className={%%BACKTICK%%setting-card %%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10%%BACKTICK%%}>
-                        <label className="block font-bold text-lg mb-4 flex items-center gap-2">
-                          <Clock />
-                          Command Cooldown (seconds)
-                        </label>
-                        <div className="flex items-center gap-4">
-                          <input
-                            type="range"
-                            min="0"
-                            max="120"
-                            step="5"
-                            value={settings.commandCooldown}
-                            onChange={(e) => setSettings({...settings, commandCooldown: parseInt(e.target.value)})}
-                            className="flex-1"
-                            style={{accentColor: theme.primaryColor}}
-                          />
-                          <div className="px-6 py-3 rounded-xl font-black text-xl min-w-[80px] text-center" style={{backgroundColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}20%%BACKTICK%%, color: theme.primaryColor}}>
-                            {settings.commandCooldown}s
-                          </div>
-                        </div>
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <label className="block font-bold text-lg mb-3">Command Cooldown (seconds)</label>
+                        <input
+                          type="number"
+                          value={settings.commandCooldown}
+                          onChange={(e) => setSettings({...settings, commandCooldown: parseInt(e.target.value)})}
+                          className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-bold text-lg"
+                          style={{borderColor: \`\${theme.primaryColor}30\`}}
+                        />
                       </div>
                       
-                      <div className={%%BACKTICK%%setting-card %%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10%%BACKTICK%%}>
-                        <label className="block font-bold text-lg mb-4 flex items-center gap-2">
-                          <Brain />
-                          Max GPT Tokens
-                        </label>
-                        <div className="flex items-center gap-4">
-                          <input
-                            type="range"
-                            min="50"
-                            max="500"
-                            step="50"
-                            value={settings.maxTokens}
-                            onChange={(e) => setSettings({...settings, maxTokens: parseInt(e.target.value)})}
-                            className="flex-1"
-                            style={{accentColor: theme.primaryColor}}
-                          />
-                          <div className="px-6 py-3 rounded-xl font-black text-xl min-w-[80px] text-center" style={{backgroundColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}20%%BACKTICK%%, color: theme.primaryColor}}>
-                            {settings.maxTokens}
-                          </div>
-                        </div>
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <label className="block font-bold text-lg mb-3">Max GPT Tokens</label>
+                        <input
+                          type="number"
+                          value={settings.maxTokens}
+                          onChange={(e) => setSettings({...settings, maxTokens: parseInt(e.target.value)})}
+                          className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-bold text-lg"
+                          style={{borderColor: \`\${theme.primaryColor}30\`}}
+                        />
                       </div>
 
                       {/* Notifications */}
-                      <div className={%%BACKTICK%%setting-card %%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10%%BACKTICK%%}>
-                        <h3 className="font-bold text-xl mb-5 flex items-center gap-2">
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                           <Bell />
                           Notifications
                         </h3>
                         <div className="space-y-3">
                           {[
-                            { key: 'onJoin', label: 'On Player Join', icon: '🟢' },
-                            { key: 'onLeave', label: 'On Player Leave', icon: '🔴' },
-                            { key: 'onCommand', label: 'On Command Use', icon: '⚡' },
-                            { key: 'soundEnabled', label: 'Sound Alerts', icon: '🔔' }
+                            { key: 'onJoin', label: 'On Player Join' },
+                            { key: 'onLeave', label: 'On Player Leave' },
+                            { key: 'onCommand', label: 'On Command Use' },
+                            { key: 'soundEnabled', label: 'Sound Alerts' }
                           ].map(notif => (
-                            <div key={notif.key} className="flex items-center justify-between bg-black/30 rounded-xl p-4">
-                              <span className="font-medium flex items-center gap-3">
-                                <span>{notif.icon}</span>
-                                {notif.label}
-                              </span>
+                            <div key={notif.key} className="flex items-center justify-between bg-black/30 rounded-xl p-3">
+                              <span className="font-medium">{notif.label}</span>
                               <button
                                 onClick={() => setSettings({...settings, notifications: {...settings.notifications, [notif.key]: !settings.notifications[notif.key]}})}
-                                className="relative w-14 h-7 rounded-full transition-all"
+                                className="relative w-12 h-6 rounded-full transition-all"
                                 style={{backgroundColor: settings.notifications[notif.key] ? theme.primaryColor : '#374151'}}
                               >
-                                <div className={%%BACKTICK%%absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform shadow-lg %%DOLLAR_BRACE%%settings.notifications[notif.key] ? 'translate-x-7' : ''}%%BACKTICK%%}></div>
+                                <div className={\`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform shadow-lg \${settings.notifications[notif.key] ? 'translate-x-6' : ''}\`}></div>
                               </button>
                             </div>
                           ))}
@@ -1958,67 +1403,67 @@ app.get("/control", (req, res) => {
                       </div>
 
                       {/* Performance */}
-                      <div className={%%BACKTICK%%setting-card %%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10%%BACKTICK%%}>
-                        <h3 className="font-bold text-xl mb-5 flex items-center gap-2">
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
                           <Sliders />
                           Performance
                         </h3>
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                           <div>
-                            <label className="block text-sm font-bold mb-3">Message Delay (ms)</label>
+                            <label className="block text-sm font-bold mb-2">Message Delay (ms)</label>
                             <input
                               type="number"
                               value={settings.performance.messageDelay}
                               onChange={(e) => setSettings({...settings, performance: {...settings.performance, messageDelay: parseInt(e.target.value)}})}
-                              className="w-full bg-black/40 border-2 rounded-xl px-5 py-3 focus:outline-none font-bold input-glow"
-                              style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-2 focus:outline-none font-bold"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-bold mb-3">Max Messages/Second</label>
+                            <label className="block text-sm font-bold mb-2">Max Messages/Second</label>
                             <input
                               type="number"
                               value={settings.performance.maxMessagesPerSecond}
                               onChange={(e) => setSettings({...settings, performance: {...settings.performance, maxMessagesPerSecond: parseInt(e.target.value)}})}
-                              className="w-full bg-black/40 border-2 rounded-xl px-5 py-3 focus:outline-none font-bold input-glow"
-                              style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-2 focus:outline-none font-bold"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
                             />
                           </div>
                           <div>
-                            <label className="block text-sm font-bold mb-3">Auto Reconnect Delay (ms)</label>
+                            <label className="block text-sm font-bold mb-2">Auto Reconnect Delay (ms)</label>
                             <input
                               type="number"
                               value={settings.performance.autoReconnectDelay}
                               onChange={(e) => setSettings({...settings, performance: {...settings.performance, autoReconnectDelay: parseInt(e.target.value)}})}
-                              className="w-full bg-black/40 border-2 rounded-xl px-5 py-3 focus:outline-none font-bold input-glow"
-                              style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-2 focus:outline-none font-bold"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
                             />
                           </div>
                         </div>
                       </div>
 
                       {/* Chat Logs */}
-                      <div className={%%BACKTICK%%setting-card %%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-2xl p-6 border border-white/10%%BACKTICK%%}>
-                        <h3 className="font-bold text-xl mb-5">📝 Chat Logs</h3>
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <h3 className="font-bold text-lg mb-4">Chat Logs</h3>
                         <div className="space-y-3">
-                          <div className="flex items-center justify-between bg-black/30 rounded-xl p-4">
+                          <div className="flex items-center justify-between bg-black/30 rounded-xl p-3">
                             <span className="font-medium">Enable Logging</span>
                             <button
                               onClick={() => setSettings({...settings, chatLogs: {...settings.chatLogs, enabled: !settings.chatLogs.enabled}})}
-                              className="relative w-14 h-7 rounded-full transition-all"
+                              className="relative w-12 h-6 rounded-full transition-all"
                               style={{backgroundColor: settings.chatLogs.enabled ? theme.primaryColor : '#374151'}}
                             >
-                              <div className={%%BACKTICK%%absolute top-1 left-1 w-5 h-5 bg-white rounded-full transition-transform shadow-lg %%DOLLAR_BRACE%%settings.chatLogs.enabled ? 'translate-x-7' : ''}%%BACKTICK%%}></div>
+                              <div className={\`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform shadow-lg \${settings.chatLogs.enabled ? 'translate-x-6' : ''}\`}></div>
                             </button>
                           </div>
                           <div>
-                            <label className="block text-sm font-bold mb-3">Max History</label>
+                            <label className="block text-sm font-bold mb-2">Max History</label>
                             <input
                               type="number"
                               value={settings.chatLogs.maxHistory}
                               onChange={(e) => setSettings({...settings, chatLogs: {...settings.chatLogs, maxHistory: parseInt(e.target.value)}})}
-                              className="w-full bg-black/40 border-2 rounded-xl px-5 py-3 focus:outline-none font-bold input-glow"
-                              style={{borderColor: %%BACKTICK%%%%DOLLAR_BRACE%%theme.primaryColor}40%%BACKTICK%%}}
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-2 focus:outline-none font-bold"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
                             />
                           </div>
                         </div>
@@ -2026,8 +1471,8 @@ app.get("/control", (req, res) => {
 
                       <button
                         onClick={saveSettings}
-                        className={%%BACKTICK%%w-full btn-premium px-6 py-5 rounded-2xl font-black transition-all duration-300 flex items-center justify-center gap-3 text-lg %%DOLLAR_BRACE%%theme.animations ? 'hover:scale-105' : ''}%%BACKTICK%%}
-                        style={{background: settingsSaved ? 'linear-gradient(135deg, #10b981, #059669)' : %%BACKTICK%%linear-gradient(135deg, %%DOLLAR_BRACE%%theme.primaryColor}, %%DOLLAR_BRACE%%theme.secondaryColor})%%BACKTICK%%}}
+                        className={\`w-full px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                        style={{background: settingsSaved ? 'linear-gradient(to right, #10b981, #059669)' : \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
                       >
                         <Settings />
                         {settingsSaved ? '✓ SETTINGS SAVED!' : 'SAVE ALL SETTINGS'}
@@ -2039,50 +1484,49 @@ app.get("/control", (req, res) => {
 
               {/* Live Logs Sidebar */}
               <div className="lg:col-span-1">
-                <div className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-ultra' : 'bg-slate-900/80'} rounded-3xl p-6 sticky top-6 hover-lift%%BACKTICK%%}>
-                  <div className="flex items-center justify-between mb-5">
-                    <h2 className="text-2xl font-black flex items-center gap-2" style={{color: '#10b981'}}>
+                <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 sticky top-6 \${theme.animations ? 'hover-lift' : ''}\`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-black flex items-center gap-2 bg-clip-text text-transparent" style={{backgroundImage: 'linear-gradient(to right, #10b981, #059669)'}}>
                       <Activity />
                       LIVE LOGS
                     </h2>
                     <button 
                       onClick={() => setLogs([])}
-                      className={%%BACKTICK%%p-3 rounded-xl transition-all %%DOLLAR_BRACE%%theme.animations ? 'hover:scale-110 hover:rotate-180' : ''}%%BACKTICK%%} 
+                      className={\`p-2 rounded-xl transition-all \${theme.animations ? 'hover:scale-110' : ''}\`} 
                       style={{backgroundColor: 'rgba(255,255,255,0.1)'}}
                     >
                       <RefreshCw />
                     </button>
                   </div>
-                  <div ref={logsRef} className="space-y-2 max-h-[700px] overflow-y-auto custom-scrollbar">
+                  <div ref={logsRef} className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar">
                     {logs.length === 0 ? (
-                      <div className="text-center py-16 text-gray-500">
-                        <Activity className={%%BACKTICK%%w-16 h-16 mx-auto mb-4 opacity-20 %%DOLLAR_BRACE%%theme.animations ? 'animate-bounce-soft' : ''}%%BACKTICK%%} />
+                      <div className="text-center py-12 text-gray-500">
+                        <Activity className="w-12 h-12 mx-auto mb-3 opacity-30" />
                         <p className="text-sm font-medium">No logs yet</p>
                       </div>
                     ) : (
                       logs.map((log, idx) => (
                         <div
                           key={idx}
-                          className={%%BACKTICK%%%%DOLLAR_BRACE%%theme.glassEffect ? 'glass-medium' : 'bg-slate-900/50'} rounded-xl p-4 text-sm border %%DOLLAR_BRACE%%theme.animations ? 'animate-slide-in-right' : ''} %%DOLLAR_BRACE%%
+                          className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-xl p-4 text-sm border \${theme.animations ? 'animate-slide-in' : ''} \${
                             log.type === 'error' ? 'border-red-500/50 bg-red-500/10' :
                             log.type === 'success' ? 'border-green-500/50 bg-green-500/10' :
                             log.type === 'command' ? 'border-blue-500/50 bg-blue-500/10' :
                             'border-white/10'
-                          }%%BACKTICK%%}
-                          style={theme.animations ? {animationDelay: %%BACKTICK%%%%DOLLAR_BRACE%%idx * 0.03}s%%BACKTICK%%} : {}}
+                          }\`}
                         >
                           <div className="flex items-center gap-2 mb-2">
                             <span className="text-xs text-gray-400 font-mono">{log.time}</span>
-                            <span className={%%BACKTICK%%text-xs px-2 py-1 rounded-full font-bold uppercase %%DOLLAR_BRACE%%
+                            <span className={\`text-xs px-2 py-1 rounded-full font-bold uppercase \${
                               log.type === 'error' ? 'bg-red-500/30 text-red-300' :
                               log.type === 'success' ? 'bg-green-500/30 text-green-300' :
                               log.type === 'command' ? 'bg-blue-500/30 text-blue-300' :
                               'bg-gray-500/30 text-gray-300'
-                            }%%BACKTICK%%}>
+                            }\`}>
                               {log.type}
                             </span>
                           </div>
-                          <div className="text-gray-200 font-medium break-words">{log.msg}</div>
+                          <div className="text-gray-200 font-medium">{log.msg}</div>
                         </div>
                       ))
                     )}
@@ -2101,11 +1545,7 @@ app.get("/control", (req, res) => {
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 </body>
 </html>
-`;
-  // Replace placeholders with actual backticks and dollar braces for client-side template literals
-  let unescapedHtml = html.replace(/%%BACKTICK%%/g, '`');
-  unescapedHtml = unescapedHtml.replace(/%%DOLLAR_BRACE%%/g, '${');
-  res.send(unescapedHtml);
+  `);
 });
 
 // API endpoint to get/set theme
@@ -2187,7 +1627,7 @@ app.get("/panel", (req, res) => {
         </form>
         <br><br>
         <a href="/control" style="padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
-          🚀 Open Ultra Premium Control Panel v3.0
+          🚀 Open Premium Control Panel
         </a>
       </body>
     </html>
@@ -2195,8 +1635,8 @@ app.get("/panel", (req, res) => {
 });
 
 // POST /chat -> send message to bot
-let bot;
-let botReady = false;
+let bot; // global bot
+let botReady = false; // Track if bot is ready
 let startTime = Date.now();
 let commandCount = 0;
 let messageCount = 0;
@@ -2338,6 +1778,7 @@ function createBot() {
       if (bot && bot.chat && bot._client) {
         try {
           bot.chat("/chat g");
+          // Wait a bit more before marking as ready
           setTimeout(() => {
             botReady = true;
             io.emit('bot-status', 'online');
@@ -2372,6 +1813,7 @@ function createBot() {
   bot.on("message", async (jsonMsg) => {
     const msg = jsonMsg.toString();
     
+    // Emit all messages to web panel
     io.emit('minecraft-chat', {
       time: new Date().toLocaleTimeString(),
       message: msg
@@ -2384,6 +1826,7 @@ function createBot() {
       return;
     }
 
+    // Safe chat function with error handling
     const safeChat = async (message) => {
       if (!botReady || !bot || !bot.chat || !bot._client) {
         console.error('Cannot send message: bot not ready');
@@ -2447,7 +1890,7 @@ function createBot() {
 
     // Check custom commands
     for (const cmd of botSettings.customCommands) {
-      if (cmd.enabled && cmd.name && msg.toLowerCase().includes(cmd.name.toLowerCase())) {
+      if (cmd.name && msg.toLowerCase().includes(cmd.name.toLowerCase())) {
         commandCount++;
         await sleep(botSettings.performance.messageDelay);
         await safeChat(cmd.response);
@@ -2469,6 +1912,7 @@ function createBot() {
 
       commandCount++;
 
+      // Cooldown check (except for Relaquent)
       if (username.toLowerCase() !== "relaquent") {
         const now = Date.now();
         const lastUsed = askCooldowns[username] || 0;
@@ -2722,7 +2166,7 @@ function createBot() {
     if (msg.toLowerCase().includes("!about")) {
       commandCount++;
       await sleep(botSettings.performance.messageDelay);
-      const aboutMsg = "RumoniumGC is automated by Relaquent, v3.0 - Last Update 15/11/25";
+      const aboutMsg = "RumoniumGC is automated by Relaquent, v2.0 - Last Update 15/11/25";
       await safeChat(aboutMsg);
       io.emit('bot-log', {
         time: new Date().toLocaleTimeString(),
@@ -2737,7 +2181,7 @@ function createBot() {
       commandCount++;
       await sleep(botSettings.performance.messageDelay);
       const helpMsg = [
-        "----- RumoniumGC v3.0 -----",
+        "----- RumoniumGC v2.0 -----",
         "bw <user> → Shows Bedwars stats.",
         "stats <user> → Shows detailed stats.",
         "when → Next Castle date.",
