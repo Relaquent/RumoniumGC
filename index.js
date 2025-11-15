@@ -93,7 +93,7 @@ app.get("/", (req, res) => {
 
 // === ULTRA PREMIUM CONTROL PANEL V3.0 ===
 app.get("/control", (req, res) => {
-  const html = `
+  const html = String.raw`
 <!DOCTYPE html>
 <html lang="en">
 <head>
