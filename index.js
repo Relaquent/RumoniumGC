@@ -65,7 +65,7 @@ let botSettings = {
   chatLogs: { enabled: true, maxHistory: 500 },
   notifications: { onJoin: true, onLeave: true, onCommand: true },
   performance: { messageDelay: 300, maxMessagesPerSecond: 2, autoReconnectDelay: 10000 },
-  autoTracking: { enabled: true, interval: 2000 } // Otomatik tracking ayarı
+  autoTracking: { enabled: false, interval: 30000 } // AUTO-TRACK DISABLED, 30 saniyeye çıkarıldı
 };
 
 let bot;
@@ -73,6 +73,67 @@ let botReady = false;
 let startTime = Date.now();
 let commandCount = 0;
 let messageCount = 0;
+
+// === ADVANCED API RATE LIMITING SYSTEM ===
+const API_QUEUE = [];
+let isProcessingQueue = false;
+let apiCallCount = 0;
+let apiCallResetTime = Date.now();
+const MAX_CALLS_PER_MINUTE = 100; // Hypixel limit: 120/min, biz güvenli oynuyoruz
+const MIN_CALL_DELAY = 600; // Her istek arası minimum 600ms (10 istek/saniye max)
+
+// API Request Queue System
+async function queueApiRequest(requestFn) {
+  return new Promise((resolve, reject) => {
+    API_QUEUE.push({ requestFn, resolve, reject });
+    processQueue();
+  });
+}
+
+async function processQueue() {
+  if (isProcessingQueue || API_QUEUE.length === 0) return;
+  
+  isProcessingQueue = true;
+  
+  while (API_QUEUE.length > 0) {
+    // Rate limit check
+    const now = Date.now();
+    
+    // Reset counter every minute
+    if (now - apiCallResetTime > 60000) {
+      apiCallCount = 0;
+      apiCallResetTime = now;
+      addLog('info', 'system', 'API rate limit counter reset', { count: apiCallCount });
+    }
+    
+    // If we hit the limit, wait
+    if (apiCallCount >= MAX_CALLS_PER_MINUTE) {
+      const waitTime = 60000 - (now - apiCallResetTime);
+      addLog('warning', 'system', `API rate limit reached, waiting ${Math.ceil(waitTime/1000)}s`, {
+        count: apiCallCount,
+        limit: MAX_CALLS_PER_MINUTE
+      });
+      await sleep(waitTime);
+      apiCallCount = 0;
+      apiCallResetTime = Date.now();
+    }
+    
+    const { requestFn, resolve, reject } = API_QUEUE.shift();
+    
+    try {
+      const result = await requestFn();
+      apiCallCount++;
+      resolve(result);
+      
+      // Minimum delay between requests
+      await sleep(MIN_CALL_DELAY);
+    } catch (err) {
+      reject(err);
+    }
+  }
+  
+  isProcessingQueue = false;
+}
 
 // === Detailed Logging System ===
 let detailedLogs = [];
@@ -86,8 +147,8 @@ function addLog(type, category, message, details = {}) {
     timestamp: new Date().toISOString(),
     time: new Date().toLocaleTimeString(),
     date: new Date().toLocaleDateString(),
-    type, // info, success, error, warning, command
-    category, // chat, command, system, api, bot
+    type,
+    category,
     message,
     details
   };
@@ -95,7 +156,6 @@ function addLog(type, category, message, details = {}) {
   detailedLogs.unshift(logEntry);
   if (detailedLogs.length > 1000) detailedLogs.pop();
 
-  // Categorize logs
   switch (category) {
     case 'command':
       commandLogs.unshift(logEntry);
@@ -115,14 +175,12 @@ function addLog(type, category, message, details = {}) {
       break;
   }
 
-  // Emit to web panel
   io.emit('bot-log', {
     time: logEntry.time,
     type: logEntry.type,
     msg: logEntry.message
   });
 
-  // Write to file (async, non-blocking)
   saveLogToFile(logEntry);
 }
 
@@ -138,7 +196,7 @@ function saveLogToFile(logEntry) {
   });
 }
 
-// === Hypixel API with Rate Limiting ===
+// === Hypixel API with Queue System ===
 if (!process.env.HYPIXEL_API_KEY) {
   console.error("❌ HYPIXEL_API_KEY not found.");
   process.exit(1);
@@ -146,19 +204,6 @@ if (!process.env.HYPIXEL_API_KEY) {
 const HYPIXEL_API_KEY = process.env.HYPIXEL_API_KEY;
 const HYPIXEL_HOST = "mc.hypixel.net";
 const MC_VERSION = "1.8.9";
-
-// API Rate Limiting
-let lastApiCall = 0;
-const API_COOLDOWN = 2000; // 2 saniye
-
-async function waitForApiCooldown() {
-  const now = Date.now();
-  const timeSinceLastCall = now - lastApiCall;
-  if (timeSinceLastCall < API_COOLDOWN) {
-    await sleep(API_COOLDOWN - timeSinceLastCall);
-  }
-  lastApiCall = Date.now();
-}
 
 function ratio(num, den) {
   const n = Number(num) || 0;
@@ -172,10 +217,29 @@ const fkdrTracking = new Map();
 const TRACKING_FILE = path.join(__dirname, "tracking_data.json");
 
 // === Flag System ===
-const flaggedPlayers = new Map(); // uuid -> { ign, reason, flaggedBy, timestamp }
+const flaggedPlayers = new Map();
 const FLAGS_FILE = path.join(__dirname, "flagged_players.json");
 
-// Load tracking data on startup
+// Cache system to reduce API calls
+const playerCache = new Map(); // uuid -> { data, timestamp }
+const CACHE_DURATION = 5 * 60 * 1000; // 5 dakika cache
+
+function getCachedPlayer(uuid) {
+  const cached = playerCache.get(uuid);
+  if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+    addLog('info', 'system', 'Using cached player data', { uuid });
+    return cached.data;
+  }
+  return null;
+}
+
+function setCachedPlayer(uuid, data) {
+  playerCache.set(uuid, {
+    data,
+    timestamp: Date.now()
+  });
+}
+
 function loadTrackingData() {
   try {
     if (fs.existsSync(TRACKING_FILE)) {
@@ -190,7 +254,6 @@ function loadTrackingData() {
   }
 }
 
-// Load flagged players
 function loadFlaggedPlayers() {
   try {
     if (fs.existsSync(FLAGS_FILE)) {
@@ -205,7 +268,6 @@ function loadFlaggedPlayers() {
   }
 }
 
-// Save tracking data
 function saveTrackingData() {
   try {
     const data = Object.fromEntries(fkdrTracking);
@@ -215,7 +277,6 @@ function saveTrackingData() {
   }
 }
 
-// Save flagged players
 function saveFlaggedPlayers() {
   try {
     const data = Object.fromEntries(flaggedPlayers);
@@ -225,7 +286,6 @@ function saveFlaggedPlayers() {
   }
 }
 
-// Auto-save every 5 minutes
 setInterval(saveTrackingData, 5 * 60 * 1000);
 setInterval(saveFlaggedPlayers, 5 * 60 * 1000);
 
@@ -246,7 +306,7 @@ function initializePlayerTracking(uuid) {
 function getWeekStart(date) {
   const d = new Date(date);
   const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday as start
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
   return new Date(d.setDate(diff)).toDateString();
 }
 
@@ -262,7 +322,6 @@ function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
     tracking.lifetime.deaths = currentDeaths;
     fkdrTracking.set(uuid, tracking);
     
-    // İlk kayıtta da mevcut statları göster
     addLog('info', 'system', `New player tracked: ${uuid}`, {
       uuid,
       initialFinals: currentFinals,
@@ -275,28 +334,23 @@ function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
   const finalsDiff = Math.max(0, currentFinals - tracking.lastStats.finals);
   const deathsDiff = Math.max(0, currentDeaths - tracking.lastStats.deaths);
 
-  // Reset daily if new day
   if (tracking.daily.date !== now.toDateString()) {
     tracking.daily = { finals: 0, deaths: 0, date: now.toDateString() };
   }
 
-  // Reset weekly if new week
   const currentWeekStart = getWeekStart(now);
   if (tracking.weekly.weekStart !== currentWeekStart) {
     tracking.weekly = { finals: 0, deaths: 0, weekStart: currentWeekStart };
   }
 
-  // Reset monthly if new month
   if (tracking.monthly.month !== now.getMonth() || tracking.monthly.year !== now.getFullYear()) {
     tracking.monthly = { finals: 0, deaths: 0, month: now.getMonth(), year: now.getFullYear() };
   }
 
-  // Reset yearly if new year
   if (tracking.yearly.year !== now.getFullYear()) {
     tracking.yearly = { finals: 0, deaths: 0, year: now.getFullYear() };
   }
 
-  // Add differences to all periods (only if positive - prevents stat resets from breaking tracking)
   if (finalsDiff > 0 || deathsDiff > 0) {
     tracking.daily.finals += finalsDiff;
     tracking.daily.deaths += deathsDiff;
@@ -315,7 +369,6 @@ function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
     });
   }
 
-  // Update last stats
   tracking.lastStats.finals = currentFinals;
   tracking.lastStats.deaths = currentDeaths;
   tracking.lifetime.finals = currentFinals;
@@ -323,20 +376,23 @@ function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
   tracking.lastUpdate = now.toISOString();
 
   fkdrTracking.set(uuid, tracking);
-  saveTrackingData(); // Save after each update
+  saveTrackingData();
   return tracking;
 }
 
+// Queue'lu API fonksiyonları
 async function getPlayerUUID(ign) {
-  await waitForApiCooldown();
-  const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
-  const { data } = await axios.get(url, { timeout: 10000 });
-  if (!data?.success || !data?.player) throw new Error("Player not found");
-  return {
-    uuid: data.player.uuid,
-    finals: data.player.stats?.Bedwars?.final_kills_bedwars || 0,
-    deaths: data.player.stats?.Bedwars?.final_deaths_bedwars || 0
-  };
+  return queueApiRequest(async () => {
+    const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
+    const { data } = await axios.get(url, { timeout: 10000 });
+    if (!data?.success || !data?.player) throw new Error("Player not found");
+    return {
+      uuid: data.player.uuid,
+      finals: data.player.stats?.Bedwars?.final_kills_bedwars || 0,
+      deaths: data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
+      fullData: data.player
+    };
+  });
 }
 
 function parseBWStats(player) {
@@ -349,29 +405,32 @@ function parseBWStats(player) {
     kd: ratio(bw.kills_bedwars, bw.deaths_bedwars),
     wl: ratio(bw.wins_bedwars, bw.losses_bedwars),
     finals: bw.final_kills_bedwars || 0,
+    deaths: bw.final_deaths_bedwars || 0,
     wins: bw.wins_bedwars || 0,
     beds: bw.beds_broken_bedwars || 0,
   };
 }
 
 async function getPlayerStats(ign) {
-  await waitForApiCooldown();
-  const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
-  const { data } = await axios.get(url, { timeout: 10000 });
-  if (!data?.success || !data?.player) throw new Error("Player not found");
-  return parseBWStats(data.player);
+  return queueApiRequest(async () => {
+    const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
+    const { data } = await axios.get(url, { timeout: 10000 });
+    if (!data?.success || !data?.player) throw new Error("Player not found");
+    return parseBWStats(data.player);
+  });
 }
 
 async function getGuildGEXP(playerIgn) {
-  try {
-    await waitForApiCooldown();
+  return queueApiRequest(async () => {
     const playerUrl = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(playerIgn)}`;
     const playerRes = await axios.get(playerUrl, { timeout: 10000 });
     if (!playerRes.data?.player) throw new Error("Player not found");
     
     const uuid = playerRes.data.player.uuid;
     
-    await waitForApiCooldown();
+    // Queue'da zaten olduğumuz için direkt API çağrısı yapabiliriz
+    await sleep(MIN_CALL_DELAY);
+    
     const guildUrl = `https://api.hypixel.net/v2/guild?key=${HYPIXEL_API_KEY}&player=${uuid}`;
     const guildRes = await axios.get(guildUrl, { timeout: 10000 });
     if (!guildRes.data?.guild) throw new Error("Player not in a guild");
@@ -395,9 +454,7 @@ async function getGuildGEXP(playerIgn) {
       rank,
       totalMembers: guild.members.length
     };
-  } catch (err) {
-    throw new Error(err.message);
-  }
+  });
 }
 
 function sleep(ms) {
@@ -428,7 +485,18 @@ app.post("/api/gpt-prompt", (req, res) => {
   res.json({ success: true });
 });
 
-// === New Logging API Endpoints ===
+// === Stats endpoint ===
+app.get("/api/stats", (req, res) => {
+  res.json({
+    queueLength: API_QUEUE.length,
+    apiCallCount,
+    apiCallLimit: MAX_CALLS_PER_MINUTE,
+    cacheSize: playerCache.size,
+    isProcessingQueue
+  });
+});
+
+// === Logging API Endpoints ===
 app.get("/api/logs/all", (req, res) => {
   res.json({ logs: detailedLogs, count: detailedLogs.length });
 });
@@ -527,7 +595,6 @@ app.post("/chat", (req, res) => {
   }
 });
 
-// === Enhanced Control Panel with Logging ===
 app.get("/control", (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -560,7 +627,7 @@ app.get("/control", (req, res) => {
       const [logs, setLogs] = useState([]);
       const [commandLogs, setCommandLogs] = useState([]);
       const [errorLogs, setErrorLogs] = useState([]);
-      const [stats, setStats] = useState({ uptime: '0h', commands: 0, messages: 0, users: 0 });
+      const [stats, setStats] = useState({ uptime: '0h', commands: 0, messages: 0, users: 0, queueLength: 0, apiCallCount: 0 });
       const [status, setStatus] = useState('online');
       const chatRef = useRef(null);
 
@@ -570,14 +637,20 @@ app.get("/control", (req, res) => {
         socket.on('bot-status', setStatus);
         socket.on('stats-update', setStats);
         
-        // Load initial logs
         fetchLogs();
+        
+        const apiStatsInterval = setInterval(async () => {
+          const res = await fetch('/api/stats');
+          const apiStats = await res.json();
+          setStats(prev => ({ ...prev, ...apiStats }));
+        }, 2000);
         
         return () => {
           socket.off('minecraft-chat');
           socket.off('bot-log');
           socket.off('bot-status');
           socket.off('stats-update');
+          clearInterval(apiStatsInterval);
         };
       }, []);
 
@@ -647,12 +720,14 @@ app.get("/control", (req, res) => {
                 </div>
               </div>
             </div>
-            <div className="grid grid-cols-4 gap-4 mt-6">
+            <div className="grid grid-cols-6 gap-4 mt-6">
               {[
                 { label: 'UPTIME', value: stats.uptime },
                 { label: 'COMMANDS', value: stats.commands },
                 { label: 'MESSAGES', value: stats.messages },
-                { label: 'ERRORS', value: errorLogs.length }
+                { label: 'ERRORS', value: errorLogs.length },
+                { label: 'API QUEUE', value: stats.queueLength || 0 },
+                { label: 'API CALLS', value: \`\${stats.apiCallCount || 0}/100\` }
               ].map((s, i) => (
                 <div key={i} className="glass rounded-xl p-4">
                   <div className="text-2xl font-black">{s.value}</div>
@@ -823,7 +898,6 @@ app.get("/control", (req, res) => {
 </html>`);
 });
 
-// === Socket.IO ===
 io.on('connection', (socket) => {
   console.log('👤 Client connected');
   addLog('info', 'system', 'Client connected to web panel', { clientId: socket.id });
@@ -841,7 +915,9 @@ setInterval(() => {
     uptime: `${h}h ${m}m`,
     commands: commandCount,
     messages: messageCount,
-    users: Object.keys(bot?.players || {}).length
+    users: Object.keys(bot?.players || {}).length,
+    queueLength: API_QUEUE.length,
+    apiCallCount
   });
 }, 5000);
 
@@ -895,31 +971,8 @@ function createBot() {
     
     addLog('info', 'chat', 'Message received', { message: msg });
 
-    // === AUTO-TRACK: Guild üyeleri chat'te konuştuğunda otomatik track et ===
-    if (msg.startsWith("Guild >")) {
-      const guildMsgMatch = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16})/);
-      if (guildMsgMatch) {
-        const username = guildMsgMatch[1];
-        
-        // Arka planda tracking yap (sessizce, spam yapmadan)
-        if (botSettings.autoTracking?.enabled !== false) {
-          setTimeout(async () => {
-            try {
-              const playerData = await getPlayerUUID(username);
-              updatePlayerTracking(playerData.uuid, playerData.finals, playerData.deaths);
-              addLog('info', 'system', `Auto-tracked ${username}`, {
-                username,
-                finals: playerData.finals,
-                deaths: playerData.deaths
-              });
-            } catch (err) {
-              // Sessizce başarısız ol, chat'i spam'leme
-              addLog('warning', 'system', `Auto-track failed for ${username}`, { error: err.message });
-            }
-          }, 2000); // 2 saniye gecikme ile API rate limit'e takılma
-        }
-      }
-    }
+    // AUTO-TRACK disabled by default to prevent API spam
+    // Users can enable it in settings if needed
 
     if (!msg.startsWith("Guild >") || !botReady) return;
 
@@ -949,24 +1002,20 @@ function createBot() {
       await sleep(botSettings.performance.messageDelay);
       
       try {
-        // Get current stats
         const playerData = await getPlayerUUID(ign);
         const tracking = updatePlayerTracking(playerData.uuid, playerData.finals, playerData.deaths);
         
-        // Calculate FKDRs for each period
         const dailyFKDR = ratio(tracking.daily.finals, tracking.daily.deaths);
         const weeklyFKDR = ratio(tracking.weekly.finals, tracking.weekly.deaths);
         const monthlyFKDR = ratio(tracking.monthly.finals, tracking.monthly.deaths);
         const yearlyFKDR = ratio(tracking.yearly.finals, tracking.yearly.deaths);
         const lifetimeFKDR = ratio(tracking.lifetime.finals, tracking.lifetime.deaths);
         
-        // Check if this is first time tracking
         const isFirstTime = tracking.daily.finals === 0 && tracking.daily.deaths === 0;
         
         if (isFirstTime) {
           await safeChat(`${ign} | Lifetime FKDR: ${lifetimeFKDR} | Now tracking daily/weekly/monthly stats!`);
         } else {
-          // Send multi-line response
           await safeChat(`${ign} FKDR Stats:`);
           await sleep(500);
           await safeChat(`Daily: ${dailyFKDR} (${tracking.daily.finals}F/${tracking.daily.deaths}D)`);
@@ -1071,7 +1120,6 @@ function createBot() {
       try {
         const startTime = Date.now();
         
-        // GPT-4o-mini ile soru-cevap
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
@@ -1091,7 +1139,6 @@ function createBot() {
         const responseTime = Date.now() - startTime;
         let reply = completion.choices[0].message.content.trim();
         
-        // Minecraft chat limiti için kısalt
         if (reply.length > 600) {
           reply = reply.substring(0, 597) + '...';
         }
@@ -1302,7 +1349,7 @@ function createBot() {
       try {
         const playerData = await getPlayerUUID(ign);
         flaggedPlayers.set(playerData.uuid, {
-          ign: playerData.ign || ign,
+          ign: ign,
           uuid: playerData.uuid,
           reason: reason.trim(),
           flaggedBy: flagger,
@@ -1331,7 +1378,6 @@ function createBot() {
       await sleep(botSettings.performance.messageDelay);
       
       try {
-        // Search by IGN in flagged list
         let found = false;
         for (const [uuid, flag] of flaggedPlayers.entries()) {
           if (flag.ign?.toLowerCase() === ign.toLowerCase()) {
@@ -1367,9 +1413,8 @@ function createBot() {
       
       try {
         const playerData = await getPlayerUUID(ign);
-        const stats = await getPlayerStats(ign);
+        const stats = parseBWStats(playerData.fullData);
         
-        // Search flag by UUID
         const flag = flaggedPlayers.get(playerData.uuid);
         
         if (flag) {
