@@ -954,7 +954,7 @@ function createBot() {
             }
           ],
           max_tokens: botSettings.maxTokens,
-          temperature: 0.8, // Daha yaratıcı ve karakteristik yanıtlar için
+          temperature: 0.8,
         });
 
         const responseTime = Date.now() - startTime;
@@ -992,23 +992,6 @@ function createBot() {
           errorCode: err.code,
           errorType: err.type,
           statusCode: err.status
-        });
-      }
-      return;
-        
-        const lines = reply.split("\n").filter(l => l.trim());
-        for (const line of lines) {
-          for (let i = 0; i < line.length; i += 600) {
-            await safeChat(line.slice(i, i + 600));
-            await sleep(botSettings.performance.messageDelay);
-          }
-        }
-      } catch (err) {
-        await safeChat("GPT error");
-        addLog('error', 'command', 'GPT request failed', {
-          username,
-          question: userMessage,
-          error: err.message
         });
       }
       return;
