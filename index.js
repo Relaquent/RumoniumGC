@@ -138,7 +138,7 @@ function saveLogToFile(logEntry) {
   });
 }
 
-// === Hypixel API ===
+// === Hypixel API with Rate Limiting ===
 if (!process.env.HYPIXEL_API_KEY) {
   console.error("❌ HYPIXEL_API_KEY not found.");
   process.exit(1);
@@ -146,6 +146,19 @@ if (!process.env.HYPIXEL_API_KEY) {
 const HYPIXEL_API_KEY = process.env.HYPIXEL_API_KEY;
 const HYPIXEL_HOST = "mc.hypixel.net";
 const MC_VERSION = "1.8.9";
+
+// API Rate Limiting
+let lastApiCall = 0;
+const API_COOLDOWN = 2000; // 2 saniye
+
+async function waitForApiCooldown() {
+  const now = Date.now();
+  const timeSinceLastCall = now - lastApiCall;
+  if (timeSinceLastCall < API_COOLDOWN) {
+    await sleep(API_COOLDOWN - timeSinceLastCall);
+  }
+  lastApiCall = Date.now();
+}
 
 function ratio(num, den) {
   const n = Number(num) || 0;
@@ -315,6 +328,7 @@ function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
 }
 
 async function getPlayerUUID(ign) {
+  await waitForApiCooldown();
   const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
   const { data } = await axios.get(url, { timeout: 10000 });
   if (!data?.success || !data?.player) throw new Error("Player not found");
@@ -341,6 +355,7 @@ function parseBWStats(player) {
 }
 
 async function getPlayerStats(ign) {
+  await waitForApiCooldown();
   const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
   const { data } = await axios.get(url, { timeout: 10000 });
   if (!data?.success || !data?.player) throw new Error("Player not found");
@@ -349,12 +364,14 @@ async function getPlayerStats(ign) {
 
 async function getGuildGEXP(playerIgn) {
   try {
+    await waitForApiCooldown();
     const playerUrl = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(playerIgn)}`;
     const playerRes = await axios.get(playerUrl, { timeout: 10000 });
     if (!playerRes.data?.player) throw new Error("Player not found");
     
     const uuid = playerRes.data.player.uuid;
     
+    await waitForApiCooldown();
     const guildUrl = `https://api.hypixel.net/v2/guild?key=${HYPIXEL_API_KEY}&player=${uuid}`;
     const guildRes = await axios.get(guildUrl, { timeout: 10000 });
     if (!guildRes.data?.guild) throw new Error("Player not in a guild");
@@ -1285,7 +1302,8 @@ function createBot() {
       try {
         const playerData = await getPlayerUUID(ign);
         flaggedPlayers.set(playerData.uuid, {
-          ign,
+          ign: playerData.ign || ign,
+          uuid: playerData.uuid,
           reason: reason.trim(),
           flaggedBy: flagger,
           timestamp: new Date().toISOString()
@@ -1295,8 +1313,8 @@ function createBot() {
         await safeChat(`✓ ${ign} flagged: ${reason}`);
         addLog('success', 'command', 'Player flagged', { flagger, target: ign, reason });
       } catch (err) {
-        await safeChat(`Error - ${ign} not found`);
-        addLog('error', 'command', '!flag add failed', { error: err.message });
+        await safeChat(`Error: ${err.message}`);
+        addLog('error', 'command', '!flag add failed', { flagger, target: ign, error: err.message });
       }
       return;
     }
@@ -1313,18 +1331,25 @@ function createBot() {
       await sleep(botSettings.performance.messageDelay);
       
       try {
-        const playerData = await getPlayerUUID(ign);
-        if (flaggedPlayers.has(playerData.uuid)) {
-          flaggedPlayers.delete(playerData.uuid);
-          saveFlaggedPlayers();
-          await safeChat(`✓ ${ign} unflagged`);
-          addLog('success', 'command', 'Player unflagged', { remover, target: ign });
-        } else {
+        // Search by IGN in flagged list
+        let found = false;
+        for (const [uuid, flag] of flaggedPlayers.entries()) {
+          if (flag.ign?.toLowerCase() === ign.toLowerCase()) {
+            flaggedPlayers.delete(uuid);
+            saveFlaggedPlayers();
+            await safeChat(`✓ ${ign} unflagged`);
+            addLog('success', 'command', 'Player unflagged', { remover, target: ign });
+            found = true;
+            break;
+          }
+        }
+        
+        if (!found) {
           await safeChat(`${ign} is not flagged`);
         }
       } catch (err) {
-        await safeChat(`Error - ${ign} not found`);
-        addLog('error', 'command', '!flag remove failed', { error: err.message });
+        await safeChat(`Error: ${err.message}`);
+        addLog('error', 'command', '!flag remove failed', { remover, target: ign, error: err.message });
       }
       return;
     }
@@ -1343,6 +1368,8 @@ function createBot() {
       try {
         const playerData = await getPlayerUUID(ign);
         const stats = await getPlayerStats(ign);
+        
+        // Search flag by UUID
         const flag = flaggedPlayers.get(playerData.uuid);
         
         if (flag) {
@@ -1355,8 +1382,8 @@ function createBot() {
         
         addLog('success', 'command', '!check completed', { checker, target: ign, flagged: !!flag });
       } catch (err) {
-        await safeChat(`Error - ${ign}`);
-        addLog('error', 'command', '!check failed', { error: err.message });
+        await safeChat(`Error: ${err.message}`);
+        addLog('error', 'command', '!check failed', { checker, target: ign, error: err.message });
       }
       return;
     }
