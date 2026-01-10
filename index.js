@@ -4,6 +4,8 @@ const axios = require("axios");
 const OpenAI = require("openai");
 const http = require("http");
 const { Server } = require("socket.io");
+const fs = require("fs");
+const path = require("path");
 
 // === OpenAI Setup ===
 if (!process.env.OPENAI_API_KEY) {
@@ -21,9 +23,28 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// === Logging Directory Setup ===
+const LOGS_DIR = path.join(__dirname, "logs");
+if (!fs.existsSync(LOGS_DIR)) {
+  fs.mkdirSync(LOGS_DIR, { recursive: true });
+}
+
 // === Global State ===
 let chatHistory = [];
-let gptSystemPrompt = "You're like a Turkish nationalist uncle who answers in the user's language. You answer questions knowledgeably and in a nationalistic manner. If you get a question that's hostile towards Turks, you give them a piece of your mind. You're ironic and witty. You're sincere.";
+let gptSystemPrompt = `You are a Turkish nationalist uncle who answers in the user's language. You are knowledgeable, witty, ironic, and sincere. If someone is hostile towards Turks, you give them a piece of your mind.
+
+Current date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
+
+IMPORTANT: Your training data is from October 2023. When users ask about:
+- Current events, news, or recent happenings
+- Current prices, exchange rates, or market data
+- Recent statistics, scores, or rankings
+- "What happened today/recently/lately"
+- "Current/latest/güncel" information
+
+You MUST tell them: "My data is from October 2023. For current info, I'd need web access which isn't available here. Try asking about topics from before late 2023, or search the web directly."
+
+Keep responses under 500 characters for Minecraft chat compatibility.`;
 let panelTheme = {
   primaryColor: '#9333ea',
   secondaryColor: '#3b82f6',
@@ -52,6 +73,70 @@ let startTime = Date.now();
 let commandCount = 0;
 let messageCount = 0;
 
+// === Detailed Logging System ===
+let detailedLogs = [];
+let commandLogs = [];
+let errorLogs = [];
+let chatLogs = [];
+let systemLogs = [];
+
+function addLog(type, category, message, details = {}) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    time: new Date().toLocaleTimeString(),
+    date: new Date().toLocaleDateString(),
+    type, // info, success, error, warning, command
+    category, // chat, command, system, api, bot
+    message,
+    details
+  };
+
+  detailedLogs.unshift(logEntry);
+  if (detailedLogs.length > 1000) detailedLogs.pop();
+
+  // Categorize logs
+  switch (category) {
+    case 'command':
+      commandLogs.unshift(logEntry);
+      if (commandLogs.length > 500) commandLogs.pop();
+      break;
+    case 'error':
+      errorLogs.unshift(logEntry);
+      if (errorLogs.length > 200) errorLogs.pop();
+      break;
+    case 'chat':
+      chatLogs.unshift(logEntry);
+      if (chatLogs.length > 1000) chatLogs.pop();
+      break;
+    case 'system':
+      systemLogs.unshift(logEntry);
+      if (systemLogs.length > 500) systemLogs.pop();
+      break;
+  }
+
+  // Emit to web panel
+  io.emit('bot-log', {
+    time: logEntry.time,
+    type: logEntry.type,
+    msg: logEntry.message
+  });
+
+  // Write to file (async, non-blocking)
+  saveLogToFile(logEntry);
+}
+
+function saveLogToFile(logEntry) {
+  const dateStr = new Date().toISOString().split('T')[0];
+  const fileName = `${dateStr}.log`;
+  const filePath = path.join(LOGS_DIR, fileName);
+  
+  const logLine = `[${logEntry.timestamp}] [${logEntry.type.toUpperCase()}] [${logEntry.category.toUpperCase()}] ${logEntry.message} ${JSON.stringify(logEntry.details)}\n`;
+  
+  fs.appendFile(filePath, logLine, (err) => {
+    if (err) console.error("Error writing log:", err);
+  });
+}
+
 // === Hypixel API ===
 if (!process.env.HYPIXEL_API_KEY) {
   console.error("❌ HYPIXEL_API_KEY not found.");
@@ -66,6 +151,100 @@ function ratio(num, den) {
   const d = Number(den) || 0;
   if (d === 0) return n > 0 ? "inf" : "0.00";
   return (n / d).toFixed(2);
+}
+
+// === FKDR Tracking System ===
+const fkdrTracking = new Map(); // playerUUID -> { daily, weekly, monthly, yearly, lastUpdate }
+
+function initializePlayerTracking(uuid) {
+  const now = new Date();
+  return {
+    uuid,
+    daily: { finals: 0, deaths: 0, date: now.toDateString() },
+    weekly: { finals: 0, deaths: 0, weekStart: getWeekStart(now) },
+    monthly: { finals: 0, deaths: 0, month: now.getMonth(), year: now.getFullYear() },
+    yearly: { finals: 0, deaths: 0, year: now.getFullYear() },
+    lifetime: { finals: 0, deaths: 0 },
+    lastUpdate: now.toISOString(),
+    lastStats: { finals: 0, deaths: 0 }
+  };
+}
+
+function getWeekStart(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday as start
+  return new Date(d.setDate(diff)).toDateString();
+}
+
+function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
+  const now = new Date();
+  let tracking = fkdrTracking.get(uuid);
+  
+  if (!tracking) {
+    tracking = initializePlayerTracking(uuid);
+    tracking.lastStats.finals = currentFinals;
+    tracking.lastStats.deaths = currentDeaths;
+    tracking.lifetime.finals = currentFinals;
+    tracking.lifetime.deaths = currentDeaths;
+    fkdrTracking.set(uuid, tracking);
+    return tracking;
+  }
+
+  const finalsDiff = currentFinals - tracking.lastStats.finals;
+  const deathsDiff = currentDeaths - tracking.lastStats.deaths;
+
+  // Reset daily if new day
+  if (tracking.daily.date !== now.toDateString()) {
+    tracking.daily = { finals: 0, deaths: 0, date: now.toDateString() };
+  }
+
+  // Reset weekly if new week
+  const currentWeekStart = getWeekStart(now);
+  if (tracking.weekly.weekStart !== currentWeekStart) {
+    tracking.weekly = { finals: 0, deaths: 0, weekStart: currentWeekStart };
+  }
+
+  // Reset monthly if new month
+  if (tracking.monthly.month !== now.getMonth() || tracking.monthly.year !== now.getFullYear()) {
+    tracking.monthly = { finals: 0, deaths: 0, month: now.getMonth(), year: now.getFullYear() };
+  }
+
+  // Reset yearly if new year
+  if (tracking.yearly.year !== now.getFullYear()) {
+    tracking.yearly = { finals: 0, deaths: 0, year: now.getFullYear() };
+  }
+
+  // Add differences to all periods
+  tracking.daily.finals += finalsDiff;
+  tracking.daily.deaths += deathsDiff;
+  tracking.weekly.finals += finalsDiff;
+  tracking.weekly.deaths += deathsDiff;
+  tracking.monthly.finals += finalsDiff;
+  tracking.monthly.deaths += deathsDiff;
+  tracking.yearly.finals += finalsDiff;
+  tracking.yearly.deaths += deathsDiff;
+
+  // Update last stats
+  tracking.lastStats.finals = currentFinals;
+  tracking.lastStats.deaths = currentDeaths;
+  tracking.lifetime.finals = currentFinals;
+  tracking.lifetime.deaths = currentDeaths;
+  tracking.lastUpdate = now.toISOString();
+
+  fkdrTracking.set(uuid, tracking);
+  return tracking;
+}
+
+async function getPlayerUUID(ign) {
+  const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
+  const { data } = await axios.get(url, { timeout: 10000 });
+  if (!data?.success || !data?.player) throw new Error("Player not found");
+  return {
+    uuid: data.player.uuid,
+    finals: data.player.stats?.Bedwars?.final_kills_bedwars || 0,
+    deaths: data.player.stats?.Bedwars?.final_deaths_bedwars || 0
+  };
 }
 
 function parseBWStats(player) {
@@ -90,17 +269,14 @@ async function getPlayerStats(ign) {
   return parseBWStats(data.player);
 }
 
-// === NEW: Guild GEXP Function ===
 async function getGuildGEXP(playerIgn) {
   try {
-    // Get player UUID first
     const playerUrl = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(playerIgn)}`;
     const playerRes = await axios.get(playerUrl, { timeout: 10000 });
     if (!playerRes.data?.player) throw new Error("Player not found");
     
     const uuid = playerRes.data.player.uuid;
     
-    // Get guild data
     const guildUrl = `https://api.hypixel.net/v2/guild?key=${HYPIXEL_API_KEY}&player=${uuid}`;
     const guildRes = await axios.get(guildUrl, { timeout: 10000 });
     if (!guildRes.data?.guild) throw new Error("Player not in a guild");
@@ -109,11 +285,9 @@ async function getGuildGEXP(playerIgn) {
     const member = guild.members.find(m => m.uuid === uuid);
     if (!member) throw new Error("Member not found in guild");
     
-    // Calculate weekly GEXP
     const expHistory = member.expHistory || {};
     const weeklyGexp = Object.values(expHistory).reduce((sum, exp) => sum + exp, 0);
     
-    // Create leaderboard for this week
     const leaderboard = guild.members.map(m => {
       const memberWeeklyGexp = Object.values(m.expHistory || {}).reduce((sum, exp) => sum + exp, 0);
       return { uuid: m.uuid, gexp: memberWeeklyGexp };
@@ -141,21 +315,103 @@ app.get("/", (req, res) => res.send("✅ Bot is running!"));
 app.get("/api/theme", (req, res) => res.json(panelTheme));
 app.post("/api/theme", (req, res) => {
   panelTheme = { ...panelTheme, ...req.body };
-  io.emit('bot-log', { time: new Date().toLocaleTimeString(), type: 'success', msg: 'Theme updated' });
+  addLog('success', 'system', 'Theme updated', { theme: panelTheme });
   res.json({ success: true });
 });
 
 app.get("/api/settings", (req, res) => res.json(botSettings));
 app.post("/api/settings", (req, res) => {
   botSettings = { ...botSettings, ...req.body };
-  io.emit('bot-log', { time: new Date().toLocaleTimeString(), type: 'success', msg: 'Settings updated' });
+  addLog('success', 'system', 'Settings updated', { settings: botSettings });
   res.json({ success: true });
 });
 
 app.get("/api/gpt-prompt", (req, res) => res.json({ prompt: gptSystemPrompt }));
 app.post("/api/gpt-prompt", (req, res) => {
   gptSystemPrompt = req.body.prompt;
-  io.emit('bot-log', { time: new Date().toLocaleTimeString(), type: 'success', msg: 'GPT prompt updated' });
+  addLog('success', 'system', 'GPT prompt updated');
+  res.json({ success: true });
+});
+
+// === New Logging API Endpoints ===
+app.get("/api/logs/all", (req, res) => {
+  res.json({ logs: detailedLogs, count: detailedLogs.length });
+});
+
+app.get("/api/logs/commands", (req, res) => {
+  res.json({ logs: commandLogs, count: commandLogs.length });
+});
+
+app.get("/api/logs/errors", (req, res) => {
+  res.json({ logs: errorLogs, count: errorLogs.length });
+});
+
+app.get("/api/logs/chat", (req, res) => {
+  res.json({ logs: chatLogs, count: chatLogs.length });
+});
+
+app.get("/api/logs/export", (req, res) => {
+  const exportData = {
+    exportDate: new Date().toISOString(),
+    botUptime: Date.now() - startTime,
+    statistics: {
+      totalMessages: messageCount,
+      totalCommands: commandCount,
+      totalErrors: errorLogs.length
+    },
+    logs: {
+      all: detailedLogs,
+      commands: commandLogs,
+      errors: errorLogs,
+      chat: chatLogs,
+      system: systemLogs
+    }
+  };
+
+  res.setHeader('Content-Type', 'application/json');
+  res.setHeader('Content-Disposition', `attachment; filename="rumonium-logs-${Date.now()}.json"`);
+  res.json(exportData);
+});
+
+app.get("/api/logs/export/csv", (req, res) => {
+  let csv = "Timestamp,Date,Time,Type,Category,Message,Details\n";
+  
+  detailedLogs.forEach(log => {
+    const details = JSON.stringify(log.details).replace(/"/g, '""');
+    csv += `"${log.timestamp}","${log.date}","${log.time}","${log.type}","${log.category}","${log.message}","${details}"\n`;
+  });
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="rumonium-logs-${Date.now()}.csv"`);
+  res.send(csv);
+});
+
+app.post("/api/logs/clear", (req, res) => {
+  const { category } = req.body;
+  
+  switch(category) {
+    case 'all':
+      detailedLogs = [];
+      commandLogs = [];
+      errorLogs = [];
+      chatLogs = [];
+      systemLogs = [];
+      break;
+    case 'commands':
+      commandLogs = [];
+      break;
+    case 'errors':
+      errorLogs = [];
+      break;
+    case 'chat':
+      chatLogs = [];
+      break;
+    case 'system':
+      systemLogs = [];
+      break;
+  }
+  
+  addLog('success', 'system', `Cleared ${category} logs`);
   res.json({ success: true });
 });
 
@@ -165,9 +421,10 @@ app.post("/chat", (req, res) => {
   if (bot && botReady && bot.chat && bot._client) {
     try {
       bot.chat(message);
-      io.emit('bot-log', { time: new Date().toLocaleTimeString(), type: 'info', msg: `Web: ${message}` });
+      addLog('info', 'chat', `Web panel message sent: ${message}`, { source: 'web', message });
       res.json({ success: true });
     } catch (err) {
+      addLog('error', 'chat', `Failed to send web message: ${err.message}`, { error: err.message });
       res.status(500).json({ success: false, message: "❌ Error" });
     }
   } else {
@@ -175,7 +432,7 @@ app.post("/chat", (req, res) => {
   }
 });
 
-// === Optimized Control Panel ===
+// === Enhanced Control Panel with Logging ===
 app.get("/control", (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -206,6 +463,8 @@ app.get("/control", (req, res) => {
       const [msg, setMsg] = useState('');
       const [chat, setChat] = useState([]);
       const [logs, setLogs] = useState([]);
+      const [commandLogs, setCommandLogs] = useState([]);
+      const [errorLogs, setErrorLogs] = useState([]);
       const [stats, setStats] = useState({ uptime: '0h', commands: 0, messages: 0, users: 0 });
       const [status, setStatus] = useState('online');
       const chatRef = useRef(null);
@@ -215,6 +474,10 @@ app.get("/control", (req, res) => {
         socket.on('bot-log', d => setLogs(p => [d, ...p].slice(0, 100)));
         socket.on('bot-status', setStatus);
         socket.on('stats-update', setStats);
+        
+        // Load initial logs
+        fetchLogs();
+        
         return () => {
           socket.off('minecraft-chat');
           socket.off('bot-log');
@@ -227,6 +490,29 @@ app.get("/control", (req, res) => {
         if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
       }, [chat]);
 
+      const fetchLogs = async () => {
+        try {
+          const [allRes, cmdRes, errRes] = await Promise.all([
+            fetch('/api/logs/all'),
+            fetch('/api/logs/commands'),
+            fetch('/api/logs/errors')
+          ]);
+          const allData = await allRes.json();
+          const cmdData = await cmdRes.json();
+          const errData = await errRes.json();
+          
+          setLogs(allData.logs.slice(0, 100).map(log => ({
+            time: log.time,
+            type: log.type,
+            msg: log.message
+          })));
+          setCommandLogs(cmdData.logs);
+          setErrorLogs(errData.logs);
+        } catch (err) {
+          console.error('Failed to fetch logs:', err);
+        }
+      };
+
       const send = async () => {
         if (!msg.trim()) return;
         await fetch('/chat', {
@@ -235,6 +521,21 @@ app.get("/control", (req, res) => {
           body: JSON.stringify({ message: msg })
         });
         setMsg('');
+      };
+
+      const exportLogs = async (format = 'json') => {
+        const url = format === 'csv' ? '/api/logs/export/csv' : '/api/logs/export';
+        window.open(url, '_blank');
+      };
+
+      const clearLogs = async (category) => {
+        if (!confirm(\`Clear \${category} logs?\`)) return;
+        await fetch('/api/logs/clear', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category })
+        });
+        fetchLogs();
       };
 
       return (
@@ -256,7 +557,7 @@ app.get("/control", (req, res) => {
                 { label: 'UPTIME', value: stats.uptime },
                 { label: 'COMMANDS', value: stats.commands },
                 { label: 'MESSAGES', value: stats.messages },
-                { label: 'USERS', value: stats.users }
+                { label: 'ERRORS', value: errorLogs.length }
               ].map((s, i) => (
                 <div key={i} className="glass rounded-xl p-4">
                   <div className="text-2xl font-black">{s.value}</div>
@@ -267,7 +568,7 @@ app.get("/control", (req, res) => {
           </div>
 
           <div className="glass rounded-3xl p-2 mb-6 flex gap-2">
-            {['chat', 'settings', 'logs'].map(t => (
+            {['chat', 'logs', 'commands', 'errors'].map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -314,21 +615,28 @@ app.get("/control", (req, res) => {
                 </div>
               )}
 
-              {tab === 'settings' && (
-                <div className="glass rounded-3xl p-6">
-                  <h2 className="text-2xl font-black mb-4">SETTINGS</h2>
-                  <p className="text-gray-400">Configure bot settings via API endpoints</p>
-                </div>
-              )}
-
               {tab === 'logs' && (
                 <div className="glass rounded-3xl p-6">
-                  <h2 className="text-2xl font-black mb-4">LOGS</h2>
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-black">ALL LOGS</h2>
+                    <div className="flex gap-2">
+                      <button onClick={() => exportLogs('json')} className="px-4 py-2 rounded-xl bg-green-600 text-sm font-bold">
+                        Export JSON
+                      </button>
+                      <button onClick={() => exportLogs('csv')} className="px-4 py-2 rounded-xl bg-blue-600 text-sm font-bold">
+                        Export CSV
+                      </button>
+                      <button onClick={() => clearLogs('all')} className="px-4 py-2 rounded-xl bg-red-600 text-sm font-bold">
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
                   <div className="space-y-2 max-h-96 overflow-y-auto scroll">
                     {logs.map((log, i) => (
                       <div key={i} className={\`glass rounded-xl p-3 text-sm border \${
                         log.type === 'error' ? 'border-red-500/50' :
-                        log.type === 'success' ? 'border-green-500/50' : 'border-white/10'
+                        log.type === 'success' ? 'border-green-500/50' :
+                        log.type === 'command' ? 'border-blue-500/50' : 'border-white/10'
                       }\`}>
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-xs text-gray-400">{log.time}</span>
@@ -340,12 +648,66 @@ app.get("/control", (req, res) => {
                   </div>
                 </div>
               )}
+
+              {tab === 'commands' && (
+                <div className="glass rounded-3xl p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-black">COMMAND LOGS</h2>
+                    <button onClick={() => clearLogs('commands')} className="px-4 py-2 rounded-xl bg-red-600 text-sm font-bold">
+                      Clear
+                    </button>
+                  </div>
+                  <div className="space-y-2 max-h-96 overflow-y-auto scroll">
+                    {commandLogs.map((log, i) => (
+                      <div key={i} className="glass rounded-xl p-4 border border-blue-500/50">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-xs text-gray-400">{log.timestamp}</span>
+                          <span className="text-xs px-2 py-1 rounded-full bg-blue-500/20">{log.category}</span>
+                        </div>
+                        <div className="text-sm mb-2">{log.message}</div>
+                        {Object.keys(log.details).length > 0 && (
+                          <pre className="text-xs bg-black/30 p-2 rounded mt-2 overflow-x-auto">
+                            {JSON.stringify(log.details, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {tab === 'errors' && (
+                <div className="glass rounded-3xl p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-black">ERROR LOGS</h2>
+                    <button onClick={() => clearLogs('errors')} className="px-4 py-2 rounded-xl bg-red-600 text-sm font-bold">
+                      Clear
+                    </button>
+                  </div>
+                  <div className="space-y-2 max-h-96 overflow-y-auto scroll">
+                    {errorLogs.map((log, i) => (
+                      <div key={i} className="glass rounded-xl p-4 border border-red-500/50">
+                        <div className="flex justify-between items-start mb-2">
+                          <span className="text-xs text-gray-400">{log.timestamp}</span>
+                          <span className="text-xs px-2 py-1 rounded-full bg-red-500/20">ERROR</span>
+                        </div>
+                        <div className="text-sm text-red-300 mb-2">{log.message}</div>
+                        {Object.keys(log.details).length > 0 && (
+                          <pre className="text-xs bg-black/30 p-2 rounded mt-2 overflow-x-auto text-red-200">
+                            {JSON.stringify(log.details, null, 2)}
+                          </pre>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="glass rounded-3xl p-6">
-              <h2 className="text-xl font-black mb-4">ACTIVITY</h2>
+              <h2 className="text-xl font-black mb-4">RECENT ACTIVITY</h2>
               <div className="space-y-2 max-h-96 overflow-y-auto scroll">
-                {logs.slice(0, 10).map((log, i) => (
+                {logs.slice(0, 15).map((log, i) => (
                   <div key={i} className="glass rounded-xl p-3 text-xs">
                     <div className="text-gray-400 mb-1">{log.time}</div>
                     <div className="text-gray-200">{log.msg}</div>
@@ -369,7 +731,11 @@ app.get("/control", (req, res) => {
 // === Socket.IO ===
 io.on('connection', (socket) => {
   console.log('👤 Client connected');
-  socket.on('disconnect', () => console.log('👤 Client disconnected'));
+  addLog('info', 'system', 'Client connected to web panel', { clientId: socket.id });
+  socket.on('disconnect', () => {
+    console.log('👤 Client disconnected');
+    addLog('info', 'system', 'Client disconnected from web panel', { clientId: socket.id });
+  });
 });
 
 setInterval(() => {
@@ -384,7 +750,10 @@ setInterval(() => {
   });
 }, 5000);
 
-server.listen(PORT, () => console.log(`🌐 Server running on port ${PORT}`));
+server.listen(PORT, () => {
+  console.log(`🌐 Server running on port ${PORT}`);
+  addLog('success', 'system', `Server started on port ${PORT}`, { port: PORT });
+});
 
 // === Bot ===
 const askCooldowns = {};
@@ -395,6 +764,8 @@ const welcomeMessages = [
 ];
 
 function createBot() {
+  addLog('info', 'bot', 'Creating bot instance...');
+  
   bot = mineflayer.createBot({
     host: HYPIXEL_HOST,
     version: MC_VERSION,
@@ -403,13 +774,17 @@ function createBot() {
 
   bot.once("spawn", () => {
     console.log("✅ Connected to Hypixel");
+    addLog('success', 'bot', 'Bot spawned on Hypixel', { host: HYPIXEL_HOST });
     io.emit('bot-status', 'connecting');
+    
     setTimeout(() => {
       if (bot?.chat) {
         bot.chat("/chat g");
+        addLog('info', 'bot', 'Joined guild chat');
         setTimeout(() => {
           botReady = true;
           io.emit('bot-status', 'online');
+          addLog('success', 'bot', 'Bot is ready and online');
         }, 2000);
       }
     }, 1500);
@@ -420,38 +795,114 @@ function createBot() {
     const msg = jsonMsg.toString();
     io.emit('minecraft-chat', { time: new Date().toLocaleTimeString(), message: msg });
     messageCount++;
+    
+    addLog('info', 'chat', 'Message received', { message: msg });
 
     if (!msg.startsWith("Guild >") || !botReady) return;
 
     const safeChat = async (m) => {
       if (!botReady || !bot?.chat) return;
-      try { bot.chat(m); } catch (e) { console.error(e); }
+      try { 
+        bot.chat(m);
+        addLog('info', 'chat', 'Bot sent message', { message: m });
+      } catch (e) { 
+        addLog('error', 'chat', 'Failed to send message', { error: e.message, message: m });
+        console.error(e);
+      }
     };
+
+    // === !fkdr command ===
+    if (msg.toLowerCase().includes("!fkdr")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!fkdr\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+      const [, requester, ign] = match;
+      
+      commandCount++;
+      addLog('command', 'command', '!fkdr command executed', {
+        requester,
+        target: ign
+      });
+      
+      await sleep(botSettings.performance.messageDelay);
+      
+      try {
+        // Get current stats
+        const playerData = await getPlayerUUID(ign);
+        const tracking = updatePlayerTracking(playerData.uuid, playerData.finals, playerData.deaths);
+        
+        // Calculate FKDRs for each period
+        const dailyFKDR = ratio(tracking.daily.finals, tracking.daily.deaths);
+        const weeklyFKDR = ratio(tracking.weekly.finals, tracking.weekly.deaths);
+        const monthlyFKDR = ratio(tracking.monthly.finals, tracking.monthly.deaths);
+        const yearlyFKDR = ratio(tracking.yearly.finals, tracking.yearly.deaths);
+        const lifetimeFKDR = ratio(tracking.lifetime.finals, tracking.lifetime.deaths);
+        
+        // Send multi-line response
+        await safeChat(`${ign} FKDR Stats:`);
+        await sleep(500);
+        await safeChat(`Daily: ${dailyFKDR} (${tracking.daily.finals}F/${tracking.daily.deaths}D)`);
+        await sleep(500);
+        await safeChat(`Weekly: ${weeklyFKDR} (${tracking.weekly.finals}F/${tracking.weekly.deaths}D)`);
+        await sleep(500);
+        await safeChat(`Monthly: ${monthlyFKDR} (${tracking.monthly.finals}F/${tracking.monthly.deaths}D)`);
+        await sleep(500);
+        await safeChat(`Yearly: ${yearlyFKDR} (${tracking.yearly.finals}F/${tracking.yearly.deaths}D)`);
+        await sleep(500);
+        await safeChat(`Lifetime: ${lifetimeFKDR}`);
+        
+        addLog('success', 'command', '!fkdr completed successfully', {
+          requester,
+          target: ign,
+          daily: dailyFKDR,
+          weekly: weeklyFKDR,
+          monthly: monthlyFKDR,
+          yearly: yearlyFKDR,
+          lifetime: lifetimeFKDR
+        });
+      } catch (err) {
+        await safeChat(`Error - ${ign} | ${err.message}`);
+        addLog('error', 'command', '!fkdr failed', {
+          requester,
+          target: ign,
+          error: err.message
+        });
+      }
+      return;
+    }
 
     // === !gexp command ===
     if (msg.toLowerCase().includes("!gexp")) {
-      const match = msg.match(/!gexp\s+([A-Za-z0-9_]{1,16})/i);
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!gexp\s+([A-Za-z0-9_]{1,16})/i);
       if (!match) return;
-      const ign = match[1];
+      const [, requester, ign] = match;
       
       commandCount++;
+      addLog('command', 'command', '!gexp command executed', { 
+        requester, 
+        target: ign, 
+        command: '!gexp' 
+      });
+      
       await sleep(botSettings.performance.messageDelay);
       
       try {
         const gexpData = await getGuildGEXP(ign);
         const line = `${ign} | Weekly GEXP: ${gexpData.weeklyGexp.toLocaleString()} | Rank: #${gexpData.rank}/${gexpData.totalMembers}`;
         await safeChat(line);
-        io.emit('bot-log', {
-          time: new Date().toLocaleTimeString(),
-          type: 'command',
-          msg: `!gexp executed for ${ign}`
+        
+        addLog('success', 'command', '!gexp completed successfully', {
+          requester,
+          target: ign,
+          weeklyGexp: gexpData.weeklyGexp,
+          rank: gexpData.rank,
+          totalMembers: gexpData.totalMembers
         });
       } catch (err) {
         await safeChat(`Error - ${ign} | ${err.message}`);
-        io.emit('bot-log', {
-          time: new Date().toLocaleTimeString(),
-          type: 'error',
-          msg: `!gexp error: ${err.message}`
+        addLog('error', 'command', '!gexp failed', {
+          requester,
+          target: ign,
+          error: err.message
         });
       }
       return;
@@ -464,6 +915,11 @@ function createBot() {
       const [, username, userMessage] = match;
       commandCount++;
 
+      addLog('command', 'command', '!ask command received', {
+        username,
+        question: userMessage
+      });
+
       if (username.toLowerCase() !== "relaquent") {
         const now = Date.now();
         const lastUsed = askCooldowns[username] || 0;
@@ -471,6 +927,10 @@ function createBot() {
         if (timePassed < botSettings.commandCooldown * 1000) {
           const sec = Math.ceil((botSettings.commandCooldown * 1000 - timePassed) / 1000);
           await safeChat(`${username}, wait ${sec}s`);
+          addLog('warning', 'command', 'Ask cooldown active', {
+            username,
+            secondsRemaining: sec
+          });
           return;
         }
         askCooldowns[username] = now;
@@ -478,15 +938,64 @@ function createBot() {
 
       await safeChat("Thinking...");
       try {
+        const startTime = Date.now();
+        
+        // GPT-4o-mini ile soru-cevap
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
-            { role: "system", content: gptSystemPrompt },
-            { role: "user", content: userMessage }
+            { 
+              role: "system", 
+              content: gptSystemPrompt 
+            },
+            { 
+              role: "user", 
+              content: userMessage 
+            }
           ],
           max_tokens: botSettings.maxTokens,
+          temperature: 0.8, // Daha yaratıcı ve karakteristik yanıtlar için
         });
-        const reply = completion.choices[0].message.content.trim();
+
+        const responseTime = Date.now() - startTime;
+        let reply = completion.choices[0].message.content.trim();
+        
+        // Minecraft chat limiti için kısalt
+        if (reply.length > 600) {
+          reply = reply.substring(0, 597) + '...';
+        }
+        
+        addLog('success', 'command', 'GPT-4o-mini response generated', {
+          username,
+          question: userMessage,
+          responseTime: `${responseTime}ms`,
+          tokensUsed: completion.usage.total_tokens,
+          promptTokens: completion.usage.prompt_tokens,
+          completionTokens: completion.usage.completion_tokens,
+          model: "gpt-4o-mini",
+          finishReason: completion.choices[0].finish_reason
+        });
+        
+        const lines = reply.split("\n").filter(l => l.trim());
+        for (const line of lines) {
+          for (let i = 0; i < line.length; i += 600) {
+            await safeChat(line.slice(i, i + 600));
+            await sleep(botSettings.performance.messageDelay);
+          }
+        }
+      } catch (err) {
+        await safeChat("GPT error - please try again");
+        addLog('error', 'command', 'GPT-4o-mini request failed', {
+          username,
+          question: userMessage,
+          error: err.message,
+          errorCode: err.code,
+          errorType: err.type,
+          statusCode: err.status
+        });
+      }
+      return;
+        
         const lines = reply.split("\n").filter(l => l.trim());
         for (const line of lines) {
           for (let i = 0; i < line.length; i += 600) {
@@ -496,6 +1005,11 @@ function createBot() {
         }
       } catch (err) {
         await safeChat("GPT error");
+        addLog('error', 'command', 'GPT request failed', {
+          username,
+          question: userMessage,
+          error: err.message
+        });
       }
       return;
     }
@@ -505,6 +1019,8 @@ function createBot() {
       const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}) joined\./);
       if (match) {
         const username = match[1];
+        addLog('info', 'bot', 'Player joined guild', { username });
+        
         await sleep(2000);
         if (username.toLowerCase() === "caillou16") {
           await safeChat("Welcome back Caillou16 the bald.");
@@ -518,43 +1034,85 @@ function createBot() {
 
     // === !bw ===
     if (msg.toLowerCase().includes("!bw")) {
-      const match = msg.match(/!bw\s+([A-Za-z0-9_]{1,16})/i);
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!bw\s+([A-Za-z0-9_]{1,16})/i);
       if (!match) return;
-      const ign = match[1];
+      const [, requester, ign] = match;
+      
       commandCount++;
+      addLog('command', 'command', '!bw command executed', {
+        requester,
+        target: ign
+      });
+      
       await sleep(botSettings.performance.messageDelay);
+      
       if (ign.toLowerCase() === "relaquent") {
         await safeChat("Relaquent | Star: 3628 | FKDR: 48.72 | KD: 2.32 | WL: 2.86");
         return;
       }
+      
       try {
         const stats = await getPlayerStats(ign);
         await safeChat(`${ign} | Star: ${stats.star} | FKDR: ${stats.fkdr} | KD: ${stats.kd} | WL: ${stats.wl}`);
-      } catch {
+        
+        addLog('success', 'command', '!bw completed successfully', {
+          requester,
+          target: ign,
+          stats: stats
+        });
+      } catch (err) {
         await safeChat(`Error - ${ign} | No data`);
+        addLog('error', 'command', '!bw failed', {
+          requester,
+          target: ign,
+          error: err.message
+        });
       }
       return;
     }
 
     // === !stats ===
     if (msg.toLowerCase().includes("!stats")) {
-      const match = msg.match(/!stats\s+([A-Za-z0-9_]{1,16})/i);
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!stats\s+([A-Za-z0-9_]{1,16})/i);
       if (!match) return;
-      const ign = match[1];
+      const [, requester, ign] = match;
+      
       commandCount++;
+      addLog('command', 'command', '!stats command executed', {
+        requester,
+        target: ign
+      });
+      
       await sleep(botSettings.performance.messageDelay);
+      
       try {
         const stats = await getPlayerStats(ign);
         await safeChat(`${ign} | Star: ${stats.star} | Finals: ${stats.finals} | Wins: ${stats.wins} | Beds: ${stats.beds}`);
-      } catch {
+        
+        addLog('success', 'command', '!stats completed successfully', {
+          requester,
+          target: ign,
+          stats: stats
+        });
+      } catch (err) {
         await safeChat(`Error - ${ign}`);
+        addLog('error', 'command', '!stats failed', {
+          requester,
+          target: ign,
+          error: err.message
+        });
       }
       return;
     }
 
     // === !when ===
     if (msg.toLowerCase().includes("!when")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16})/);
+      const requester = match ? match[1] : 'unknown';
+      
       commandCount++;
+      addLog('command', 'command', '!when command executed', { requester });
+      
       await sleep(botSettings.performance.messageDelay);
       const first = new Date("2025-11-22T00:00:00Z");
       const now = new Date();
@@ -563,13 +1121,26 @@ function createBot() {
       if (diff < 0) cycles = -1;
       const next = new Date(first.getTime() + (cycles + 1) * 56 * 86400000);
       const days = Math.ceil((next - now) / 86400000);
-      await safeChat(days > 0 ? `Castle in ${days} days (${next.toDateString()})` : "Castle today!");
+      
+      const response = days > 0 ? `Castle in ${days} days (${next.toDateString()})` : "Castle today!";
+      await safeChat(response);
+      
+      addLog('success', 'command', '!when completed', {
+        requester,
+        daysUntilCastle: days,
+        nextCastleDate: next.toDateString()
+      });
       return;
     }
 
     // === !about ===
     if (msg.toLowerCase().includes("!about")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16})/);
+      const requester = match ? match[1] : 'unknown';
+      
       commandCount++;
+      addLog('command', 'command', '!about command executed', { requester });
+      
       await sleep(botSettings.performance.messageDelay);
       await safeChat("RumoniumGC by Relaquent, v2.0");
       return;
@@ -577,11 +1148,17 @@ function createBot() {
 
     // === !help ===
     if (msg.toLowerCase().includes("!help")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16})/);
+      const requester = match ? match[1] : 'unknown';
+      
       commandCount++;
+      addLog('command', 'command', '!help command executed', { requester });
+      
       await sleep(botSettings.performance.messageDelay);
       const help = [
         "--- RumoniumGC ---",
         "bw <user> - Bedwars stats",
+        "fkdr <user> - Daily/Weekly/Monthly FKDR",
         "gexp <user> - Weekly GEXP & rank",
         "when - Next Castle",
         "ask <msg> - Ask AI",
@@ -599,6 +1176,12 @@ function createBot() {
     console.log("❌ Kicked:", reason);
     botReady = false;
     io.emit('bot-status', 'offline');
+    
+    addLog('error', 'bot', 'Bot was kicked from server', {
+      reason: reason,
+      autoReconnect: botSettings.autoReconnect
+    });
+    
     if (botSettings.autoReconnect) setTimeout(createBot, botSettings.performance.autoReconnectDelay);
   });
 
@@ -606,12 +1189,22 @@ function createBot() {
     console.log("🔌 Disconnected");
     botReady = false;
     io.emit('bot-status', 'offline');
+    
+    addLog('warning', 'bot', 'Bot disconnected from server', {
+      autoReconnect: botSettings.autoReconnect
+    });
+    
     if (botSettings.autoReconnect) setTimeout(createBot, botSettings.performance.autoReconnectDelay);
   });
 
   bot.on("error", (err) => {
     console.error("❌", err.message);
     botReady = false;
+    
+    addLog('error', 'bot', 'Bot encountered an error', {
+      error: err.message,
+      stack: err.stack
+    });
   });
 }
 
