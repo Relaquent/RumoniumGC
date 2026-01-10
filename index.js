@@ -220,6 +220,154 @@ const TRACKING_FILE = path.join(__dirname, "tracking_data.json");
 const flaggedPlayers = new Map();
 const FLAGS_FILE = path.join(__dirname, "flagged_players.json");
 
+// === ADVANCED CACHE SYSTEM ===
+class SmartCache {
+  constructor() {
+    this.playerDataCache = new Map(); // ign -> { uuid, stats, timestamp }
+    this.uuidToIgnCache = new Map(); // uuid -> ign
+    this.guildCache = new Map(); // ign -> { gexpData, timestamp }
+    this.PLAYER_CACHE_DURATION = 10 * 60 * 1000; // 10 dakika
+    this.GUILD_CACHE_DURATION = 5 * 60 * 1000; // 5 dakika
+    this.cacheHits = 0;
+    this.cacheMisses = 0;
+  }
+
+  // Player data cache
+  getPlayer(ign) {
+    const cached = this.playerDataCache.get(ign.toLowerCase());
+    if (cached && (Date.now() - cached.timestamp) < this.PLAYER_CACHE_DURATION) {
+      this.cacheHits++;
+      addLog('info', 'system', `Cache HIT for ${ign}`, { 
+        type: 'player',
+        age: Math.floor((Date.now() - cached.timestamp) / 1000) + 's'
+      });
+      return cached.data;
+    }
+    this.cacheMisses++;
+    return null;
+  }
+
+  setPlayer(ign, data) {
+    this.playerDataCache.set(ign.toLowerCase(), {
+      data,
+      timestamp: Date.now()
+    });
+    
+    // Also cache UUID -> IGN mapping
+    if (data.uuid) {
+      this.uuidToIgnCache.set(data.uuid, ign);
+    }
+    
+    addLog('info', 'system', `Cached player data for ${ign}`, { 
+      uuid: data.uuid,
+      cacheSize: this.playerDataCache.size 
+    });
+  }
+
+  // Guild data cache
+  getGuild(ign) {
+    const cached = this.guildCache.get(ign.toLowerCase());
+    if (cached && (Date.now() - cached.timestamp) < this.GUILD_CACHE_DURATION) {
+      this.cacheHits++;
+      addLog('info', 'system', `Cache HIT for guild ${ign}`, { 
+        type: 'guild',
+        age: Math.floor((Date.now() - cached.timestamp) / 1000) + 's'
+      });
+      return cached.data;
+    }
+    this.cacheMisses++;
+    return null;
+  }
+
+  setGuild(ign, data) {
+    this.guildCache.set(ign.toLowerCase(), {
+      data,
+      timestamp: Date.now()
+    });
+    
+    addLog('info', 'system', `Cached guild data for ${ign}`, { 
+      cacheSize: this.guildCache.size 
+    });
+  }
+
+  // UUID lookup cache
+  getIgnByUuid(uuid) {
+    return this.uuidToIgnCache.get(uuid);
+  }
+
+  // Cache invalidation
+  invalidatePlayer(ign) {
+    this.playerDataCache.delete(ign.toLowerCase());
+    addLog('info', 'system', `Invalidated cache for ${ign}`);
+  }
+
+  invalidateGuild(ign) {
+    this.guildCache.delete(ign.toLowerCase());
+    addLog('info', 'system', `Invalidated guild cache for ${ign}`);
+  }
+
+  // Clear old cache entries
+  cleanup() {
+    const now = Date.now();
+    let cleaned = 0;
+
+    // Clean player cache
+    for (const [key, value] of this.playerDataCache.entries()) {
+      if (now - value.timestamp > this.PLAYER_CACHE_DURATION) {
+        this.playerDataCache.delete(key);
+        cleaned++;
+      }
+    }
+
+    // Clean guild cache
+    for (const [key, value] of this.guildCache.entries()) {
+      if (now - value.timestamp > this.GUILD_CACHE_DURATION) {
+        this.guildCache.delete(key);
+        cleaned++;
+      }
+    }
+
+    if (cleaned > 0) {
+      addLog('info', 'system', `Cache cleanup: removed ${cleaned} expired entries`, {
+        playerCacheSize: this.playerDataCache.size,
+        guildCacheSize: this.guildCache.size
+      });
+    }
+  }
+
+  // Get cache statistics
+  getStats() {
+    const totalRequests = this.cacheHits + this.cacheMisses;
+    const hitRate = totalRequests > 0 ? ((this.cacheHits / totalRequests) * 100).toFixed(2) : 0;
+    
+    return {
+      playerCacheSize: this.playerDataCache.size,
+      guildCacheSize: this.guildCache.size,
+      totalCacheSize: this.playerDataCache.size + this.guildCache.size,
+      cacheHits: this.cacheHits,
+      cacheMisses: this.cacheMisses,
+      hitRate: hitRate + '%',
+      totalRequests
+    };
+  }
+
+  // Clear all cache
+  clearAll() {
+    this.playerDataCache.clear();
+    this.guildCache.clear();
+    this.uuidToIgnCache.clear();
+    this.cacheHits = 0;
+    this.cacheMisses = 0;
+    
+    addLog('success', 'system', 'All cache cleared');
+  }
+}
+
+const cache = new SmartCache();
+
+// Cache cleanup every 5 minutes
+setInterval(() => cache.cleanup(), 5 * 60 * 1000);
+
 // Cache system to reduce API calls
 const playerCache = new Map(); // uuid -> { data, timestamp }
 const CACHE_DURATION = 5 * 60 * 1000; // 5 dakika cache
@@ -382,16 +530,28 @@ function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
 
 // Queue'lu API fonksiyonları
 async function getPlayerUUID(ign) {
+  // Check cache first
+  const cachedPlayer = cache.getPlayer(ign);
+  if (cachedPlayer) {
+    return cachedPlayer;
+  }
+
   return queueApiRequest(async () => {
     const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
     const { data } = await axios.get(url, { timeout: 10000 });
     if (!data?.success || !data?.player) throw new Error("Player not found");
-    return {
+    
+    const result = {
       uuid: data.player.uuid,
       finals: data.player.stats?.Bedwars?.final_kills_bedwars || 0,
       deaths: data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
       fullData: data.player
     };
+    
+    // Cache the result
+    cache.setPlayer(ign, result);
+    
+    return result;
   });
 }
 
@@ -412,21 +572,51 @@ function parseBWStats(player) {
 }
 
 async function getPlayerStats(ign) {
+  // Check cache first
+  const cachedPlayer = cache.getPlayer(ign);
+  if (cachedPlayer && cachedPlayer.fullData) {
+    return parseBWStats(cachedPlayer.fullData);
+  }
+
   return queueApiRequest(async () => {
     const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
     const { data } = await axios.get(url, { timeout: 10000 });
     if (!data?.success || !data?.player) throw new Error("Player not found");
+    
+    // Cache the full player data
+    const playerData = {
+      uuid: data.player.uuid,
+      finals: data.player.stats?.Bedwars?.final_kills_bedwars || 0,
+      deaths: data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
+      fullData: data.player
+    };
+    cache.setPlayer(ign, playerData);
+    
     return parseBWStats(data.player);
   });
 }
 
 async function getGuildGEXP(playerIgn) {
+  // Check cache first
+  const cachedGuild = cache.getGuild(playerIgn);
+  if (cachedGuild) {
+    return cachedGuild;
+  }
+
   return queueApiRequest(async () => {
     const playerUrl = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(playerIgn)}`;
     const playerRes = await axios.get(playerUrl, { timeout: 10000 });
     if (!playerRes.data?.player) throw new Error("Player not found");
     
     const uuid = playerRes.data.player.uuid;
+    
+    // Cache player data
+    cache.setPlayer(playerIgn, {
+      uuid,
+      finals: playerRes.data.player.stats?.Bedwars?.final_kills_bedwars || 0,
+      deaths: playerRes.data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
+      fullData: playerRes.data.player
+    });
     
     // Queue'da zaten olduğumuz için direkt API çağrısı yapabiliriz
     await sleep(MIN_CALL_DELAY);
@@ -449,11 +639,16 @@ async function getGuildGEXP(playerIgn) {
     
     const rank = leaderboard.findIndex(m => m.uuid === uuid) + 1;
     
-    return {
+    const result = {
       weeklyGexp,
       rank,
       totalMembers: guild.members.length
     };
+    
+    // Cache guild data
+    cache.setGuild(playerIgn, result);
+    
+    return result;
   });
 }
 
@@ -487,13 +682,47 @@ app.post("/api/gpt-prompt", (req, res) => {
 
 // === Stats endpoint ===
 app.get("/api/stats", (req, res) => {
+  const cacheStats = cache.getStats();
   res.json({
     queueLength: API_QUEUE.length,
     apiCallCount,
     apiCallLimit: MAX_CALLS_PER_MINUTE,
-    cacheSize: playerCache.size,
-    isProcessingQueue
+    isProcessingQueue,
+    cache: cacheStats
   });
+});
+
+// === Cache management endpoints ===
+app.get("/api/cache/stats", (req, res) => {
+  res.json(cache.getStats());
+});
+
+app.post("/api/cache/clear", (req, res) => {
+  const { type } = req.body;
+  
+  if (type === 'all') {
+    cache.clearAll();
+  } else if (type === 'player') {
+    cache.playerDataCache.clear();
+    cache.uuidToIgnCache.clear();
+  } else if (type === 'guild') {
+    cache.guildCache.clear();
+  }
+  
+  addLog('success', 'system', `Cache cleared: ${type}`);
+  res.json({ success: true, stats: cache.getStats() });
+});
+
+app.post("/api/cache/invalidate", (req, res) => {
+  const { ign, type } = req.body;
+  
+  if (type === 'player') {
+    cache.invalidatePlayer(ign);
+  } else if (type === 'guild') {
+    cache.invalidateGuild(ign);
+  }
+  
+  res.json({ success: true });
 });
 
 // === Logging API Endpoints ===
@@ -727,7 +956,7 @@ app.get("/control", (req, res) => {
                 { label: 'MESSAGES', value: stats.messages },
                 { label: 'ERRORS', value: errorLogs.length },
                 { label: 'API QUEUE', value: stats.queueLength || 0 },
-                { label: 'API CALLS', value: \`\${stats.apiCallCount || 0}/100\` }
+                { label: 'CACHE', value: stats.cache?.totalCacheSize || 0 }
               ].map((s, i) => (
                 <div key={i} className="glass rounded-xl p-4">
                   <div className="text-2xl font-black">{s.value}</div>
@@ -735,10 +964,34 @@ app.get("/control", (req, res) => {
                 </div>
               ))}
             </div>
+            
+            {stats.cache && (
+              <div className="mt-4 glass rounded-xl p-4">
+                <div className="grid grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <div className="text-gray-400">Cache Hit Rate</div>
+                    <div className="text-lg font-bold text-green-400">{stats.cache.hitRate}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400">Cache Hits</div>
+                    <div className="text-lg font-bold">{stats.cache.cacheHits}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400">Cache Misses</div>
+                    <div className="text-lg font-bold">{stats.cache.cacheMisses}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400">API Calls Saved</div>
+                    <div className="text-lg font-bold text-green-400">{stats.cache.cacheHits}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+            </div>
           </div>
 
           <div className="glass rounded-3xl p-2 mb-6 flex gap-2">
-            {['chat', 'logs', 'commands', 'errors'].map(t => (
+            {['chat', 'logs', 'commands', 'errors', 'cache'].map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -870,6 +1123,138 @@ app.get("/control", (req, res) => {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {tab === 'cache' && (
+                <div className="glass rounded-3xl p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-2xl font-black">CACHE MANAGEMENT</h2>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={async () => {
+                          if (confirm('Clear player cache?')) {
+                            await fetch('/api/cache/clear', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ type: 'player' })
+                            });
+                          }
+                        }}
+                        className="px-4 py-2 rounded-xl bg-blue-600 text-sm font-bold"
+                      >
+                        Clear Player Cache
+                      </button>
+                      <button 
+                        onClick={async () => {
+                          if (confirm('Clear guild cache?')) {
+                            await fetch('/api/cache/clear', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ type: 'guild' })
+                            });
+                          }
+                        }}
+                        className="px-4 py-2 rounded-xl bg-purple-600 text-sm font-bold"
+                      >
+                        Clear Guild Cache
+                      </button>
+                      <button 
+                        onClick={async () => {
+                          if (confirm('Clear ALL cache?')) {
+                            await fetch('/api/cache/clear', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ type: 'all' })
+                            });
+                          }
+                        }}
+                        className="px-4 py-2 rounded-xl bg-red-600 text-sm font-bold"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
+
+                  {stats.cache && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="glass rounded-xl p-4 border border-purple-500/50">
+                          <div className="text-sm text-gray-400 mb-2">Hit Rate</div>
+                          <div className="text-3xl font-black text-green-400">{stats.cache.hitRate}</div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {stats.cache.cacheHits} hits / {stats.cache.totalRequests} total
+                          </div>
+                        </div>
+
+                        <div className="glass rounded-xl p-4 border border-blue-500/50">
+                          <div className="text-sm text-gray-400 mb-2">API Calls Saved</div>
+                          <div className="text-3xl font-black text-green-400">{stats.cache.cacheHits}</div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Prevented API requests
+                          </div>
+                        </div>
+
+                        <div className="glass rounded-xl p-4 border border-green-500/50">
+                          <div className="text-sm text-gray-400 mb-2">Player Cache</div>
+                          <div className="text-3xl font-black">{stats.cache.playerCacheSize}</div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Cached players (10min TTL)
+                          </div>
+                        </div>
+
+                        <div className="glass rounded-xl p-4 border border-pink-500/50">
+                          <div className="text-sm text-gray-400 mb-2">Guild Cache</div>
+                          <div className="text-3xl font-black">{stats.cache.guildCacheSize}</div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            Cached guilds (5min TTL)
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="glass rounded-xl p-4 border border-yellow-500/50">
+                        <div className="text-sm text-gray-400 mb-2">Cache Performance</div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm">Total Cache Size</span>
+                            <span className="font-bold">{stats.cache.totalCacheSize} entries</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm">Cache Hits</span>
+                            <span className="font-bold text-green-400">{stats.cache.cacheHits}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm">Cache Misses</span>
+                            <span className="font-bold text-red-400">{stats.cache.cacheMisses}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm">Efficiency</span>
+                            <span className="font-bold text-purple-400">
+                              {stats.cache.cacheHits > 0 
+                                ? \`\${((stats.cache.cacheHits / (stats.cache.cacheHits + stats.cache.cacheMisses)) * 100).toFixed(1)}% efficient\`
+                                : 'No data yet'
+                              }
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="glass rounded-xl p-4 bg-blue-500/10 border border-blue-500/30">
+                        <div className="flex items-start gap-3">
+                          <div className="text-2xl">💡</div>
+                          <div>
+                            <div className="font-bold mb-1">How Cache Works</div>
+                            <div className="text-sm text-gray-300 space-y-1">
+                              <div>• Player data cached for 10 minutes</div>
+                              <div>• Guild data cached for 5 minutes</div>
+                              <div>• Automatic cleanup every 5 minutes</div>
+                              <div>• Reduces API calls by {stats.cache.hitRate}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
