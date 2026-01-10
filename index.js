@@ -158,6 +158,10 @@ function ratio(num, den) {
 const fkdrTracking = new Map();
 const TRACKING_FILE = path.join(__dirname, "tracking_data.json");
 
+// === Flag System ===
+const flaggedPlayers = new Map(); // uuid -> { ign, reason, flaggedBy, timestamp }
+const FLAGS_FILE = path.join(__dirname, "flagged_players.json");
+
 // Load tracking data on startup
 function loadTrackingData() {
   try {
@@ -173,6 +177,21 @@ function loadTrackingData() {
   }
 }
 
+// Load flagged players
+function loadFlaggedPlayers() {
+  try {
+    if (fs.existsSync(FLAGS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(FLAGS_FILE, 'utf8'));
+      Object.entries(data).forEach(([uuid, flag]) => {
+        flaggedPlayers.set(uuid, flag);
+      });
+      addLog('success', 'system', `Loaded ${flaggedPlayers.size} flagged players`);
+    }
+  } catch (err) {
+    addLog('error', 'system', 'Failed to load flagged players', { error: err.message });
+  }
+}
+
 // Save tracking data
 function saveTrackingData() {
   try {
@@ -183,8 +202,19 @@ function saveTrackingData() {
   }
 }
 
+// Save flagged players
+function saveFlaggedPlayers() {
+  try {
+    const data = Object.fromEntries(flaggedPlayers);
+    fs.writeFileSync(FLAGS_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    addLog('error', 'system', 'Failed to save flagged players', { error: err.message });
+  }
+}
+
 // Auto-save every 5 minutes
 setInterval(saveTrackingData, 5 * 60 * 1000);
+setInterval(saveFlaggedPlayers, 5 * 60 * 1000);
 
 function initializePlayerTracking(uuid) {
   const now = new Date();
@@ -801,7 +831,8 @@ setInterval(() => {
 server.listen(PORT, () => {
   console.log(`🌐 Server running on port ${PORT}`);
   addLog('success', 'system', `Server started on port ${PORT}`, { port: PORT });
-  loadTrackingData(); // Load saved tracking data
+  loadTrackingData();
+  loadFlaggedPlayers();
 });
 
 // === Bot ===
@@ -1228,11 +1259,104 @@ function createBot() {
         "gexp <user> - Weekly GEXP & rank",
         "when - Next Castle",
         "ask <msg> - Ask AI",
+        "flag add <user> <reason> - Flag player",
+        "flag remove <user> - Unflag player",
+        "check <user> - Check player + flags",
         "about - Bot info"
       ];
       for (const h of help) {
         await safeChat(h);
         await sleep(500);
+      }
+      return;
+    }
+
+    // === !flag add ===
+    if (msg.toLowerCase().includes("!flag add")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!flag add\s+([A-Za-z0-9_]{1,16})\s+(.+)/i);
+      if (!match) return;
+      const [, flagger, ign, reason] = match;
+      
+      commandCount++;
+      addLog('command', 'command', '!flag add executed', { flagger, target: ign, reason });
+      
+      await sleep(botSettings.performance.messageDelay);
+      
+      try {
+        const playerData = await getPlayerUUID(ign);
+        flaggedPlayers.set(playerData.uuid, {
+          ign,
+          reason: reason.trim(),
+          flaggedBy: flagger,
+          timestamp: new Date().toISOString()
+        });
+        saveFlaggedPlayers();
+        
+        await safeChat(`✓ ${ign} flagged: ${reason}`);
+        addLog('success', 'command', 'Player flagged', { flagger, target: ign, reason });
+      } catch (err) {
+        await safeChat(`Error - ${ign} not found`);
+        addLog('error', 'command', '!flag add failed', { error: err.message });
+      }
+      return;
+    }
+
+    // === !flag remove ===
+    if (msg.toLowerCase().includes("!flag remove")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!flag remove\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+      const [, remover, ign] = match;
+      
+      commandCount++;
+      addLog('command', 'command', '!flag remove executed', { remover, target: ign });
+      
+      await sleep(botSettings.performance.messageDelay);
+      
+      try {
+        const playerData = await getPlayerUUID(ign);
+        if (flaggedPlayers.has(playerData.uuid)) {
+          flaggedPlayers.delete(playerData.uuid);
+          saveFlaggedPlayers();
+          await safeChat(`✓ ${ign} unflagged`);
+          addLog('success', 'command', 'Player unflagged', { remover, target: ign });
+        } else {
+          await safeChat(`${ign} is not flagged`);
+        }
+      } catch (err) {
+        await safeChat(`Error - ${ign} not found`);
+        addLog('error', 'command', '!flag remove failed', { error: err.message });
+      }
+      return;
+    }
+
+    // === !check ===
+    if (msg.toLowerCase().includes("!check")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!check\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+      const [, checker, ign] = match;
+      
+      commandCount++;
+      addLog('command', 'command', '!check executed', { checker, target: ign });
+      
+      await sleep(botSettings.performance.messageDelay);
+      
+      try {
+        const playerData = await getPlayerUUID(ign);
+        const stats = await getPlayerStats(ign);
+        const flag = flaggedPlayers.get(playerData.uuid);
+        
+        if (flag) {
+          await safeChat(`${ign} | ⭐${stats.star} | FKDR: ${stats.fkdr}`);
+          await sleep(500);
+          await safeChat(`🚩 FLAGGED: ${flag.reason} (by ${flag.flaggedBy})`);
+        } else {
+          await safeChat(`${ign} | ⭐${stats.star} | FKDR: ${stats.fkdr} | ✓ Clean`);
+        }
+        
+        addLog('success', 'command', '!check completed', { checker, target: ign, flagged: !!flag });
+      } catch (err) {
+        await safeChat(`Error - ${ign}`);
+        addLog('error', 'command', '!check failed', { error: err.message });
       }
       return;
     }
