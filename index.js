@@ -64,7 +64,8 @@ let botSettings = {
   customCommands: [],
   chatLogs: { enabled: true, maxHistory: 500 },
   notifications: { onJoin: true, onLeave: true, onCommand: true },
-  performance: { messageDelay: 300, maxMessagesPerSecond: 2, autoReconnectDelay: 10000 }
+  performance: { messageDelay: 300, maxMessagesPerSecond: 2, autoReconnectDelay: 10000 },
+  autoTracking: { enabled: true, interval: 2000 } // Otomatik tracking ayarı
 };
 
 let bot;
@@ -153,8 +154,37 @@ function ratio(num, den) {
   return (n / d).toFixed(2);
 }
 
-// === FKDR Tracking System ===
-const fkdrTracking = new Map(); // playerUUID -> { daily, weekly, monthly, yearly, lastUpdate }
+// === FKDR Tracking System + Persistence ===
+const fkdrTracking = new Map();
+const TRACKING_FILE = path.join(__dirname, "tracking_data.json");
+
+// Load tracking data on startup
+function loadTrackingData() {
+  try {
+    if (fs.existsSync(TRACKING_FILE)) {
+      const data = JSON.parse(fs.readFileSync(TRACKING_FILE, 'utf8'));
+      Object.entries(data).forEach(([uuid, tracking]) => {
+        fkdrTracking.set(uuid, tracking);
+      });
+      addLog('success', 'system', `Loaded ${fkdrTracking.size} tracked players`);
+    }
+  } catch (err) {
+    addLog('error', 'system', 'Failed to load tracking data', { error: err.message });
+  }
+}
+
+// Save tracking data
+function saveTrackingData() {
+  try {
+    const data = Object.fromEntries(fkdrTracking);
+    fs.writeFileSync(TRACKING_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    addLog('error', 'system', 'Failed to save tracking data', { error: err.message });
+  }
+}
+
+// Auto-save every 5 minutes
+setInterval(saveTrackingData, 5 * 60 * 1000);
 
 function initializePlayerTracking(uuid) {
   const now = new Date();
@@ -188,11 +218,19 @@ function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
     tracking.lifetime.finals = currentFinals;
     tracking.lifetime.deaths = currentDeaths;
     fkdrTracking.set(uuid, tracking);
+    
+    // İlk kayıtta da mevcut statları göster
+    addLog('info', 'system', `New player tracked: ${uuid}`, {
+      uuid,
+      initialFinals: currentFinals,
+      initialDeaths: currentDeaths
+    });
+    
     return tracking;
   }
 
-  const finalsDiff = currentFinals - tracking.lastStats.finals;
-  const deathsDiff = currentDeaths - tracking.lastStats.deaths;
+  const finalsDiff = Math.max(0, currentFinals - tracking.lastStats.finals);
+  const deathsDiff = Math.max(0, currentDeaths - tracking.lastStats.deaths);
 
   // Reset daily if new day
   if (tracking.daily.date !== now.toDateString()) {
@@ -215,15 +253,24 @@ function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
     tracking.yearly = { finals: 0, deaths: 0, year: now.getFullYear() };
   }
 
-  // Add differences to all periods
-  tracking.daily.finals += finalsDiff;
-  tracking.daily.deaths += deathsDiff;
-  tracking.weekly.finals += finalsDiff;
-  tracking.weekly.deaths += deathsDiff;
-  tracking.monthly.finals += finalsDiff;
-  tracking.monthly.deaths += deathsDiff;
-  tracking.yearly.finals += finalsDiff;
-  tracking.yearly.deaths += deathsDiff;
+  // Add differences to all periods (only if positive - prevents stat resets from breaking tracking)
+  if (finalsDiff > 0 || deathsDiff > 0) {
+    tracking.daily.finals += finalsDiff;
+    tracking.daily.deaths += deathsDiff;
+    tracking.weekly.finals += finalsDiff;
+    tracking.weekly.deaths += deathsDiff;
+    tracking.monthly.finals += finalsDiff;
+    tracking.monthly.deaths += deathsDiff;
+    tracking.yearly.finals += finalsDiff;
+    tracking.yearly.deaths += deathsDiff;
+    
+    addLog('info', 'system', `Player stats updated`, {
+      uuid,
+      finalsDiff,
+      deathsDiff,
+      newDaily: tracking.daily
+    });
+  }
 
   // Update last stats
   tracking.lastStats.finals = currentFinals;
@@ -233,6 +280,7 @@ function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
   tracking.lastUpdate = now.toISOString();
 
   fkdrTracking.set(uuid, tracking);
+  saveTrackingData(); // Save after each update
   return tracking;
 }
 
@@ -753,6 +801,7 @@ setInterval(() => {
 server.listen(PORT, () => {
   console.log(`🌐 Server running on port ${PORT}`);
   addLog('success', 'system', `Server started on port ${PORT}`, { port: PORT });
+  loadTrackingData(); // Load saved tracking data
 });
 
 // === Bot ===
@@ -798,6 +847,32 @@ function createBot() {
     
     addLog('info', 'chat', 'Message received', { message: msg });
 
+    // === AUTO-TRACK: Guild üyeleri chat'te konuştuğunda otomatik track et ===
+    if (msg.startsWith("Guild >")) {
+      const guildMsgMatch = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16})/);
+      if (guildMsgMatch) {
+        const username = guildMsgMatch[1];
+        
+        // Arka planda tracking yap (sessizce, spam yapmadan)
+        if (botSettings.autoTracking?.enabled !== false) {
+          setTimeout(async () => {
+            try {
+              const playerData = await getPlayerUUID(username);
+              updatePlayerTracking(playerData.uuid, playerData.finals, playerData.deaths);
+              addLog('info', 'system', `Auto-tracked ${username}`, {
+                username,
+                finals: playerData.finals,
+                deaths: playerData.deaths
+              });
+            } catch (err) {
+              // Sessizce başarısız ol, chat'i spam'leme
+              addLog('warning', 'system', `Auto-track failed for ${username}`, { error: err.message });
+            }
+          }, 2000); // 2 saniye gecikme ile API rate limit'e takılma
+        }
+      }
+    }
+
     if (!msg.startsWith("Guild >") || !botReady) return;
 
     const safeChat = async (m) => {
@@ -837,22 +912,30 @@ function createBot() {
         const yearlyFKDR = ratio(tracking.yearly.finals, tracking.yearly.deaths);
         const lifetimeFKDR = ratio(tracking.lifetime.finals, tracking.lifetime.deaths);
         
-        // Send multi-line response
-        await safeChat(`${ign} FKDR Stats:`);
-        await sleep(500);
-        await safeChat(`Daily: ${dailyFKDR} (${tracking.daily.finals}F/${tracking.daily.deaths}D)`);
-        await sleep(500);
-        await safeChat(`Weekly: ${weeklyFKDR} (${tracking.weekly.finals}F/${tracking.weekly.deaths}D)`);
-        await sleep(500);
-        await safeChat(`Monthly: ${monthlyFKDR} (${tracking.monthly.finals}F/${tracking.monthly.deaths}D)`);
-        await sleep(500);
-        await safeChat(`Yearly: ${yearlyFKDR} (${tracking.yearly.finals}F/${tracking.yearly.deaths}D)`);
-        await sleep(500);
-        await safeChat(`Lifetime: ${lifetimeFKDR}`);
+        // Check if this is first time tracking
+        const isFirstTime = tracking.daily.finals === 0 && tracking.daily.deaths === 0;
+        
+        if (isFirstTime) {
+          await safeChat(`${ign} | Lifetime FKDR: ${lifetimeFKDR} | Now tracking daily/weekly/monthly stats!`);
+        } else {
+          // Send multi-line response
+          await safeChat(`${ign} FKDR Stats:`);
+          await sleep(500);
+          await safeChat(`Daily: ${dailyFKDR} (${tracking.daily.finals}F/${tracking.daily.deaths}D)`);
+          await sleep(500);
+          await safeChat(`Weekly: ${weeklyFKDR} (${tracking.weekly.finals}F/${tracking.weekly.deaths}D)`);
+          await sleep(500);
+          await safeChat(`Monthly: ${monthlyFKDR} (${tracking.monthly.finals}F/${tracking.monthly.deaths}D)`);
+          await sleep(500);
+          await safeChat(`Yearly: ${yearlyFKDR} (${tracking.yearly.finals}F/${tracking.yearly.deaths}D)`);
+          await sleep(500);
+          await safeChat(`Lifetime: ${lifetimeFKDR}`);
+        }
         
         addLog('success', 'command', '!fkdr completed successfully', {
           requester,
           target: ign,
+          isFirstTime,
           daily: dailyFKDR,
           weekly: weeklyFKDR,
           monthly: monthlyFKDR,
