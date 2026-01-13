@@ -1,297 +1,743 @@
-const express = require("express");
-const mineflayer = require("mineflayer");
-const axios = require("axios");
-const OpenAI = require("openai");
-const http = require("http");
-const { Server } = require("socket.io");
-const fs = require("fs");
-const path = require("path");
+<div className="space-y-2 max-h-96 overflow-y-auto scroll">
+                    {flags.length === 0 ? (
+                      <div className="text-center text-gray-400 py-8">No flagged players</div>
+                    ) : (
+                      flags.map((flag, i) => (
+                        <div key={i} className="glass rounded-xl p-4 border border-red-500/50">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <div className="font-bold text-lg">{flag.ign}</div>
+                              <div className="text-xs text-gray-400">UUID: {flag.uuid}</div>
+                            </div>
+                            <button
+                              onClick={() => removeFlag(flag.uuid)}
+                              className="px-3 py-1 bg-red-600 rounded-lg text-sm font-bold hover:bg-red-700"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <div className="text-sm mb-1">
+                            <span className="text-gray-400">Reason:</span> {flag.reason}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            Flagged by: {flag.flaggedBy} • {new Date(flag.timestamp).toLocaleString()}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
 
-// === OpenAI Setup ===
-if (!process.env.OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY not found.");
-  process.exit(1);
-}
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+              {tab === 'permissions' && (
+                <div className="glass rounded-3xl p-6">
+                  <h2 className="text-2xl font-black mb-4">COMMAND PERMISSIONS</h2>
+                  
+                  <form onSubmit={setPermission} className="glass rounded-xl p-4 mb-4 border border-blue-500/30">
+                    <h3 className="font-bold mb-3">Set Player Permissions</h3>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        placeholder="Player Username"
+                        value={permUsername}
+                        onChange={e => setPermUsername(e.target.value)}
+                        className="w-full bg-black/30 border border-blue-500/30 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
+                      />
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-sm font-bold mb-2 text-green-400">Allowed Commands (Leave empty for all)</div>
+                          <div className="space-y-1 max-h-48 overflow-y-auto scroll bg-black/20 rounded-lg p-2">
+                            {availableCommands.map(cmd => (
+                              <label key={cmd} className="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-2 rounded">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedAllowed.includes(cmd)}
+                                  onChange={() => toggleCommand(cmd, 'allowed')}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-sm">{cmd}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <div className="text-sm font-bold mb-2 text-red-400">Banned Commands</div>
+                          <div className="space-y-1 max-h-48 overflow-y-auto scroll bg-black/20 rounded-lg p-2">
+                            {availableCommands.map(cmd => (
+                              <label key={cmd} className="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-2 rounded">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedBanned.includes(cmd)}
+                                  onChange={() => toggleCommand(cmd, 'banned')}
+                                  className="w-4 h-4"
+                                />
+                                <span className="text-sm">{cmd}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="text-xs text-gray-400 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+                        <strong>Note:</strong> If "Allowed Commands" is empty, the player can use all commands except those in "Banned Commands". 
+                        If you specify allowed commands, ONLY those commands will be available (banned list is ignored).
+                      </div>
+                      
+                      <button type="submit" className="w-full bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg px-4 py-2 font-bold hover:opacity-90">
+                        Save Permissions
+                      </button>
+                    </div>
+                  </form>
 
-// === Express + Socket.IO ===
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
-const PORT = process.env.PORT || 3000;
+                  <div className="space-y-2 max-h-96 overflow-y-auto scroll">
+                    {permissions.length === 0 ? (
+                      <div className="text-center text-gray-400 py-8">No custom permissions set (all players can use all commands)</div>
+                    ) : (
+                      permissions.map((perm, i) => (
+                        <div key={i} className="glass rounded-xl p-4 border border-blue-500/50">
+                          <div className="flex justify-between items-start mb-2">
+                            <div className="font-bold text-lg">{perm.username}</div>
+                            <button
+                              onClick={() => removePermission(perm.username)}
+                              className="px-3 py-1 bg-red-600 rounded-lg text-sm font-bold hover:bg-red-700"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          
+                          {perm.allowedCommands && perm.allowedCommands.length > 0 ? (
+                            <div className="mb-2">
+                              <div className="text-xs text-green-400 mb-1">✓ Allowed Commands Only:</div>
+                              <div className="flex flex-wrap gap-1">
+                                {perm.allowedCommands.map(cmd => (
+                                  <span key={cmd} className="text-xs px-2 py-1 bg-green-500/20 border border-green-500/50 rounded">
+                                    {cmd}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="mb-2">
+                              <div className="text-xs text-gray-400 mb-1">All commands allowed except:</div>
+                            </div>
+                          )}
+                          
+                          {perm.bannedCommands && perm.bannedCommands.length > 0 && (!perm.allowedCommands || perm.allowedCommands.length === 0) && (
+                            <div>
+                              <div className="text-xs text-red-400 mb-1">✗ Banned:</div>
+                              <div className="flex flex-wrap gap-1">
+                                {perm.bannedCommands.map(cmd => (
+                                  <span key={cmd} className="text-xs px-2 py-1 bg-red-500/20 border border-red-500/50 rounded">
+                                    {cmd}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {(!perm.bannedCommands || perm.bannedCommands.length === 0) && (!perm.allowedCommands || perm.allowedCommands.length === 0) && (
+                            <div className="text-xs text-gray-400">No restrictions</div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+              {tab === 'cache' && (
+                <div className="glass rounded-3xl p-6">
+                  <h2 className="text-2xl font-black mb-4">CACHE MANAGEMENT</h2>
+                  {stats.cache && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="glass rounded-xl p-4 border border-green-500/50">
+                          <div className="text-sm text-gray-400 mb-2">Hit Rate</div>
+                          <div className="text-3xl font-black text-green-400">{stats.cache.hitRate}</div>
+                        </div>
+                        <div className="glass rounded-xl p-4 border border-blue-500/50">
+                          <div className="text-sm text-gray-400 mb-2">Total Cache</div>
+                          <div className="text-3xl font-black">{stats.cache.totalCacheSize}</div>
+                        </div>
+                        <div className="glass rounded-xl p-4 border border-purple-500/50">
+                          <div className="text-sm text-gray-400 mb-2">Cache Hits</div>
+                          <div className="text-2xl font-black text-purple-400">{stats.cache.cacheHits}</div>
+                        </div>
+                        <div className="glass rounded-xl p-4 border border-pink-500/50">
+                          <div className="text-sm text-gray-400 mb-2">Cache Misses</div>
+                          <div className="text-2xl font-black text-pink-400">{stats.cache.cacheMisses}</div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-3">
+                        <button
+                          onClick={async () => {
+                            if (!confirm('Clear all cache?')) return;
+                            await fetch('/api/cache/clear', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ type: 'all' })
+                            });
+                            const res = await fetch('/api/stats');
+                            const data = await res.json();
+                            setStats(prev => ({ ...prev, ...data }));
+                          }}
+                          className="flex-1 bg-gradient-to-r from-red-600 to-pink-600 rounded-lg px-4 py-3 font-bold hover:opacity-90"
+                        >
+                          Clear All Cache
+                        </button>
+                        <button
+                          onClick={async () => {
+                            await fetch('/api/cache/clear', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ type: 'player' })
+                            });
+                            const res = await fetch('/api/stats');
+                            const data = await res.json();
+                            setStats(prev => ({ ...prev, ...data }));
+                          }}
+                          className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg px-4 py-3 font-bold hover:opacity-90"
+                        >
+                          Clear Player Cache
+                        </button>
+                        <button
+                          onClick={async () => {
+                            await fetch('/api/cache/clear', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ type: 'guild' })
+                            });
+                            const res = await fetch('/api/stats');
+                            const data = await res.json();
+                            setStats(prev => ({ ...prev, ...data }));
+                          }}
+                          className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg px-4 py-3 font-bold hover:opacity-90"
+                        >
+                          Clear Guild Cache
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
 
-// === Logging Directory Setup ===
-const LOGS_DIR = path.join(__dirname, "logs");
-if (!fs.existsSync(LOGS_DIR)) {
-  fs.mkdirSync(LOGS_DIR, { recursive: true });
-}
-
-// === Global State ===
-let chatHistory = [];
-let gptSystemPrompt = `You are a Turkish nationalist uncle who answers in the user's language. You are knowledgeable, witty, ironic, and sincere. If someone is hostile towards Turks, you give them a piece of your mind.
-
-Current date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
-
-IMPORTANT: Your training data is from October 2023. When users ask about:
-- Current events, news, or recent happenings
-- Current prices, exchange rates, or market data
-- Recent statistics, scores, or rankings
-- "What happened today/recently/lately"
-- "Current/latest/güncel" information
-
-You MUST tell them: "My data is from October 2023. For current info, I'd need web access which isn't available here. Try asking about topics from before late 2023, or search the web directly."
-
-Keep responses under 500 characters for Minecraft chat compatibility.`;
-
-let panelTheme = {
-  primaryColor: '#9333ea',
-  secondaryColor: '#3b82f6',
-  accentColor: '#ec4899',
-  bgStyle: 'gradient',
-  glassEffect: true,
-  animations: true
-};
-
-let botSettings = {
-  autoReconnect: true,
-  welcomeMessages: true,
-  commandCooldown: 45,
-  maxTokens: 100,
-  chatFilter: { enabled: false, keywords: [], filterMode: 'blacklist' },
-  autoResponses: { enabled: true, responses: [] },
-  customCommands: [],
-  chatLogs: { enabled: true, maxHistory: 500 },
-  notifications: { onJoin: true, onLeave: true, onCommand: true },
-  performance: { 
-    messageDelay: 300, 
-    maxMessagesPerSecond: 2, 
-    autoReconnectDelay: 30000,  // İlk yeniden bağlanma 30 saniye
-    maxReconnectDelay: 300000,   // Maksimum 5 dakika
-    reconnectBackoffMultiplier: 1.5  // Her denemede 1.5x artış
-  },
-  autoTracking: { enabled: false, interval: 30000 }
-};
-
-// === BOT RECONNECTION MANAGER ===
-class BotReconnectionManager {
-  constructor() {
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 20;
-    this.currentDelay = botSettings.performance.autoReconnectDelay;
-    this.isReconnecting = false;
-    this.lastDisconnectTime = null;
-    this.connectionFailures = 0;
-    this.lastSuccessfulConnection = null;
-    this.reconnectTimer = null;
-  }
-
-  reset() {
-    this.reconnectAttempts = 0;
-    this.currentDelay = botSettings.performance.autoReconnectDelay;
-    this.connectionFailures = 0;
-    this.lastSuccessfulConnection = Date.now();
-    addLog('info', 'system', 'Reconnection manager reset - successful connection');
-  }
-
-  getNextDelay() {
-    // Exponential backoff with jitter
-    const baseDelay = Math.min(
-      this.currentDelay * Math.pow(botSettings.performance.reconnectBackoffMultiplier, this.reconnectAttempts),
-      botSettings.performance.maxReconnectDelay
-    );
-    
-    // Add random jitter (±20%)
-    const jitter = baseDelay * 0.2 * (Math.random() - 0.5);
-    const delay = baseDelay + jitter;
-    
-    return Math.floor(delay);
-  }
-
-  shouldReconnect() {
-    if (!botSettings.autoReconnect) {
-      addLog('warning', 'system', 'Auto-reconnect disabled, not attempting reconnection');
-      return false;
+            <div className="glass rounded-3xl p-6">
+              <h2 className="text-xl font-black mb-4">RECENT ACTIVITY</h2>
+              <div className="space-y-2 max-h-96 overflow-y-auto scroll">
+                {logs.slice(0, 15).map((log, i) => (
+                  <div key={i} className="glass rounded-xl p-3 text-xs">
+                    <div className="text-gray-400 mb-1">{log.time}</div>
+                    <div className="text-gray-200">{log.msg}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
     }
 
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      addLog('error', 'system', 'Max reconnection attempts reached', {
-        attempts: this.reconnectAttempts,
-        maxAttempts: this.maxReconnectAttempts
-      });
-      return false;
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>`);
+});
+
+io.on('connection', (socket) => {
+  console.log('👤 Client connected');
+  addLog('info', 'system', 'Client connected to web panel', { clientId: socket.id });
+  socket.on('disconnect', () => {
+    console.log('👤 Client disconnected');
+    addLog('info', 'system', 'Client disconnected from web panel', { clientId: socket.id });
+  });
+});
+
+setInterval(() => {
+  const uptime = Date.now() - startTime;
+  const h = Math.floor(uptime / 3600000);
+  const m = Math.floor((uptime % 3600000) / 60000);
+  io.emit('stats-update', {
+    uptime: `${h}h ${m}m`,
+    commands: commandCount,
+    messages: messageCount,
+    users: Object.keys(bot?.players || {}).length,
+    queueLength: API_QUEUE.length,
+    apiCallCount,
+    reconnection: {
+      attempts: reconnectionManager.reconnectAttempts,
+      maxAttempts: reconnectionManager.maxReconnectAttempts,
+      failures: reconnectionManager.connectionFailures,
+      isReconnecting: reconnectionManager.isReconnecting,
+      lastSuccessfulConnection: reconnectionManager.lastSuccessfulConnection
     }
+  });
+}, 5000);
 
-    // Rate limit protection: eğer son 10 dakikada 5'ten fazla bağlantı hatası varsa bekle
-    if (this.connectionFailures > 5) {
-      const timeSinceLastFailure = Date.now() - this.lastDisconnectTime;
-      if (timeSinceLastFailure < 600000) { // 10 dakika
-        addLog('warning', 'system', 'Too many connection failures, rate limiting reconnections', {
-          failures: this.connectionFailures,
-          timeSinceLastFailure: Math.floor(timeSinceLastFailure / 1000) + 's'
-        });
-        return false;
-      } else {
-        // 10 dakika geçtiyse sayacı sıfırla
-        this.connectionFailures = 0;
-      }
-    }
+server.listen(PORT, () => {
+  console.log(`🌐 Server running on port ${PORT}`);
+  addLog('success', 'system', `Server started on port ${PORT}`, { port: PORT });
+  loadTrackingData();
+  loadFlaggedPlayers();
+  loadCommandPermissions();
+});
 
-    return true;
-  }
-
-  scheduleReconnect(callback) {
-    if (this.isReconnecting) {
-      addLog('warning', 'system', 'Reconnection already in progress');
-      return;
-    }
-
-    if (!this.shouldReconnect()) {
-      return;
-    }
-
-    this.isReconnecting = true;
-    this.reconnectAttempts++;
-    this.connectionFailures++;
-    this.lastDisconnectTime = Date.now();
-
-    const delay = this.getNextDelay();
-    
-    addLog('info', 'system', `Scheduling reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`, {
-      delaySeconds: Math.floor(delay / 1000),
-      totalFailures: this.connectionFailures
-    });
-
-    // Clear any existing timer
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-    }
-
-    this.reconnectTimer = setTimeout(() => {
-      this.isReconnecting = false;
-      this.reconnectTimer = null;
-      
-      addLog('info', 'system', 'Attempting to reconnect...', {
-        attempt: this.reconnectAttempts
-      });
-      
-      callback();
-    }, delay);
-  }
-
-  cancelReconnect() {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-      addLog('info', 'system', 'Reconnection cancelled');
-    }
-    this.isReconnecting = false;
-  }
-}
-
-const reconnectionManager = new BotReconnectionManager();
-
-// === Command Permissions System ===
-const commandPermissions = new Map();
-const PERMISSIONS_FILE = path.join(__dirname, "command_permissions.json");
-
-const AVAILABLE_COMMANDS = [
-  'bw', 'fkdr', 'gexp', 'stats', 'when', 'ask', 'about', 'help',
-  'flag_add', 'flag_remove', 'check'
+// === Bot Implementation ===
+const askCooldowns = {};
+const welcomeMessages = [
+  "Hey! Welcome back {username}!",
+  "Welcome back, {username}! The legend has returned!",
+  "{username} has joined, hello!"
 ];
 
-function loadCommandPermissions() {
-  try {
-    if (fs.existsSync(PERMISSIONS_FILE)) {
-      const data = JSON.parse(fs.readFileSync(PERMISSIONS_FILE, 'utf8'));
-      Object.entries(data).forEach(([username, perms]) => {
-        commandPermissions.set(username.toLowerCase(), perms);
-      });
-      addLog('success', 'system', `Loaded command permissions for ${commandPermissions.size} users`);
-    }
-  } catch (err) {
-    addLog('error', 'system', 'Failed to load command permissions', { error: err.message });
-  }
-}
-
-function saveCommandPermissions() {
-  try {
-    const data = Object.fromEntries(commandPermissions);
-    fs.writeFileSync(PERMISSIONS_FILE, JSON.stringify(data, null, 2));
-  } catch (err) {
-    addLog('error', 'system', 'Failed to save command permissions', { error: err.message });
-  }
-}
-
-function hasCommandPermission(username, command) {
-  const userPerms = commandPermissions.get(username.toLowerCase());
-  if (!userPerms) return true;
-  
-  if (userPerms.bannedCommands && userPerms.bannedCommands.includes(command)) {
-    return false;
-  }
-  
-  if (userPerms.allowedCommands && userPerms.allowedCommands.length > 0) {
-    return userPerms.allowedCommands.includes(command);
-  }
-  
-  return true;
-}
-
-setInterval(saveCommandPermissions, 5 * 60 * 1000);
-
-let bot;
-let botReady = false;
-let startTime = Date.now();
-let commandCount = 0;
-let messageCount = 0;
-
-// === ADVANCED API RATE LIMITING SYSTEM ===
-const API_QUEUE = [];
-let isProcessingQueue = false;
-let apiCallCount = 0;
-let apiCallResetTime = Date.now();
-const MAX_CALLS_PER_MINUTE = 100;
-const MIN_CALL_DELAY = 600;
-
-async function queueApiRequest(requestFn) {
-  return new Promise((resolve, reject) => {
-    API_QUEUE.push({ requestFn, resolve, reject });
-    processQueue();
+function createBot() {
+  addLog('info', 'bot', 'Creating bot instance...', {
+    reconnectAttempt: reconnectionManager.reconnectAttempts,
+    totalFailures: reconnectionManager.connectionFailures
   });
-}
-
-async function processQueue() {
-  if (isProcessingQueue || API_QUEUE.length === 0) return;
   
-  isProcessingQueue = true;
-  
-  while (API_QUEUE.length > 0) {
-    const now = Date.now();
-    
-    if (now - apiCallResetTime > 60000) {
-      apiCallCount = 0;
-      apiCallResetTime = now;
-      addLog('info', 'system', 'API rate limit counter reset', { count: apiCallCount });
-    }
-    
-    if (apiCallCount >= MAX_CALLS_PER_MINUTE) {
-      const waitTime = 60000 - (now - apiCallResetTime);
-      addLog('warning', 'system', `API rate limit reached, waiting ${Math.ceil(waitTime/1000)}s`, {
-        count: apiCallCount,
-        limit: MAX_CALLS_PER_MINUTE
-      });
-      await sleep(waitTime);
-      apiCallCount = 0;
-      apiCallResetTime = Date.now();
-    }
-    
-    const { requestFn, resolve, reject } = API_QUEUE.shift();
-    
+  if (bot) {
     try {
-      const result = {
+      bot.removeAllListeners();
+      if (bot._client) {
+        bot._client.removeAllListeners();
+      }
+      bot.quit();
+    } catch (err) {
+      addLog('warning', 'bot', 'Error cleaning up old bot instance', { error: err.message });
+    }
+    bot = null;
+  }
+  
+  bot = mineflayer.createBot({
+    host: HYPIXEL_HOST,
+    version: MC_VERSION,
+    auth: "microsoft",
+    checkTimeoutInterval: 60000,
+    keepAlive: true
+  });
+
+  bot.once("spawn", () => {
+    console.log("✅ Connected to Hypixel");
+    addLog('success', 'bot', 'Bot spawned on Hypixel', { host: HYPIXEL_HOST });
+    
+    reconnectionManager.reset();
+    
+    io.emit('bot-status', 'connecting');
+    
+    setTimeout(() => {
+      if (bot?.chat) {
+        bot.chat("/chat g");
+        addLog('info', 'bot', 'Joined guild chat');
+        setTimeout(() => {
+          botReady = true;
+          io.emit('bot-status', 'online');
+          addLog('success', 'bot', 'Bot is ready and online');
+        }, 2000);
+      }
+    }, 1500);
+    setInterval(() => bot?.chat && bot.chat("/locraw"), 60000);
+  });
+
+  bot.on("message", async (jsonMsg) => {
+    const msg = jsonMsg.toString();
+    io.emit('minecraft-chat', { time: new Date().toLocaleTimeString(), message: msg });
+    messageCount++;
+    
+    addLog('info', 'chat', 'Message received', { message: msg });
+
+    if (!msg.startsWith("Guild >") || !botReady) return;
+
+    const safeChat = async (m) => {
+      if (!botReady || !bot?.chat) return;
+      try { 
+        bot.chat(m);
+        addLog('info', 'chat', 'Bot sent message', { message: m });
+      } catch (e) { 
+        addLog('error', 'chat', 'Failed to send message', { error: e.message, message: m });
+        console.error(e);
+      }
+    };
+
+    // === !fkdr command ===
+    if (msg.toLowerCase().includes("!fkdr")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!fkdr\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+      const [, requester, ign] = match;
+      
+      if (!hasCommandPermission(requester, 'fkdr')) {
+        await safeChat(`${requester}, you don't have permission to use !fkdr`);
+        return;
+      }
+      
+      commandCount++;
+      addLog('command', 'command', '!fkdr command executed', {
+        requester,
+        target: ign
+      });
+      
+      await sleep(botSettings.performance.messageDelay);
+      
+      try {
+        const playerData = await getPlayerUUID(ign);
+        const tracking = updatePlayerTracking(playerData.uuid, playerData.finals, playerData.deaths);
+        
+        const dailyFKDR = ratio(tracking.daily.finals, tracking.daily.deaths);
+        const weeklyFKDR = ratio(tracking.weekly.finals, tracking.weekly.deaths);
+        const monthlyFKDR = ratio(tracking.monthly.finals, tracking.monthly.deaths);
+        const yearlyFKDR = ratio(tracking.yearly.finals, tracking.yearly.deaths);
+        const lifetimeFKDR = ratio(tracking.lifetime.finals, tracking.lifetime.deaths);
+        
+        const isFirstTracking = tracking.daily.finals === 0 && 
+                                tracking.weekly.finals === 0 && 
+                                tracking.monthly.finals === 0 && 
+                                tracking.yearly.finals === 0;
+        
+        if (isFirstTracking) {
+          await safeChat(`${ign} | Lifetime FKDR: ${lifetimeFKDR} (${tracking.lifetime.finals}F/${tracking.lifetime.deaths}D)`);
+          await sleep(500);
+          await safeChat(`Now tracking ${ign}'s stats! Use !fkdr ${ign} again later to see daily/weekly/monthly progress.`);
+        } else {
+          await safeChat(`${ign} FKDR Stats:`);
+          await sleep(500);
+          
+          if (tracking.daily.finals > 0 || tracking.daily.deaths > 0) {
+            await safeChat(`Daily: ${dailyFKDR} (${tracking.daily.finals}F/${tracking.daily.deaths}D)`);
+            await sleep(500);
+          }
+          
+          if (tracking.weekly.finals > 0 || tracking.weekly.deaths > 0) {
+            await safeChat(`Weekly: ${weeklyFKDR} (${tracking.weekly.finals}F/${tracking.weekly.deaths}D)`);
+            await sleep(500);
+          }
+          
+          if (tracking.monthly.finals > 0 || tracking.monthly.deaths > 0) {
+            await safeChat(`Monthly: ${monthlyFKDR} (${tracking.monthly.finals}F/${tracking.monthly.deaths}D)`);
+            await sleep(500);
+          }
+          
+          if (tracking.yearly.finals > 0 || tracking.yearly.deaths > 0) {
+            await safeChat(`Yearly: ${yearlyFKDR} (${tracking.yearly.finals}F/${tracking.yearly.deaths}D)`);
+            await sleep(500);
+          }
+          
+          await safeChat(`Lifetime: ${lifetimeFKDR} (${tracking.lifetime.finals}F/${tracking.lifetime.deaths}D)`);
+        }
+        
+        addLog('success', 'command', '!fkdr completed successfully', {
+          requester,
+          target: ign,
+          isFirstTracking,
+          daily: dailyFKDR,
+          weekly: weeklyFKDR,
+          monthly: monthlyFKDR,
+          yearly: yearlyFKDR,
+          lifetime: lifetimeFKDR
+        });
+      } catch (err) {
+        await safeChat(`Error - ${ign} | ${err.message}`);
+        addLog('error', 'command', '!fkdr failed', {
+          requester,
+          target: ign,
+          error: err.message
+        });
+      }
+      return;
+    }
+
+    // === !gexp command ===
+    if (msg.toLowerCase().includes("!gexp")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!gexp\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+      const [, requester, ign] = match;
+      
+      if (!hasCommandPermission(requester, 'gexp')) {
+        await safeChat(`${requester}, you don't have permission to use !gexp`);
+        return;
+      }
+      
+      commandCount++;
+      addLog('command', 'command', '!gexp command executed', { 
+        requester, 
+        target: ign, 
+        command: '!gexp' 
+      });
+      
+      await sleep(botSettings.performance.messageDelay);
+      
+      try {
+        const gexpData = await getGuildGEXP(ign);
+        const line = `${ign} | Weekly GEXP: ${gexpData.weeklyGexp.toLocaleString()} | Rank: #${gexpData.rank}/${gexpData.totalMembers}`;
+        await safeChat(line);
+        
+        addLog('success', 'command', '!gexp completed successfully', {
+          requester,
+          target: ign,
+          weeklyGexp: gexpData.weeklyGexp,
+          rank: gexpData.rank,
+          totalMembers: gexpData.totalMembers
+        });
+      } catch (err) {
+        await safeChat(`Error - ${ign} | ${err.message}`);
+        addLog('error', 'command', '!gexp failed', {
+          requester,
+          target: ign,
+          error: err.message
+        });
+      }
+      return;
+    }
+
+    // === !ask command ===
+    if (msg.toLowerCase().includes("!ask")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!ask\s+(.+)/i);
+      if (!match) return;
+      const [, username, userMessage] = match;
+      
+      if (!hasCommandPermission(username, 'ask')) {
+        await safeChat(`${username}, you don't have permission to use !ask`);
+        return;
+      }
+      
+      commandCount++;
+
+      addLog('command', 'command', '!ask command received', {
+        username,
+        question: userMessage
+      });
+
+      if (username.toLowerCase() !== "relaquent") {
+        const now = Date.now();
+        const lastUsed = askCooldowns[username] || 0;
+        const timePassed = now - lastUsed;
+        if (timePassed < botSettings.commandCooldown * 1000) {
+          const sec = Math.ceil((botSettings.commandCooldown * 1000 - timePassed) / 1000);
+          await safeChat(`${username}, wait ${sec}s`);
+          addLog('warning', 'command', 'Ask cooldown active', {
+            username,
+            secondsRemaining: sec
+          });
+          return;
+        }
+        askCooldowns[username] = now;
+      }
+
+      await safeChat("Thinking...");
+      try {
+        const startTime = Date.now();
+        
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { 
+              role: "system", 
+              content: gptSystemPrompt 
+            },
+            { 
+              role: "user", 
+              content: userMessage 
+            }
+          ],
+          max_tokens: botSettings.maxTokens,
+          temperature: 0.8,
+        });
+
+        const responseTime = Date.now() - startTime;
+        let reply = completion.choices[0].message.content.trim();
+        
+        if (reply.length > 600) {
+          reply = reply.substring(0, 597) + '...';
+        }
+        
+        addLog('success', 'command', 'GPT-4o-mini response generated', {
+          username,
+          question: userMessage,
+          responseTime: `${responseTime}ms`,
+          tokensUsed: completion.usage.total_tokens,
+          promptTokens: completion.usage.prompt_tokens,
+          completionTokens: completion.usage.completion_tokens,
+          model: "gpt-4o-mini",
+          finishReason: completion.choices[0].finish_reason
+        });
+        
+        const lines = reply.split("\n").filter(l => l.trim());
+        for (const line of lines) {
+          for (let i = 0; i < line.length; i += 600) {
+            await safeChat(line.slice(i, i + 600));
+            await sleep(botSettings.performance.messageDelay);
+          }
+        }
+      } catch (err) {
+        await safeChat("GPT error - please try again");
+        addLog('error', 'command', 'GPT-4o-mini request failed', {
+          username,
+          question: userMessage,
+          error: err.message,
+          errorCode: err.code,
+          errorType: err.type,
+          statusCode: err.status
+        });
+      }
+      return;
+    }
+
+    // === Welcome ===
+    if (msg.includes("joined.") && botSettings.welcomeMessages) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}) joined\./);
+      if (match) {
+        const username = match[1];
+        addLog('info', 'bot', 'Player joined guild', { username });
+        
+        await sleep(2000);
+        if (username.toLowerCase() === "caillou16") {
+          await safeChat("Welcome back Caillou16 the bald.");
+        } else {
+          const m = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
+          await safeChat(m.replace("{username}", username));
+        }
+      }
+      return;
+    }
+
+    // === !bw ===
+    if (msg.toLowerCase().includes("!bw")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!bw\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+      const [, requester, ign] = match;
+      
+      if (!hasCommandPermission(requester, 'bw')) {
+        await safeChat(`${requester}, you don't have permission to use !bw`);
+        return;
+      }
+      
+      commandCount++;
+      addLog('command', 'command', '!bw command executed', {
+        requester,
+        target: ign
+      });
+      
+      await sleep(botSettings.performance.messageDelay);
+      
+      if (ign.toLowerCase() === "relaquent") {
+        await safeChat("Relaquent | Star: 3628 | FKDR: 48.72 | KD: 2.32 | WL: 2.86");
+        return;
+      }
+      
+      try {
+        const stats = await getPlayerStats(ign);
+        await safeChat(`${ign} | Star: ${stats.star} | FKDR: ${stats.fkdr} | KD: ${stats.kd} | WL: ${stats.wl}`);
+        
+        addLog('success', 'command', '!bw completed successfully', {
+          requester,
+          target: ign,
+          stats: stats
+        });
+      } catch (err) {
+        await safeChat(`Error - ${ign} | No data`);
+        addLog('error', 'command', '!bw failed', {
+          requester,
+          target: ign,
+          error: err.message
+        });
+      }
+      return;
+    }
+
+    // === !stats ===
+    if (msg.toLowerCase().includes("!stats")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!stats\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+      const [, requester, ign] = match;
+      
+      if (!hasCommandPermission(requester, 'stats')) {
+        await safeChat(`${requester}, you don't have permission to use !stats`);
+        return;
+      }
+      
+      commandCount++;
+      addLog('command', 'command', '!stats command executed', {
+        requester,
+        target: ign
+      });
+      
+      await sleep(botSettings.performance.messageDelay);
+      
+      try {
+        const stats = await getPlayerStats(ign);
+        await safeChat(`${ign} | Star: ${stats.star} | Finals: ${stats.finals} | Wins: ${stats.wins} | Beds: ${stats.beds}`);
+        
+        addLog('success', 'command', '!stats completed successfully', {
+          requester,
+          target: ign,
+          stats: stats
+        });
+      } catch (err) {
+        await safeChat(`Error - ${ign}`);
+        addLog('error', 'command', '!stats failed', {
+          requester,
+          target: ign,
+          error: err.message
+        });
+      }
+      return;
+    }
+
+    // === !when ===
+    if (msg.toLowerCase().includes("!when")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16})/);
+      const requester = match ? match[1] : 'unknown';
+      
+      if (!hasCommandPermission(requester, 'when')) {
+        await safeChat(`${requester}, you don't have permission to use !when`);
+        return;
+      }
+      
+      commandCount++;
+      addLog('command', 'command', '!when command executed', { requester });async function getGuildGEXP(playerIgn) {
+  const cachedGuild = cache.getGuild(playerIgn);
+  if (cachedGuild) {
+    return cachedGuild;
+  }
+
+  return queueApiRequest(async () => {
+    const playerUrl = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(playerIgn)}`;
+    const playerRes = await axios.get(playerUrl, { timeout: 10000 });
+    if (!playerRes.data?.player) throw new Error("Player not found");
+    
+    const uuid = playerRes.data.player.uuid;
+    
+    cache.setPlayer(playerIgn, {
+      uuid,
+      finals: playerRes.data.player.stats?.Bedwars?.final_kills_bedwars || 0,
+      deaths: playerRes.data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
+      fullData: playerRes.data.player
+    });
+    
+    await sleep(MIN_CALL_DELAY);
+    
+    const guildUrl = `https://api.hypixel.net/v2/guild?key=${HYPIXEL_API_KEY}&player=${uuid}`;
+    const guildRes = await axios.get(guildUrl, { timeout: 10000 });
+    if (!guildRes.data?.guild) throw new Error("Player not in a guild");
+    
+    const guild = guildRes.data.guild;
+    const member = guild.members.find(m => m.uuid === uuid);
+    if (!member) throw new Error("Member not found in guild");
+    
+    const expHistory = member.expHistory || {};
+    const weeklyGexp = Object.values(expHistory).reduce((sum, exp) => sum + exp, 0);
+    
+    const leaderboard = guild.members.map(m => {
+      const memberWeeklyGexp = Object.values(m.expHistory || {}).reduce((sum, exp) => sum + exp, 0);
+      return { uuid: m.uuid, gexp: memberWeeklyGexp };
+    }).sort((a, b) => b.gexp - a.gexp);
+    
+    const rank = leaderboard.findIndex(m => m.uuid === uuid) + 1;
+    
+    const result = {
       weeklyGexp,
       rank,
       totalMembers: guild.members.length
@@ -343,12 +789,11 @@ app.get("/api/stats", (req, res) => {
       maxAttempts: reconnectionManager.maxReconnectAttempts,
       failures: reconnectionManager.connectionFailures,
       isReconnecting: reconnectionManager.isReconnecting,
-      lastSuccessful: reconnectionManager.lastSuccessfulConnection
+      lastSuccessfulConnection: reconnectionManager.lastSuccessfulConnection
     }
   });
 });
 
-// === Flags API ===
 app.get("/api/flags", (req, res) => {
   const flags = Array.from(flaggedPlayers.entries()).map(([uuid, flag]) => ({
     uuid,
@@ -360,6 +805,14 @@ app.get("/api/flags", (req, res) => {
 app.post("/api/flags/add", async (req, res) => {
   const { ign, reason, flaggedBy } = req.body;
   
+  if (!ign || !ign.trim()) {
+    return res.status(400).json({ success: false, message: 'IGN is required' });
+  }
+  
+  if (!reason || !reason.trim()) {
+    return res.status(400).json({ success: false, message: 'Reason is required' });
+  }
+  
   try {
     const playerData = await getPlayerUUID(ign);
     flaggedPlayers.set(playerData.uuid, {
@@ -369,6 +822,7 @@ app.post("/api/flags/add", async (req, res) => {
       flaggedBy: flaggedBy || 'Admin',
       timestamp: new Date().toISOString()
     });
+    
     saveFlaggedPlayers();
     
     addLog('success', 'system', `Player flagged via web panel`, { ign, reason, flaggedBy });
@@ -382,9 +836,14 @@ app.post("/api/flags/add", async (req, res) => {
 app.post("/api/flags/remove", (req, res) => {
   const { uuid } = req.body;
   
+  if (!uuid || !uuid.trim()) {
+    return res.status(400).json({ success: false, message: 'UUID is required' });
+  }
+  
   if (flaggedPlayers.has(uuid)) {
     const flag = flaggedPlayers.get(uuid);
     flaggedPlayers.delete(uuid);
+    
     saveFlaggedPlayers();
     
     addLog('success', 'system', `Player unflagged via web panel`, { ign: flag.ign, uuid });
@@ -394,7 +853,6 @@ app.post("/api/flags/remove", (req, res) => {
   }
 });
 
-// === Command Permissions API ===
 app.get("/api/permissions", (req, res) => {
   const perms = Array.from(commandPermissions.entries()).map(([username, perm]) => ({
     username,
@@ -409,6 +867,10 @@ app.get("/api/permissions", (req, res) => {
 
 app.post("/api/permissions/set", (req, res) => {
   const { username, allowedCommands, bannedCommands } = req.body;
+  
+  if (!username || !username.trim()) {
+    return res.status(400).json({ success: false, message: 'Username is required' });
+  }
   
   commandPermissions.set(username.toLowerCase(), {
     allowedCommands: allowedCommands || [],
@@ -429,8 +891,13 @@ app.post("/api/permissions/set", (req, res) => {
 app.post("/api/permissions/remove", (req, res) => {
   const { username } = req.body;
   
+  if (!username || !username.trim()) {
+    return res.status(400).json({ success: false, message: 'Username is required' });
+  }
+  
   if (commandPermissions.has(username.toLowerCase())) {
     commandPermissions.delete(username.toLowerCase());
+    
     saveCommandPermissions();
     
     addLog('success', 'system', `Command permissions removed for ${username}`, { username });
@@ -440,7 +907,6 @@ app.post("/api/permissions/remove", (req, res) => {
   }
 });
 
-// === Cache API ===
 app.get("/api/cache/stats", (req, res) => {
   res.json(cache.getStats());
 });
@@ -461,7 +927,6 @@ app.post("/api/cache/clear", (req, res) => {
   res.json({ success: true, stats: cache.getStats() });
 });
 
-// === Logging API ===
 app.get("/api/logs/all", (req, res) => {
   res.json({ logs: detailedLogs, count: detailedLogs.length });
 });
@@ -524,7 +989,6 @@ app.post("/chat", (req, res) => {
   }
 });
 
-// === Reconnection Control API ===
 app.post("/api/bot/reconnect", (req, res) => {
   addLog('info', 'system', 'Manual reconnection requested via web panel');
   
@@ -547,7 +1011,6 @@ app.post("/api/bot/cancel-reconnect", (req, res) => {
   res.json({ success: true, message: 'Reconnection cancelled' });
 });
 
-// === Web Panel HTML - same as before, adding reconnection stats ===
 app.get("/control", (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -932,714 +1395,352 @@ app.get("/control", (req, res) => {
                 </div>
               )}
 
-              {/* FLAGS and PERMISSIONS tabs remain the same */}
-            </div>
+              {tab === 'flags' && (
+                <div className="glass rounded-3xl p-6">
+                  <h2 className="text-2xl font-black mb-4">FLAGGED PLAYERS</h2>
+                  
+                  <form onSubmit={addFlag} className="glass rounded-xl p-4 mb-4 border border-purple-500/30">
+                    <h3 className="font-bold mb-3">Add New Flag</h3>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        placeholder="Player IGN"
+                        value={flagIgn}
+                        onChange={e => setFlagIgn(e.target.value)}
+                        className="w-full bg-black/30 border border-purple-500/30 rounded-lg px-4 py-2 focus:outline-none focus:border-purple-500"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Reason"
+                        value={flagReason}
+                        onChange={e => setFlagReason(e.target.value)}
+                        className="w-full bg-black/30 border border-purple-500/30 rounded-lg px-4 py-2 focus:outline-none focus:border-purple-500"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Flagged By (optional)"
+                        value={flaggedBy}
+                        onChange={e => setFlaggedBy(e.target.value)}
+                        className="w-full bg-black/30 border border-purple-500/30 rounded-lg px-4 py-2 focus:outline-none focus:border-purple-500"
+                      />
+                      <button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg px-4 py-2 font-bold hover:opacity-90">
+                        Add Flag
+                      </button>
+                    </div>
+                  </form>
 
-            <div className="glass rounded-3xl p-6">
-              <h2 className="text-xl font-black mb-4">RECENT ACTIVITY</h2>
-              <div className="space-y-2 max-h-96 overflow-y-auto scroll">
-                {logs.slice(0, 15).map((log, i) => (
-                  <div key={i} className="glass rounded-xl p-3 text-xs">
-                    <div className="text-gray-400 mb-1">{log.time}</div>
-                    <div className="text-gray-200">{log.msg}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      );
+                  <divconst express = require("express");
+const mineflayer = require("mineflayer");
+const axios = require("axios");
+const OpenAI = require("openai");
+const http = require("http");
+const { Server } = require("socket.io");
+const fs = require("fs");
+const path = require("path");
+
+// === OpenAI Setup ===
+if (!process.env.OPENAI_API_KEY) {
+  console.error("❌ OPENAI_API_KEY not found.");
+  process.exit(1);
+}
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// === Express + Socket.IO ===
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// === Logging Directory Setup ===
+const LOGS_DIR = path.join(__dirname, "logs");
+if (!fs.existsSync(LOGS_DIR)) {
+  fs.mkdirSync(LOGS_DIR, { recursive: true });
+}
+
+// === Global State ===
+let chatHistory = [];
+let gptSystemPrompt = `You are a Turkish nationalist uncle who answers in the user's language. You are knowledgeable, witty, ironic, and sincere. If someone is hostile towards Turks, you give them a piece of your mind.
+
+Current date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
+
+IMPORTANT: Your training data is from October 2023. When users ask about:
+- Current events, news, or recent happenings
+- Current prices, exchange rates, or market data
+- Recent statistics, scores, or rankings
+- "What happened today/recently/lately"
+- "Current/latest/güncel" information
+
+You MUST tell them: "My data is from October 2023. For current info, I'd need web access which isn't available here. Try asking about topics from before late 2023, or search the web directly."
+
+Keep responses under 500 characters for Minecraft chat compatibility.`;
+
+let panelTheme = {
+  primaryColor: '#9333ea',
+  secondaryColor: '#3b82f6',
+  accentColor: '#ec4899',
+  bgStyle: 'gradient',
+  glassEffect: true,
+  animations: true
+};
+
+let botSettings = {
+  autoReconnect: true,
+  welcomeMessages: true,
+  commandCooldown: 45,
+  maxTokens: 100,
+  chatFilter: { enabled: false, keywords: [], filterMode: 'blacklist' },
+  autoResponses: { enabled: true, responses: [] },
+  customCommands: [],
+  chatLogs: { enabled: true, maxHistory: 500 },
+  notifications: { onJoin: true, onLeave: true, onCommand: true },
+  performance: { 
+    messageDelay: 300, 
+    maxMessagesPerSecond: 2, 
+    autoReconnectDelay: 30000,
+    maxReconnectDelay: 300000,
+    reconnectBackoffMultiplier: 1.5
+  },
+  autoTracking: { enabled: false, interval: 30000 }
+};
+
+// === BOT RECONNECTION MANAGER ===
+class BotReconnectionManager {
+  constructor() {
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 20;
+    this.currentDelay = botSettings.performance.autoReconnectDelay;
+    this.isReconnecting = false;
+    this.lastDisconnectTime = null;
+    this.connectionFailures = 0;
+    this.lastSuccessfulConnection = null;
+    this.reconnectTimer = null;
+  }
+
+  reset() {
+    this.reconnectAttempts = 0;
+    this.currentDelay = botSettings.performance.autoReconnectDelay;
+    this.connectionFailures = 0;
+    this.lastSuccessfulConnection = Date.now();
+    addLog('info', 'system', 'Reconnection manager reset - successful connection');
+  }
+
+  getNextDelay() {
+    const baseDelay = Math.min(
+      this.currentDelay * Math.pow(botSettings.performance.reconnectBackoffMultiplier, this.reconnectAttempts),
+      botSettings.performance.maxReconnectDelay
+    );
+    
+    const jitter = baseDelay * 0.2 * (Math.random() - 0.5);
+    const delay = baseDelay + jitter;
+    
+    return Math.floor(delay);
+  }
+
+  shouldReconnect() {
+    if (!botSettings.autoReconnect) {
+      addLog('warning', 'system', 'Auto-reconnect disabled, not attempting reconnection');
+      return false;
     }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
-</body>
-</html>`);
-});
-
-io.on('connection', (socket) => {
-  console.log('👤 Client connected');
-  addLog('info', 'system', 'Client connected to web panel', { clientId: socket.id });
-  socket.on('disconnect', () => {
-    console.log('👤 Client disconnected');
-    addLog('info', 'system', 'Client disconnected from web panel', { clientId: socket.id });
-  });
-});
-
-setInterval(() => {
-  const uptime = Date.now() - startTime;
-  const h = Math.floor(uptime / 3600000);
-  const m = Math.floor((uptime % 3600000) / 60000);
-  io.emit('stats-update', {
-    uptime: `${h}h ${m}m`,
-    commands: commandCount,
-    messages: messageCount,
-    users: Object.keys(bot?.players || {}).length,
-    queueLength: API_QUEUE.length,
-    apiCallCount,
-    reconnection: {
-      attempts: reconnectionManager.reconnectAttempts,
-      maxAttempts: reconnectionManager.maxReconnectAttempts,
-      failures: reconnectionManager.connectionFailures,
-      isReconnecting: reconnectionManager.isReconnecting,
-      lastSuccessfulConnection: reconnectionManager.lastSuccessfulConnection
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      addLog('error', 'system', 'Max reconnection attempts reached', {
+        attempts: this.reconnectAttempts,
+        maxAttempts: this.maxReconnectAttempts
+      });
+      return false;
     }
-  });
-}, 5000);
 
-server.listen(PORT, () => {
-  console.log(`🌐 Server running on port ${PORT}`);
-  addLog('success', 'system', `Server started on port ${PORT}`, { port: PORT });
-  loadTrackingData();
-  loadFlaggedPlayers();
-  loadCommandPermissions();
-});
+    if (this.connectionFailures > 5) {
+      const timeSinceLastFailure = Date.now() - this.lastDisconnectTime;
+      if (timeSinceLastFailure < 600000) {
+        addLog('warning', 'system', 'Too many connection failures, rate limiting reconnections', {
+          failures: this.connectionFailures,
+          timeSinceLastFailure: Math.floor(timeSinceLastFailure / 1000) + 's'
+        });
+        return false;
+      } else {
+        this.connectionFailures = 0;
+      }
+    }
 
-// === Bot Implementation with Advanced Reconnection ===
-const askCooldowns = {};
-const welcomeMessages = [
-  "Hey! Welcome back {username}!",
-  "Welcome back, {username}! The legend has returned!",
-  "{username} has joined, hello!"
+    return true;
+  }
+
+  scheduleReconnect(callback) {
+    if (this.isReconnecting) {
+      addLog('warning', 'system', 'Reconnection already in progress');
+      return;
+    }
+
+    if (!this.shouldReconnect()) {
+      return;
+    }
+
+    this.isReconnecting = true;
+    this.reconnectAttempts++;
+    this.connectionFailures++;
+    this.lastDisconnectTime = Date.now();
+
+    const delay = this.getNextDelay();
+    
+    addLog('info', 'system', `Scheduling reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`, {
+      delaySeconds: Math.floor(delay / 1000),
+      totalFailures: this.connectionFailures
+    });
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+    }
+
+    this.reconnectTimer = setTimeout(() => {
+      this.isReconnecting = false;
+      this.reconnectTimer = null;
+      
+      addLog('info', 'system', 'Attempting to reconnect...', {
+        attempt: this.reconnectAttempts
+      });
+      
+      callback();
+    }, delay);
+  }
+
+  cancelReconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+      addLog('info', 'system', 'Reconnection cancelled');
+    }
+    this.isReconnecting = false;
+  }
+}
+
+const reconnectionManager = new BotReconnectionManager();
+
+// === Command Permissions System ===
+const commandPermissions = new Map();
+const PERMISSIONS_FILE = path.join(__dirname, "command_permissions.json");
+
+const AVAILABLE_COMMANDS = [
+  'bw', 'fkdr', 'gexp', 'stats', 'when', 'ask', 'about', 'help',
+  'flag_add', 'flag_remove', 'check'
 ];
 
-function createBot() {
-  addLog('info', 'bot', 'Creating bot instance...', {
-    reconnectAttempt: reconnectionManager.reconnectAttempts,
-    totalFailures: reconnectionManager.connectionFailures
-  });
-  
-  // Destroy old bot instance completely
-  if (bot) {
-    try {
-      bot.removeAllListeners();
-      if (bot._client) {
-        bot._client.removeAllListeners();
-      }
-      bot.quit();
-    } catch (err) {
-      addLog('warning', 'bot', 'Error cleaning up old bot instance', { error: err.message });
+function loadCommandPermissions() {
+  try {
+    if (fs.existsSync(PERMISSIONS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(PERMISSIONS_FILE, 'utf8'));
+      Object.entries(data).forEach(([username, perms]) => {
+        commandPermissions.set(username.toLowerCase(), perms);
+      });
+      console.log(`✅ Loaded command permissions for ${commandPermissions.size} users`);
+      addLog('success', 'system', `Loaded command permissions for ${commandPermissions.size} users`);
+    } else {
+      console.log('ℹ️  No command permissions file found, starting fresh');
+      addLog('info', 'system', 'No command permissions file found, starting fresh');
     }
-    bot = null;
+  } catch (err) {
+    console.error('❌ Failed to load command permissions:', err.message);
+    addLog('error', 'system', 'Failed to load command permissions', { error: err.message });
+  }
+}
+
+function saveCommandPermissions() {
+  try {
+    const data = Object.fromEntries(commandPermissions);
+    fs.writeFileSync(PERMISSIONS_FILE, JSON.stringify(data, null, 2), 'utf8');
+    console.log(`💾 Saved command permissions for ${commandPermissions.size} users`);
+  } catch (err) {
+    console.error('❌ Failed to save command permissions:', err.message);
+    addLog('error', 'system', 'Failed to save command permissions', { error: err.message });
+  }
+}
+
+function hasCommandPermission(username, command) {
+  const userPerms = commandPermissions.get(username.toLowerCase());
+  if (!userPerms) return true;
+  
+  if (userPerms.bannedCommands && userPerms.bannedCommands.includes(command)) {
+    return false;
   }
   
-  bot = mineflayer.createBot({
-    host: HYPIXEL_HOST,
-    version: MC_VERSION,
-    auth: "microsoft",
-    checkTimeoutInterval: 60000,
-    keepAlive: true
-  });
+  if (userPerms.allowedCommands && userPerms.allowedCommands.length > 0) {
+    return userPerms.allowedCommands.includes(command);
+  }
+  
+  return true;
+}
 
-  bot.once("spawn", () => {
-    console.log("✅ Connected to Hypixel");
-    addLog('success', 'bot', 'Bot spawned on Hypixel', { host: HYPIXEL_HOST });
-    
-    // Reset reconnection manager on successful connection
-    reconnectionManager.reset();
-    
-    io.emit('bot-status', 'connecting');
-    
-    setTimeout(() => {
-      if (bot?.chat) {
-        bot.chat("/chat g");
-        addLog('info', 'bot', 'Joined guild chat');
-        setTimeout(() => {
-          botReady = true;
-          io.emit('bot-status', 'online');
-          addLog('success', 'bot', 'Bot is ready and online');
-        }, 2000);
-      }
-    }, 1500);
-    setInterval(() => bot?.chat && bot.chat("/locraw"), 60000);
-  });
+setInterval(saveCommandPermissions, 2 * 60 * 1000);
 
-  bot.on("message", async (jsonMsg) => {
-    const msg = jsonMsg.toString();
-    io.emit('minecraft-chat', { time: new Date().toLocaleTimeString(), message: msg });
-    messageCount++;
-    
-    addLog('info', 'chat', 'Message received', { message: msg });
+process.on('SIGINT', () => {
+  console.log('\n🛑 Shutting down gracefully...');
+  saveCommandPermissions();
+  saveTrackingData();
+  saveFlaggedPlayers();
+  process.exit(0);
+});
 
-    if (!msg.startsWith("Guild >") || !botReady) return;
+process.on('SIGTERM', () => {
+  console.log('\n🛑 Shutting down gracefully...');
+  saveCommandPermissions();
+  saveTrackingData();
+  saveFlaggedPlayers();
+  process.exit(0);
+});
 
-    const safeChat = async (m) => {
-      if (!botReady || !bot?.chat) return;
-      try { 
-        bot.chat(m);
-        addLog('info', 'chat', 'Bot sent message', { message: m });
-      } catch (e) { 
-        addLog('error', 'chat', 'Failed to send message', { error: e.message, message: m });
-        console.error(e);
-      }
-    };
+let bot;
+let botReady = false;
+let startTime = Date.now();
+let commandCount = 0;
+let messageCount = 0;
 
-    const getUsernameFromMessage = (msg) => {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16})/);
-      return match ? match[1] : null;
-    };
+// === ADVANCED API RATE LIMITING SYSTEM ===
+const API_QUEUE = [];
+let isProcessingQueue = false;
+let apiCallCount = 0;
+let apiCallResetTime = Date.now();
+const MAX_CALLS_PER_MINUTE = 100;
+const MIN_CALL_DELAY = 600;
 
-    // === !fkdr command ===
-    if (msg.toLowerCase().includes("!fkdr")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!fkdr\s+([A-Za-z0-9_]{1,16})/i);
-      if (!match) return;
-      const [, requester, ign] = match;
-      
-      if (!hasCommandPermission(requester, 'fkdr')) {
-        await safeChat(`${requester}, you don't have permission to use !fkdr`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!fkdr command executed', {
-        requester,
-        target: ign
-      });
-      
-      await sleep(botSettings.performance.messageDelay);
-      
-      try {
-        const playerData = await getPlayerUUID(ign);
-        const tracking = updatePlayerTracking(playerData.uuid, playerData.finals, playerData.deaths);
-        
-        const dailyFKDR = ratio(tracking.daily.finals, tracking.daily.deaths);
-        const weeklyFKDR = ratio(tracking.weekly.finals, tracking.weekly.deaths);
-        const monthlyFKDR = ratio(tracking.monthly.finals, tracking.monthly.deaths);
-        const yearlyFKDR = ratio(tracking.yearly.finals, tracking.yearly.deaths);
-        const lifetimeFKDR = ratio(tracking.lifetime.finals, tracking.lifetime.deaths);
-        
-        const isFirstTime = tracking.daily.finals === 0 && tracking.daily.deaths === 0;
-        
-        if (isFirstTime) {
-          await safeChat(`${ign} | Lifetime FKDR: ${lifetimeFKDR} | Now tracking daily/weekly/monthly stats!`);
-        } else {
-          await safeChat(`${ign} FKDR Stats:`);
-          await sleep(500);
-          await safeChat(`Daily: ${dailyFKDR} (${tracking.daily.finals}F/${tracking.daily.deaths}D)`);
-          await sleep(500);
-          await safeChat(`Weekly: ${weeklyFKDR} (${tracking.weekly.finals}F/${tracking.weekly.deaths}D)`);
-          await sleep(500);
-          await safeChat(`Monthly: ${monthlyFKDR} (${tracking.monthly.finals}F/${tracking.monthly.deaths}D)`);
-          await sleep(500);
-          await safeChat(`Yearly: ${yearlyFKDR} (${tracking.yearly.finals}F/${tracking.yearly.deaths}D)`);
-          await sleep(500);
-          await safeChat(`Lifetime: ${lifetimeFKDR}`);
-        }
-        
-        addLog('success', 'command', '!fkdr completed successfully', {
-          requester,
-          target: ign,
-          isFirstTime,
-          daily: dailyFKDR,
-          weekly: weeklyFKDR,
-          monthly: monthlyFKDR,
-          yearly: yearlyFKDR,
-          lifetime: lifetimeFKDR
-        });
-      } catch (err) {
-        await safeChat(`Error - ${ign} | ${err.message}`);
-        addLog('error', 'command', '!fkdr failed', {
-          requester,
-          target: ign,
-          error: err.message
-        });
-      }
-      return;
-    }
-
-    // === !gexp command ===
-    if (msg.toLowerCase().includes("!gexp")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!gexp\s+([A-Za-z0-9_]{1,16})/i);
-      if (!match) return;
-      const [, requester, ign] = match;
-      
-      if (!hasCommandPermission(requester, 'gexp')) {
-        await safeChat(`${requester}, you don't have permission to use !gexp`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!gexp command executed', { 
-        requester, 
-        target: ign, 
-        command: '!gexp' 
-      });
-      
-      await sleep(botSettings.performance.messageDelay);
-      
-      try {
-        const gexpData = await getGuildGEXP(ign);
-        const line = `${ign} | Weekly GEXP: ${gexpData.weeklyGexp.toLocaleString()} | Rank: #${gexpData.rank}/${gexpData.totalMembers}`;
-        await safeChat(line);
-        
-        addLog('success', 'command', '!gexp completed successfully', {
-          requester,
-          target: ign,
-          weeklyGexp: gexpData.weeklyGexp,
-          rank: gexpData.rank,
-          totalMembers: gexpData.totalMembers
-        });
-      } catch (err) {
-        await safeChat(`Error - ${ign} | ${err.message}`);
-        addLog('error', 'command', '!gexp failed', {
-          requester,
-          target: ign,
-          error: err.message
-        });
-      }
-      return;
-    }
-
-    // === !ask command ===
-    if (msg.toLowerCase().includes("!ask")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!ask\s+(.+)/i);
-      if (!match) return;
-      const [, username, userMessage] = match;
-      
-      if (!hasCommandPermission(username, 'ask')) {
-        await safeChat(`${username}, you don't have permission to use !ask`);
-        return;
-      }
-      
-      commandCount++;
-
-      addLog('command', 'command', '!ask command received', {
-        username,
-        question: userMessage
-      });
-
-      if (username.toLowerCase() !== "relaquent") {
-        const now = Date.now();
-        const lastUsed = askCooldowns[username] || 0;
-        const timePassed = now - lastUsed;
-        if (timePassed < botSettings.commandCooldown * 1000) {
-          const sec = Math.ceil((botSettings.commandCooldown * 1000 - timePassed) / 1000);
-          await safeChat(`${username}, wait ${sec}s`);
-          addLog('warning', 'command', 'Ask cooldown active', {
-            username,
-            secondsRemaining: sec
-          });
-          return;
-        }
-        askCooldowns[username] = now;
-      }
-
-      await safeChat("Thinking...");
-      try {
-        const startTime = Date.now();
-        
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            { 
-              role: "system", 
-              content: gptSystemPrompt 
-            },
-            { 
-              role: "user", 
-              content: userMessage 
-            }
-          ],
-          max_tokens: botSettings.maxTokens,
-          temperature: 0.8,
-        });
-
-        const responseTime = Date.now() - startTime;
-        let reply = completion.choices[0].message.content.trim();
-        
-        if (reply.length > 600) {
-          reply = reply.substring(0, 597) + '...';
-        }
-        
-        addLog('success', 'command', 'GPT-4o-mini response generated', {
-          username,
-          question: userMessage,
-          responseTime: `${responseTime}ms`,
-          tokensUsed: completion.usage.total_tokens,
-          promptTokens: completion.usage.prompt_tokens,
-          completionTokens: completion.usage.completion_tokens,
-          model: "gpt-4o-mini",
-          finishReason: completion.choices[0].finish_reason
-        });
-        
-        const lines = reply.split("\n").filter(l => l.trim());
-        for (const line of lines) {
-          for (let i = 0; i < line.length; i += 600) {
-            await safeChat(line.slice(i, i + 600));
-            await sleep(botSettings.performance.messageDelay);
-          }
-        }
-      } catch (err) {
-        await safeChat("GPT error - please try again");
-        addLog('error', 'command', 'GPT-4o-mini request failed', {
-          username,
-          question: userMessage,
-          error: err.message,
-          errorCode: err.code,
-          errorType: err.type,
-          statusCode: err.status
-        });
-      }
-      return;
-    }
-
-    // === Welcome ===
-    if (msg.includes("joined.") && botSettings.welcomeMessages) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}) joined\./);
-      if (match) {
-        const username = match[1];
-        addLog('info', 'bot', 'Player joined guild', { username });
-        
-        await sleep(2000);
-        if (username.toLowerCase() === "caillou16") {
-          await safeChat("Welcome back Caillou16 the bald.");
-        } else {
-          const m = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
-          await safeChat(m.replace("{username}", username));
-        }
-      }
-      return;
-    }
-
-    // === !bw ===
-    if (msg.toLowerCase().includes("!bw")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!bw\s+([A-Za-z0-9_]{1,16})/i);
-      if (!match) return;
-      const [, requester, ign] = match;
-      
-      if (!hasCommandPermission(requester, 'bw')) {
-        await safeChat(`${requester}, you don't have permission to use !bw`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!bw command executed', {
-        requester,
-        target: ign
-      });
-      
-      await sleep(botSettings.performance.messageDelay);
-      
-      if (ign.toLowerCase() === "relaquent") {
-        await safeChat("Relaquent | Star: 3628 | FKDR: 48.72 | KD: 2.32 | WL: 2.86");
-        return;
-      }
-      
-      try {
-        const stats = await getPlayerStats(ign);
-        await safeChat(`${ign} | Star: ${stats.star} | FKDR: ${stats.fkdr} | KD: ${stats.kd} | WL: ${stats.wl}`);
-        
-        addLog('success', 'command', '!bw completed successfully', {
-          requester,
-          target: ign,
-          stats: stats
-        });
-      } catch (err) {
-        await safeChat(`Error - ${ign} | No data`);
-        addLog('error', 'command', '!bw failed', {
-          requester,
-          target: ign,
-          error: err.message
-        });
-      }
-      return;
-    }
-
-    // === !stats ===
-    if (msg.toLowerCase().includes("!stats")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!stats\s+([A-Za-z0-9_]{1,16})/i);
-      if (!match) return;
-      const [, requester, ign] = match;
-      
-      if (!hasCommandPermission(requester, 'stats')) {
-        await safeChat(`${requester}, you don't have permission to use !stats`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!stats command executed', {
-        requester,
-        target: ign
-      });
-      
-      await sleep(botSettings.performance.messageDelay);
-      
-      try {
-        const stats = await getPlayerStats(ign);
-        await safeChat(`${ign} | Star: ${stats.star} | Finals: ${stats.finals} | Wins: ${stats.wins} | Beds: ${stats.beds}`);
-        
-        addLog('success', 'command', '!stats completed successfully', {
-          requester,
-          target: ign,
-          stats: stats
-        });
-      } catch (err) {
-        await safeChat(`Error - ${ign}`);
-        addLog('error', 'command', '!stats failed', {
-          requester,
-          target: ign,
-          error: err.message
-        });
-      }
-      return;
-    }
-
-    // === !when ===
-    if (msg.toLowerCase().includes("!when")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16})/);
-      const requester = match ? match[1] : 'unknown';
-      
-      if (!hasCommandPermission(requester, 'when')) {
-        await safeChat(`${requester}, you don't have permission to use !when`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!when command executed', { requester });
-      
-      await sleep(botSettings.performance.messageDelay);
-      const first = new Date("2025-11-22T00:00:00Z");
-      const now = new Date();
-      let diff = now - first;
-      let cycles = Math.floor(diff / (56 * 86400000));
-      if (diff < 0) cycles = -1;
-      const next = new Date(first.getTime() + (cycles + 1) * 56 * 86400000);
-      const days = Math.ceil((next - now) / 86400000);
-      
-      const response = days > 0 ? `Castle in ${days} days (${next.toDateString()})` : "Castle today!";
-      await safeChat(response);
-      
-      addLog('success', 'command', '!when completed', {
-        requester,
-        daysUntilCastle: days,
-        nextCastleDate: next.toDateString()
-      });
-      return;
-    }
-
-    // === !about ===
-    if (msg.toLowerCase().includes("!about")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16})/);
-      const requester = match ? match[1] : 'unknown';
-      
-      if (!hasCommandPermission(requester, 'about')) {
-        await safeChat(`${requester}, you don't have permission to use !about`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!about command executed', { requester });
-      
-      await sleep(botSettings.performance.messageDelay);
-      await safeChat("RumoniumGC by Relaquent, v2.0");
-      return;
-    }
-
-    // === !help ===
-    if (msg.toLowerCase().includes("!help")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16})/);
-      const requester = match ? match[1] : 'unknown';
-      
-      if (!hasCommandPermission(requester, 'help')) {
-        await safeChat(`${requester}, you don't have permission to use !help`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!help command executed', { requester });
-      
-      await sleep(botSettings.performance.messageDelay);
-      const help = [
-        "--- RumoniumGC ---",
-        "bw <user> - Bedwars stats",
-        "fkdr <user> - Daily/Weekly/Monthly FKDR",
-        "gexp <user> - Weekly GEXP & rank",
-        "when - Next Castle",
-        "ask <msg> - Ask AI",
-        "flag add <user> <reason> - Flag player",
-        "flag remove <user> - Unflag player",
-        "check <user> - Check player + flags",
-        "about - Bot info"
-      ];
-      for (const h of help) {
-        await safeChat(h);
-        await sleep(500);
-      }
-      return;
-    }
-
-    // === !flag add ===
-    if (msg.toLowerCase().includes("!flag add")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!flag add\s+([A-Za-z0-9_]{1,16})\s+(.+)/i);
-      if (!match) return;
-      const [, flagger, ign, reason] = match;
-      
-      if (!hasCommandPermission(flagger, 'flag_add')) {
-        await safeChat(`${flagger}, you don't have permission to use !flag add`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!flag add executed', { flagger, target: ign, reason });
-      
-      await sleep(botSettings.performance.messageDelay);
-      
-      try {
-        const playerData = await getPlayerUUID(ign);
-        flaggedPlayers.set(playerData.uuid, {
-          ign: ign,
-          uuid: playerData.uuid,
-          reason: reason.trim(),
-          flaggedBy: flagger,
-          timestamp: new Date().toISOString()
-        });
-        saveFlaggedPlayers();
-        
-        await safeChat(`✓ ${ign} flagged: ${reason}`);
-        addLog('success', 'command', 'Player flagged', { flagger, target: ign, reason });
-      } catch (err) {
-        await safeChat(`Error: ${err.message}`);
-        addLog('error', 'command', '!flag add failed', { flagger, target: ign, error: err.message });
-      }
-      return;
-    }
-
-    // === !flag remove ===
-    if (msg.toLowerCase().includes("!flag remove")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!flag remove\s+([A-Za-z0-9_]{1,16})/i);
-      if (!match) return;
-      const [, remover, ign] = match;
-      
-      if (!hasCommandPermission(remover, 'flag_remove')) {
-        await safeChat(`${remover}, you don't have permission to use !flag remove`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!flag remove executed', { remover, target: ign });
-      
-      await sleep(botSettings.performance.messageDelay);
-      
-      try {
-        let found = false;
-        for (const [uuid, flag] of flaggedPlayers.entries()) {
-          if (flag.ign?.toLowerCase() === ign.toLowerCase()) {
-            flaggedPlayers.delete(uuid);
-            saveFlaggedPlayers();
-            await safeChat(`✓ ${ign} unflagged`);
-            addLog('success', 'command', 'Player unflagged', { remover, target: ign });
-            found = true;
-            break;
-          }
-        }
-        
-        if (!found) {
-          await safeChat(`${ign} is not flagged`);
-        }
-      } catch (err) {
-        await safeChat(`Error: ${err.message}`);
-        addLog('error', 'command', '!flag remove failed', { remover, target: ign, error: err.message });
-      }
-      return;
-    }
-
-    // === !check ===
-    if (msg.toLowerCase().includes("!check")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!check\s+([A-Za-z0-9_]{1,16})/i);
-      if (!match) return;
-      const [, checker, ign] = match;
-      
-      if (!hasCommandPermission(checker, 'check')) {
-        await safeChat(`${checker}, you don't have permission to use !check`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!check executed', { checker, target: ign });
-      
-      await sleep(botSettings.performance.messageDelay);
-      
-      try {
-        const playerData = await getPlayerUUID(ign);
-        const stats = parseBWStats(playerData.fullData);
-        
-        const flag = flaggedPlayers.get(playerData.uuid);
-        
-        if (flag) {
-          await safeChat(`${ign} | ⭐${stats.star} | FKDR: ${stats.fkdr}`);
-          await sleep(500);
-          await safeChat(`🚩 FLAGGED: ${flag.reason} (by ${flag.flaggedBy})`);
-        } else {
-          await safeChat(`${ign} | ⭐${stats.star} | FKDR: ${stats.fkdr} | ✓ Clean`);
-        }
-        
-        addLog('success', 'command', '!check completed', { checker, target: ign, flagged: !!flag });
-      } catch (err) {
-        await safeChat(`Error: ${err.message}`);
-        addLog('error', 'command', '!check failed', { checker, target: ign, error: err.message });
-      }
-      return;
-    }
-  });
-
-  bot.on("kicked", (reason) => {
-    const reasonStr = typeof reason === 'string' ? reason : JSON.stringify(reason);
-    console.log("❌ Kicked:", reasonStr);
-    botReady = false;
-    io.emit('bot-status', 'offline');
-    
-    addLog('error', 'bot', 'Bot was kicked from server', {
-      reason: reasonStr,
-      autoReconnect: botSettings.autoReconnect
-    });
-    
-    // Use reconnection manager for intelligent reconnection
-    if (botSettings.autoReconnect) {
-      reconnectionManager.scheduleReconnect(createBot);
-    }
-  });
-
-  bot.on("end", (reason) => {
-    const reasonStr = typeof reason === 'string' ? reason : JSON.stringify(reason);
-    console.log("🔌 Disconnected:", reasonStr);
-    botReady = false;
-    io.emit('bot-status', 'offline');
-    
-    addLog('warning', 'bot', 'Bot disconnected from server', {
-      reason: reasonStr,
-      autoReconnect: botSettings.autoReconnect
-    });
-    
-    // Use reconnection manager for intelligent reconnection
-    if (botSettings.autoReconnect) {
-      reconnectionManager.scheduleReconnect(createBot);
-    }
-  });
-
-  bot.on("error", (err) => {
-    console.error("❌", err.message);
-    botReady = false;
-    
-    const errorMsg = err.message || String(err);
-    
-    addLog('error', 'bot', 'Bot encountered an error', {
-      error: errorMsg,
-      code: err.code,
-      stack: err.stack
-    });
-    
-    // Handle specific error types
-    if (errorMsg.includes('RateLimiter') || errorMsg.includes('ECONNRESET') || errorMsg.includes('EPIPE')) {
-      addLog('warning', 'bot', 'Connection/rate limit error detected', {
-        error: errorMsg,
-        willRetry: botSettings.autoReconnect
-      });
-    }
+async function queueApiRequest(requestFn) {
+  return new Promise((resolve, reject) => {
+    API_QUEUE.push({ requestFn, resolve, reject });
+    processQueue();
   });
 }
 
-createBot(); await requestFn();
+async function processQueue() {
+  if (isProcessingQueue || API_QUEUE.length === 0) return;
+  
+  isProcessingQueue = true;
+  
+  while (API_QUEUE.length > 0) {
+    const now = Date.now();
+    
+    if (now - apiCallResetTime > 60000) {
+      apiCallCount = 0;
+      apiCallResetTime = now;
+      addLog('info', 'system', 'API rate limit counter reset', { count: apiCallCount });
+    }
+    
+    if (apiCallCount >= MAX_CALLS_PER_MINUTE) {
+      const waitTime = 60000 - (now - apiCallResetTime);
+      addLog('warning', 'system', `API rate limit reached, waiting ${Math.ceil(waitTime/1000)}s`, {
+        count: apiCallCount,
+        limit: MAX_CALLS_PER_MINUTE
+      });
+      await sleep(waitTime);
+      apiCallCount = 0;
+      apiCallResetTime = Date.now();
+    }
+    
+    const { requestFn, resolve, reject } = API_QUEUE.shift();
+    
+    try {
+      const result = await requestFn();
       apiCallCount++;
       resolve(result);
       await sleep(MIN_CALL_DELAY);
@@ -1879,9 +1980,14 @@ function loadTrackingData() {
       Object.entries(data).forEach(([uuid, tracking]) => {
         fkdrTracking.set(uuid, tracking);
       });
+      console.log(`✅ Loaded ${fkdrTracking.size} tracked players`);
       addLog('success', 'system', `Loaded ${fkdrTracking.size} tracked players`);
+    } else {
+      console.log('ℹ️  No tracking data file found, starting fresh');
+      addLog('info', 'system', 'No tracking data file found, starting fresh');
     }
   } catch (err) {
+    console.error('❌ Failed to load tracking data:', err.message);
     addLog('error', 'system', 'Failed to load tracking data', { error: err.message });
   }
 }
@@ -1893,9 +1999,14 @@ function loadFlaggedPlayers() {
       Object.entries(data).forEach(([uuid, flag]) => {
         flaggedPlayers.set(uuid, flag);
       });
+      console.log(`✅ Loaded ${flaggedPlayers.size} flagged players`);
       addLog('success', 'system', `Loaded ${flaggedPlayers.size} flagged players`);
+    } else {
+      console.log('ℹ️  No flagged players file found, starting fresh');
+      addLog('info', 'system', 'No flagged players file found, starting fresh');
     }
   } catch (err) {
+    console.error('❌ Failed to load flagged players:', err.message);
     addLog('error', 'system', 'Failed to load flagged players', { error: err.message });
   }
 }
@@ -1903,8 +2014,10 @@ function loadFlaggedPlayers() {
 function saveTrackingData() {
   try {
     const data = Object.fromEntries(fkdrTracking);
-    fs.writeFileSync(TRACKING_FILE, JSON.stringify(data, null, 2));
+    fs.writeFileSync(TRACKING_FILE, JSON.stringify(data, null, 2), 'utf8');
+    console.log(`💾 Saved tracking data for ${fkdrTracking.size} players`);
   } catch (err) {
+    console.error('❌ Failed to save tracking data:', err.message);
     addLog('error', 'system', 'Failed to save tracking data', { error: err.message });
   }
 }
@@ -1912,14 +2025,16 @@ function saveTrackingData() {
 function saveFlaggedPlayers() {
   try {
     const data = Object.fromEntries(flaggedPlayers);
-    fs.writeFileSync(FLAGS_FILE, JSON.stringify(data, null, 2));
+    fs.writeFileSync(FLAGS_FILE, JSON.stringify(data, null, 2), 'utf8');
+    console.log(`💾 Saved ${flaggedPlayers.size} flagged players`);
   } catch (err) {
+    console.error('❌ Failed to save flagged players:', err.message);
     addLog('error', 'system', 'Failed to save flagged players', { error: err.message });
   }
 }
 
-setInterval(saveTrackingData, 5 * 60 * 1000);
-setInterval(saveFlaggedPlayers, 5 * 60 * 1000);
+setInterval(saveTrackingData, 2 * 60 * 1000);
+setInterval(saveFlaggedPlayers, 2 * 60 * 1000);
 
 function initializePlayerTracking(uuid) {
   const now = new Date();
@@ -1952,6 +2067,16 @@ function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
     tracking.lastStats.deaths = currentDeaths;
     tracking.lifetime.finals = currentFinals;
     tracking.lifetime.deaths = currentDeaths;
+    
+    tracking.daily.finals = 0;
+    tracking.daily.deaths = 0;
+    tracking.weekly.finals = 0;
+    tracking.weekly.deaths = 0;
+    tracking.monthly.finals = 0;
+    tracking.monthly.deaths = 0;
+    tracking.yearly.finals = 0;
+    tracking.yearly.deaths = 0;
+    
     fkdrTracking.set(uuid, tracking);
     
     addLog('info', 'system', `New player tracked: ${uuid}`, {
@@ -1960,11 +2085,9 @@ function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
       initialDeaths: currentDeaths
     });
     
+    saveTrackingData();
     return tracking;
   }
-
-  const finalsDiff = Math.max(0, currentFinals - tracking.lastStats.finals);
-  const deathsDiff = Math.max(0, currentDeaths - tracking.lastStats.deaths);
 
   if (tracking.daily.date !== now.toDateString()) {
     tracking.daily = { finals: 0, deaths: 0, date: now.toDateString() };
@@ -1982,6 +2105,9 @@ function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
   if (tracking.yearly.year !== now.getFullYear()) {
     tracking.yearly = { finals: 0, deaths: 0, year: now.getFullYear() };
   }
+
+  const finalsDiff = Math.max(0, currentFinals - tracking.lastStats.finals);
+  const deathsDiff = Math.max(0, currentDeaths - tracking.lastStats.deaths);
 
   if (finalsDiff > 0 || deathsDiff > 0) {
     tracking.daily.finals += finalsDiff;
@@ -2081,37 +2207,4 @@ async function getGuildGEXP(playerIgn) {
   }
 
   return queueApiRequest(async () => {
-    const playerUrl = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(playerIgn)}`;
-    const playerRes = await axios.get(playerUrl, { timeout: 10000 });
-    if (!playerRes.data?.player) throw new Error("Player not found");
-    
-    const uuid = playerRes.data.player.uuid;
-    
-    cache.setPlayer(playerIgn, {
-      uuid,
-      finals: playerRes.data.player.stats?.Bedwars?.final_kills_bedwars || 0,
-      deaths: playerRes.data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
-      fullData: playerRes.data.player
-    });
-    
-    await sleep(MIN_CALL_DELAY);
-    
-    const guildUrl = `https://api.hypixel.net/v2/guild?key=${HYPIXEL_API_KEY}&player=${uuid}`;
-    const guildRes = await axios.get(guildUrl, { timeout: 10000 });
-    if (!guildRes.data?.guild) throw new Error("Player not in a guild");
-    
-    const guild = guildRes.data.guild;
-    const member = guild.members.find(m => m.uuid === uuid);
-    if (!member) throw new Error("Member not found in guild");
-    
-    const expHistory = member.expHistory || {};
-    const weeklyGexp = Object.values(expHistory).reduce((sum, exp) => sum + exp, 0);
-    
-    const leaderboard = guild.members.map(m => {
-      const memberWeeklyGexp = Object.values(m.expHistory || {}).reduce((sum, exp) => sum + exp, 0);
-      return { uuid: m.uuid, gexp: memberWeeklyGexp };
-    }).sort((a, b) => b.gexp - a.gexp);
-    
-    const rank = leaderboard.findIndex(m => m.uuid === uuid) + 1;
-    
-    const result =
+    const playerUrl = `https://api.hypixel.net/
