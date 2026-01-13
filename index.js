@@ -1,1482 +1,31 @@
-<div className="space-y-2 max-h-96 overflow-y-auto scroll">
-                    {flags.length === 0 ? (
-                      <div className="text-center text-gray-400 py-8">No flagged players</div>
-                    ) : (
-                      flags.map((flag, i) => (
-                        <div key={i} className="glass rounded-xl p-4 border border-red-500/50">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <div className="font-bold text-lg">{flag.ign}</div>
-                              <div className="text-xs text-gray-400">UUID: {flag.uuid}</div>
-                            </div>
-                            <button
-                              onClick={() => removeFlag(flag.uuid)}
-                              className="px-3 py-1 bg-red-600 rounded-lg text-sm font-bold hover:bg-red-700"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                          <div className="text-sm mb-1">
-                            <span className="text-gray-400">Reason:</span> {flag.reason}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            Flagged by: {flag.flaggedBy} • {new Date(flag.timestamp).toLocaleString()}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {tab === 'permissions' && (
-                <div className="glass rounded-3xl p-6">
-                  <h2 className="text-2xl font-black mb-4">COMMAND PERMISSIONS</h2>
-                  
-                  <form onSubmit={setPermission} className="glass rounded-xl p-4 mb-4 border border-blue-500/30">
-                    <h3 className="font-bold mb-3">Set Player Permissions</h3>
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        placeholder="Player Username"
-                        value={permUsername}
-                        onChange={e => setPermUsername(e.target.value)}
-                        className="w-full bg-black/30 border border-blue-500/30 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
-                      />
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <div className="text-sm font-bold mb-2 text-green-400">Allowed Commands (Leave empty for all)</div>
-                          <div className="space-y-1 max-h-48 overflow-y-auto scroll bg-black/20 rounded-lg p-2">
-                            {availableCommands.map(cmd => (
-                              <label key={cmd} className="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-2 rounded">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedAllowed.includes(cmd)}
-                                  onChange={() => toggleCommand(cmd, 'allowed')}
-                                  className="w-4 h-4"
-                                />
-                                <span className="text-sm">{cmd}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <div className="text-sm font-bold mb-2 text-red-400">Banned Commands</div>
-                          <div className="space-y-1 max-h-48 overflow-y-auto scroll bg-black/20 rounded-lg p-2">
-                            {availableCommands.map(cmd => (
-                              <label key={cmd} className="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-2 rounded">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedBanned.includes(cmd)}
-                                  onChange={() => toggleCommand(cmd, 'banned')}
-                                  className="w-4 h-4"
-                                />
-                                <span className="text-sm">{cmd}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="text-xs text-gray-400 bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
-                        <strong>Note:</strong> If "Allowed Commands" is empty, the player can use all commands except those in "Banned Commands". 
-                        If you specify allowed commands, ONLY those commands will be available (banned list is ignored).
-                      </div>
-                      
-                      <button type="submit" className="w-full bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg px-4 py-2 font-bold hover:opacity-90">
-                        Save Permissions
-                      </button>
-                    </div>
-                  </form>
-
-                  <div className="space-y-2 max-h-96 overflow-y-auto scroll">
-                    {permissions.length === 0 ? (
-                      <div className="text-center text-gray-400 py-8">No custom permissions set (all players can use all commands)</div>
-                    ) : (
-                      permissions.map((perm, i) => (
-                        <div key={i} className="glass rounded-xl p-4 border border-blue-500/50">
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="font-bold text-lg">{perm.username}</div>
-                            <button
-                              onClick={() => removePermission(perm.username)}
-                              className="px-3 py-1 bg-red-600 rounded-lg text-sm font-bold hover:bg-red-700"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                          
-                          {perm.allowedCommands && perm.allowedCommands.length > 0 ? (
-                            <div className="mb-2">
-                              <div className="text-xs text-green-400 mb-1">✓ Allowed Commands Only:</div>
-                              <div className="flex flex-wrap gap-1">
-                                {perm.allowedCommands.map(cmd => (
-                                  <span key={cmd} className="text-xs px-2 py-1 bg-green-500/20 border border-green-500/50 rounded">
-                                    {cmd}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="mb-2">
-                              <div className="text-xs text-gray-400 mb-1">All commands allowed except:</div>
-                            </div>
-                          )}
-                          
-                          {perm.bannedCommands && perm.bannedCommands.length > 0 && (!perm.allowedCommands || perm.allowedCommands.length === 0) && (
-                            <div>
-                              <div className="text-xs text-red-400 mb-1">✗ Banned:</div>
-                              <div className="flex flex-wrap gap-1">
-                                {perm.bannedCommands.map(cmd => (
-                                  <span key={cmd} className="text-xs px-2 py-1 bg-red-500/20 border border-red-500/50 rounded">
-                                    {cmd}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {(!perm.bannedCommands || perm.bannedCommands.length === 0) && (!perm.allowedCommands || perm.allowedCommands.length === 0) && (
-                            <div className="text-xs text-gray-400">No restrictions</div>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {tab === 'cache' && (
-                <div className="glass rounded-3xl p-6">
-                  <h2 className="text-2xl font-black mb-4">CACHE MANAGEMENT</h2>
-                  {stats.cache && (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="glass rounded-xl p-4 border border-green-500/50">
-                          <div className="text-sm text-gray-400 mb-2">Hit Rate</div>
-                          <div className="text-3xl font-black text-green-400">{stats.cache.hitRate}</div>
-                        </div>
-                        <div className="glass rounded-xl p-4 border border-blue-500/50">
-                          <div className="text-sm text-gray-400 mb-2">Total Cache</div>
-                          <div className="text-3xl font-black">{stats.cache.totalCacheSize}</div>
-                        </div>
-                        <div className="glass rounded-xl p-4 border border-purple-500/50">
-                          <div className="text-sm text-gray-400 mb-2">Cache Hits</div>
-                          <div className="text-2xl font-black text-purple-400">{stats.cache.cacheHits}</div>
-                        </div>
-                        <div className="glass rounded-xl p-4 border border-pink-500/50">
-                          <div className="text-sm text-gray-400 mb-2">Cache Misses</div>
-                          <div className="text-2xl font-black text-pink-400">{stats.cache.cacheMisses}</div>
-                        </div>
-                      </div>
-                      
-                      <div className="flex gap-3">
-                        <button
-                          onClick={async () => {
-                            if (!confirm('Clear all cache?')) return;
-                            await fetch('/api/cache/clear', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ type: 'all' })
-                            });
-                            const res = await fetch('/api/stats');
-                            const data = await res.json();
-                            setStats(prev => ({ ...prev, ...data }));
-                          }}
-                          className="flex-1 bg-gradient-to-r from-red-600 to-pink-600 rounded-lg px-4 py-3 font-bold hover:opacity-90"
-                        >
-                          Clear All Cache
-                        </button>
-                        <button
-                          onClick={async () => {
-                            await fetch('/api/cache/clear', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ type: 'player' })
-                            });
-                            const res = await fetch('/api/stats');
-                            const data = await res.json();
-                            setStats(prev => ({ ...prev, ...data }));
-                          }}
-                          className="flex-1 bg-gradient-to-r from-blue-600 to-cyan-600 rounded-lg px-4 py-3 font-bold hover:opacity-90"
-                        >
-                          Clear Player Cache
-                        </button>
-                        <button
-                          onClick={async () => {
-                            await fetch('/api/cache/clear', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ type: 'guild' })
-                            });
-                            const res = await fetch('/api/stats');
-                            const data = await res.json();
-                            setStats(prev => ({ ...prev, ...data }));
-                          }}
-                          className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg px-4 py-3 font-bold hover:opacity-90"
-                        >
-                          Clear Guild Cache
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="glass rounded-3xl p-6">
-              <h2 className="text-xl font-black mb-4">RECENT ACTIVITY</h2>
-              <div className="space-y-2 max-h-96 overflow-y-auto scroll">
-                {logs.slice(0, 15).map((log, i) => (
-                  <div key={i} className="glass rounded-xl p-3 text-xs">
-                    <div className="text-gray-400 mb-1">{log.time}</div>
-                    <div className="text-gray-200">{log.msg}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
-</body>
-</html>`);
-});
-
-io.on('connection', (socket) => {
-  console.log('👤 Client connected');
-  addLog('info', 'system', 'Client connected to web panel', { clientId: socket.id });
-  socket.on('disconnect', () => {
-    console.log('👤 Client disconnected');
-    addLog('info', 'system', 'Client disconnected from web panel', { clientId: socket.id });
-  });
-});
-
-setInterval(() => {
-  const uptime = Date.now() - startTime;
-  const h = Math.floor(uptime / 3600000);
-  const m = Math.floor((uptime % 3600000) / 60000);
-  io.emit('stats-update', {
-    uptime: `${h}h ${m}m`,
-    commands: commandCount,
-    messages: messageCount,
-    users: Object.keys(bot?.players || {}).length,
-    queueLength: API_QUEUE.length,
-    apiCallCount,
-    reconnection: {
-      attempts: reconnectionManager.reconnectAttempts,
-      maxAttempts: reconnectionManager.maxReconnectAttempts,
-      failures: reconnectionManager.connectionFailures,
-      isReconnecting: reconnectionManager.isReconnecting,
-      lastSuccessfulConnection: reconnectionManager.lastSuccessfulConnection
-    }
-  });
-}, 5000);
-
-server.listen(PORT, () => {
-  console.log(`🌐 Server running on port ${PORT}`);
-  addLog('success', 'system', `Server started on port ${PORT}`, { port: PORT });
-  loadTrackingData();
-  loadFlaggedPlayers();
-  loadCommandPermissions();
-});
-
-// === Bot Implementation ===
-const askCooldowns = {};
-const welcomeMessages = [
-  "Hey! Welcome back {username}!",
-  "Welcome back, {username}! The legend has returned!",
-  "{username} has joined, hello!"
-];
-
-function createBot() {
-  addLog('info', 'bot', 'Creating bot instance...', {
-    reconnectAttempt: reconnectionManager.reconnectAttempts,
-    totalFailures: reconnectionManager.connectionFailures
-  });
-  
-  if (bot) {
-    try {
-      bot.removeAllListeners();
-      if (bot._client) {
-        bot._client.removeAllListeners();
-      }
-      bot.quit();
-    } catch (err) {
-      addLog('warning', 'bot', 'Error cleaning up old bot instance', { error: err.message });
-    }
-    bot = null;
-  }
-  
-  bot = mineflayer.createBot({
-    host: HYPIXEL_HOST,
-    version: MC_VERSION,
-    auth: "microsoft",
-    checkTimeoutInterval: 60000,
-    keepAlive: true
-  });
-
-  bot.once("spawn", () => {
-    console.log("✅ Connected to Hypixel");
-    addLog('success', 'bot', 'Bot spawned on Hypixel', { host: HYPIXEL_HOST });
-    
-    reconnectionManager.reset();
-    
-    io.emit('bot-status', 'connecting');
-    
-    setTimeout(() => {
-      if (bot?.chat) {
-        bot.chat("/chat g");
-        addLog('info', 'bot', 'Joined guild chat');
-        setTimeout(() => {
-          botReady = true;
-          io.emit('bot-status', 'online');
-          addLog('success', 'bot', 'Bot is ready and online');
-        }, 2000);
-      }
-    }, 1500);
-    setInterval(() => bot?.chat && bot.chat("/locraw"), 60000);
-  });
-
-  bot.on("message", async (jsonMsg) => {
-    const msg = jsonMsg.toString();
-    io.emit('minecraft-chat', { time: new Date().toLocaleTimeString(), message: msg });
-    messageCount++;
-    
-    addLog('info', 'chat', 'Message received', { message: msg });
-
-    if (!msg.startsWith("Guild >") || !botReady) return;
-
-    const safeChat = async (m) => {
-      if (!botReady || !bot?.chat) return;
-      try { 
-        bot.chat(m);
-        addLog('info', 'chat', 'Bot sent message', { message: m });
-      } catch (e) { 
-        addLog('error', 'chat', 'Failed to send message', { error: e.message, message: m });
-        console.error(e);
-      }
-    };
-
-    // === !fkdr command ===
-    if (msg.toLowerCase().includes("!fkdr")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!fkdr\s+([A-Za-z0-9_]{1,16})/i);
-      if (!match) return;
-      const [, requester, ign] = match;
-      
-      if (!hasCommandPermission(requester, 'fkdr')) {
-        await safeChat(`${requester}, you don't have permission to use !fkdr`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!fkdr command executed', {
-        requester,
-        target: ign
-      });
-      
-      await sleep(botSettings.performance.messageDelay);
-      
-      try {
-        const playerData = await getPlayerUUID(ign);
-        const tracking = updatePlayerTracking(playerData.uuid, playerData.finals, playerData.deaths);
-        
-        const dailyFKDR = ratio(tracking.daily.finals, tracking.daily.deaths);
-        const weeklyFKDR = ratio(tracking.weekly.finals, tracking.weekly.deaths);
-        const monthlyFKDR = ratio(tracking.monthly.finals, tracking.monthly.deaths);
-        const yearlyFKDR = ratio(tracking.yearly.finals, tracking.yearly.deaths);
-        const lifetimeFKDR = ratio(tracking.lifetime.finals, tracking.lifetime.deaths);
-        
-        const isFirstTracking = tracking.daily.finals === 0 && 
-                                tracking.weekly.finals === 0 && 
-                                tracking.monthly.finals === 0 && 
-                                tracking.yearly.finals === 0;
-        
-        if (isFirstTracking) {
-          await safeChat(`${ign} | Lifetime FKDR: ${lifetimeFKDR} (${tracking.lifetime.finals}F/${tracking.lifetime.deaths}D)`);
-          await sleep(500);
-          await safeChat(`Now tracking ${ign}'s stats! Use !fkdr ${ign} again later to see daily/weekly/monthly progress.`);
-        } else {
-          await safeChat(`${ign} FKDR Stats:`);
-          await sleep(500);
-          
-          if (tracking.daily.finals > 0 || tracking.daily.deaths > 0) {
-            await safeChat(`Daily: ${dailyFKDR} (${tracking.daily.finals}F/${tracking.daily.deaths}D)`);
-            await sleep(500);
-          }
-          
-          if (tracking.weekly.finals > 0 || tracking.weekly.deaths > 0) {
-            await safeChat(`Weekly: ${weeklyFKDR} (${tracking.weekly.finals}F/${tracking.weekly.deaths}D)`);
-            await sleep(500);
-          }
-          
-          if (tracking.monthly.finals > 0 || tracking.monthly.deaths > 0) {
-            await safeChat(`Monthly: ${monthlyFKDR} (${tracking.monthly.finals}F/${tracking.monthly.deaths}D)`);
-            await sleep(500);
-          }
-          
-          if (tracking.yearly.finals > 0 || tracking.yearly.deaths > 0) {
-            await safeChat(`Yearly: ${yearlyFKDR} (${tracking.yearly.finals}F/${tracking.yearly.deaths}D)`);
-            await sleep(500);
-          }
-          
-          await safeChat(`Lifetime: ${lifetimeFKDR} (${tracking.lifetime.finals}F/${tracking.lifetime.deaths}D)`);
-        }
-        
-        addLog('success', 'command', '!fkdr completed successfully', {
-          requester,
-          target: ign,
-          isFirstTracking,
-          daily: dailyFKDR,
-          weekly: weeklyFKDR,
-          monthly: monthlyFKDR,
-          yearly: yearlyFKDR,
-          lifetime: lifetimeFKDR
-        });
-      } catch (err) {
-        await safeChat(`Error - ${ign} | ${err.message}`);
-        addLog('error', 'command', '!fkdr failed', {
-          requester,
-          target: ign,
-          error: err.message
-        });
-      }
-      return;
-    }
-
-    // === !gexp command ===
-    if (msg.toLowerCase().includes("!gexp")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!gexp\s+([A-Za-z0-9_]{1,16})/i);
-      if (!match) return;
-      const [, requester, ign] = match;
-      
-      if (!hasCommandPermission(requester, 'gexp')) {
-        await safeChat(`${requester}, you don't have permission to use !gexp`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!gexp command executed', { 
-        requester, 
-        target: ign, 
-        command: '!gexp' 
-      });
-      
-      await sleep(botSettings.performance.messageDelay);
-      
-      try {
-        const gexpData = await getGuildGEXP(ign);
-        const line = `${ign} | Weekly GEXP: ${gexpData.weeklyGexp.toLocaleString()} | Rank: #${gexpData.rank}/${gexpData.totalMembers}`;
-        await safeChat(line);
-        
-        addLog('success', 'command', '!gexp completed successfully', {
-          requester,
-          target: ign,
-          weeklyGexp: gexpData.weeklyGexp,
-          rank: gexpData.rank,
-          totalMembers: gexpData.totalMembers
-        });
-      } catch (err) {
-        await safeChat(`Error - ${ign} | ${err.message}`);
-        addLog('error', 'command', '!gexp failed', {
-          requester,
-          target: ign,
-          error: err.message
-        });
-      }
-      return;
-    }
-
-    // === !ask command ===
-    if (msg.toLowerCase().includes("!ask")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!ask\s+(.+)/i);
-      if (!match) return;
-      const [, username, userMessage] = match;
-      
-      if (!hasCommandPermission(username, 'ask')) {
-        await safeChat(`${username}, you don't have permission to use !ask`);
-        return;
-      }
-      
-      commandCount++;
-
-      addLog('command', 'command', '!ask command received', {
-        username,
-        question: userMessage
-      });
-
-      if (username.toLowerCase() !== "relaquent") {
-        const now = Date.now();
-        const lastUsed = askCooldowns[username] || 0;
-        const timePassed = now - lastUsed;
-        if (timePassed < botSettings.commandCooldown * 1000) {
-          const sec = Math.ceil((botSettings.commandCooldown * 1000 - timePassed) / 1000);
-          await safeChat(`${username}, wait ${sec}s`);
-          addLog('warning', 'command', 'Ask cooldown active', {
-            username,
-            secondsRemaining: sec
-          });
-          return;
-        }
-        askCooldowns[username] = now;
-      }
-
-      await safeChat("Thinking...");
-      try {
-        const startTime = Date.now();
-        
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            { 
-              role: "system", 
-              content: gptSystemPrompt 
-            },
-            { 
-              role: "user", 
-              content: userMessage 
-            }
-          ],
-          max_tokens: botSettings.maxTokens,
-          temperature: 0.8,
-        });
-
-        const responseTime = Date.now() - startTime;
-        let reply = completion.choices[0].message.content.trim();
-        
-        if (reply.length > 600) {
-          reply = reply.substring(0, 597) + '...';
-        }
-        
-        addLog('success', 'command', 'GPT-4o-mini response generated', {
-          username,
-          question: userMessage,
-          responseTime: `${responseTime}ms`,
-          tokensUsed: completion.usage.total_tokens,
-          promptTokens: completion.usage.prompt_tokens,
-          completionTokens: completion.usage.completion_tokens,
-          model: "gpt-4o-mini",
-          finishReason: completion.choices[0].finish_reason
-        });
-        
-        const lines = reply.split("\n").filter(l => l.trim());
-        for (const line of lines) {
-          for (let i = 0; i < line.length; i += 600) {
-            await safeChat(line.slice(i, i + 600));
-            await sleep(botSettings.performance.messageDelay);
-          }
-        }
-      } catch (err) {
-        await safeChat("GPT error - please try again");
-        addLog('error', 'command', 'GPT-4o-mini request failed', {
-          username,
-          question: userMessage,
-          error: err.message,
-          errorCode: err.code,
-          errorType: err.type,
-          statusCode: err.status
-        });
-      }
-      return;
-    }
-
-    // === Welcome ===
-    if (msg.includes("joined.") && botSettings.welcomeMessages) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}) joined\./);
-      if (match) {
-        const username = match[1];
-        addLog('info', 'bot', 'Player joined guild', { username });
-        
-        await sleep(2000);
-        if (username.toLowerCase() === "caillou16") {
-          await safeChat("Welcome back Caillou16 the bald.");
-        } else {
-          const m = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
-          await safeChat(m.replace("{username}", username));
-        }
-      }
-      return;
-    }
-
-    // === !bw ===
-    if (msg.toLowerCase().includes("!bw")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!bw\s+([A-Za-z0-9_]{1,16})/i);
-      if (!match) return;
-      const [, requester, ign] = match;
-      
-      if (!hasCommandPermission(requester, 'bw')) {
-        await safeChat(`${requester}, you don't have permission to use !bw`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!bw command executed', {
-        requester,
-        target: ign
-      });
-      
-      await sleep(botSettings.performance.messageDelay);
-      
-      if (ign.toLowerCase() === "relaquent") {
-        await safeChat("Relaquent | Star: 3628 | FKDR: 48.72 | KD: 2.32 | WL: 2.86");
-        return;
-      }
-      
-      try {
-        const stats = await getPlayerStats(ign);
-        await safeChat(`${ign} | Star: ${stats.star} | FKDR: ${stats.fkdr} | KD: ${stats.kd} | WL: ${stats.wl}`);
-        
-        addLog('success', 'command', '!bw completed successfully', {
-          requester,
-          target: ign,
-          stats: stats
-        });
-      } catch (err) {
-        await safeChat(`Error - ${ign} | No data`);
-        addLog('error', 'command', '!bw failed', {
-          requester,
-          target: ign,
-          error: err.message
-        });
-      }
-      return;
-    }
-
-    // === !stats ===
-    if (msg.toLowerCase().includes("!stats")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!stats\s+([A-Za-z0-9_]{1,16})/i);
-      if (!match) return;
-      const [, requester, ign] = match;
-      
-      if (!hasCommandPermission(requester, 'stats')) {
-        await safeChat(`${requester}, you don't have permission to use !stats`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!stats command executed', {
-        requester,
-        target: ign
-      });
-      
-      await sleep(botSettings.performance.messageDelay);
-      
-      try {
-        const stats = await getPlayerStats(ign);
-        await safeChat(`${ign} | Star: ${stats.star} | Finals: ${stats.finals} | Wins: ${stats.wins} | Beds: ${stats.beds}`);
-        
-        addLog('success', 'command', '!stats completed successfully', {
-          requester,
-          target: ign,
-          stats: stats
-        });
-      } catch (err) {
-        await safeChat(`Error - ${ign}`);
-        addLog('error', 'command', '!stats failed', {
-          requester,
-          target: ign,
-          error: err.message
-        });
-      }
-      return;
-    }
-
-    // === !when ===
-    if (msg.toLowerCase().includes("!when")) {
-      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16})/);
-      const requester = match ? match[1] : 'unknown';
-      
-      if (!hasCommandPermission(requester, 'when')) {
-        await safeChat(`${requester}, you don't have permission to use !when`);
-        return;
-      }
-      
-      commandCount++;
-      addLog('command', 'command', '!when command executed', { requester });async function getGuildGEXP(playerIgn) {
-  const cachedGuild = cache.getGuild(playerIgn);
-  if (cachedGuild) {
-    return cachedGuild;
-  }
-
-  return queueApiRequest(async () => {
-    const playerUrl = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(playerIgn)}`;
-    const playerRes = await axios.get(playerUrl, { timeout: 10000 });
-    if (!playerRes.data?.player) throw new Error("Player not found");
-    
-    const uuid = playerRes.data.player.uuid;
-    
-    cache.setPlayer(playerIgn, {
-      uuid,
-      finals: playerRes.data.player.stats?.Bedwars?.final_kills_bedwars || 0,
-      deaths: playerRes.data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
-      fullData: playerRes.data.player
-    });
-    
-    await sleep(MIN_CALL_DELAY);
-    
-    const guildUrl = `https://api.hypixel.net/v2/guild?key=${HYPIXEL_API_KEY}&player=${uuid}`;
-    const guildRes = await axios.get(guildUrl, { timeout: 10000 });
-    if (!guildRes.data?.guild) throw new Error("Player not in a guild");
-    
-    const guild = guildRes.data.guild;
-    const member = guild.members.find(m => m.uuid === uuid);
-    if (!member) throw new Error("Member not found in guild");
-    
-    const expHistory = member.expHistory || {};
-    const weeklyGexp = Object.values(expHistory).reduce((sum, exp) => sum + exp, 0);
-    
-    const leaderboard = guild.members.map(m => {
-      const memberWeeklyGexp = Object.values(m.expHistory || {}).reduce((sum, exp) => sum + exp, 0);
-      return { uuid: m.uuid, gexp: memberWeeklyGexp };
-    }).sort((a, b) => b.gexp - a.gexp);
-    
-    const rank = leaderboard.findIndex(m => m.uuid === uuid) + 1;
-    
-    const result = {
-      weeklyGexp,
-      rank,
-      totalMembers: guild.members.length
-    };
-    
-    cache.setGuild(playerIgn, result);
-    return result;
-  });
-}
-
-function sleep(ms) {
-  return new Promise((res) => setTimeout(res, ms));
-}
-
-// === API Routes ===
-app.get("/", (req, res) => res.send("✅ Bot is running!"));
-
-app.get("/api/theme", (req, res) => res.json(panelTheme));
-app.post("/api/theme", (req, res) => {
-  panelTheme = { ...panelTheme, ...req.body };
-  addLog('success', 'system', 'Theme updated', { theme: panelTheme });
-  res.json({ success: true });
-});
-
-app.get("/api/settings", (req, res) => res.json(botSettings));
-app.post("/api/settings", (req, res) => {
-  botSettings = { ...botSettings, ...req.body };
-  addLog('success', 'system', 'Settings updated', { settings: botSettings });
-  res.json({ success: true });
-});
-
-app.get("/api/gpt-prompt", (req, res) => res.json({ prompt: gptSystemPrompt }));
-app.post("/api/gpt-prompt", (req, res) => {
-  gptSystemPrompt = req.body.prompt;
-  addLog('success', 'system', 'GPT prompt updated');
-  res.json({ success: true });
-});
-
-app.get("/api/stats", (req, res) => {
-  const cacheStats = cache.getStats();
-  res.json({
-    queueLength: API_QUEUE.length,
-    apiCallCount,
-    apiCallLimit: MAX_CALLS_PER_MINUTE,
-    isProcessingQueue,
-    cache: cacheStats,
-    reconnection: {
-      attempts: reconnectionManager.reconnectAttempts,
-      maxAttempts: reconnectionManager.maxReconnectAttempts,
-      failures: reconnectionManager.connectionFailures,
-      isReconnecting: reconnectionManager.isReconnecting,
-      lastSuccessfulConnection: reconnectionManager.lastSuccessfulConnection
-    }
-  });
-});
-
-app.get("/api/flags", (req, res) => {
-  const flags = Array.from(flaggedPlayers.entries()).map(([uuid, flag]) => ({
-    uuid,
-    ...flag
-  }));
-  res.json({ flags, count: flags.length });
-});
-
-app.post("/api/flags/add", async (req, res) => {
-  const { ign, reason, flaggedBy } = req.body;
-  
-  if (!ign || !ign.trim()) {
-    return res.status(400).json({ success: false, message: 'IGN is required' });
-  }
-  
-  if (!reason || !reason.trim()) {
-    return res.status(400).json({ success: false, message: 'Reason is required' });
-  }
-  
-  try {
-    const playerData = await getPlayerUUID(ign);
-    flaggedPlayers.set(playerData.uuid, {
-      ign: ign,
-      uuid: playerData.uuid,
-      reason: reason.trim(),
-      flaggedBy: flaggedBy || 'Admin',
-      timestamp: new Date().toISOString()
-    });
-    
-    saveFlaggedPlayers();
-    
-    addLog('success', 'system', `Player flagged via web panel`, { ign, reason, flaggedBy });
-    res.json({ success: true, message: `${ign} flagged successfully` });
-  } catch (err) {
-    addLog('error', 'system', 'Failed to flag player via web panel', { ign, error: err.message });
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-app.post("/api/flags/remove", (req, res) => {
-  const { uuid } = req.body;
-  
-  if (!uuid || !uuid.trim()) {
-    return res.status(400).json({ success: false, message: 'UUID is required' });
-  }
-  
-  if (flaggedPlayers.has(uuid)) {
-    const flag = flaggedPlayers.get(uuid);
-    flaggedPlayers.delete(uuid);
-    
-    saveFlaggedPlayers();
-    
-    addLog('success', 'system', `Player unflagged via web panel`, { ign: flag.ign, uuid });
-    res.json({ success: true, message: `${flag.ign} unflagged successfully` });
-  } else {
-    res.status(404).json({ success: false, message: 'Player not found' });
-  }
-});
-
-app.get("/api/permissions", (req, res) => {
-  const perms = Array.from(commandPermissions.entries()).map(([username, perm]) => ({
-    username,
-    ...perm
-  }));
-  res.json({ 
-    permissions: perms, 
-    count: perms.length,
-    availableCommands: AVAILABLE_COMMANDS 
-  });
-});
-
-app.post("/api/permissions/set", (req, res) => {
-  const { username, allowedCommands, bannedCommands } = req.body;
-  
-  if (!username || !username.trim()) {
-    return res.status(400).json({ success: false, message: 'Username is required' });
-  }
-  
-  commandPermissions.set(username.toLowerCase(), {
-    allowedCommands: allowedCommands || [],
-    bannedCommands: bannedCommands || []
-  });
-  
-  saveCommandPermissions();
-  
-  addLog('success', 'system', `Command permissions updated for ${username}`, {
-    username,
-    allowedCommands,
-    bannedCommands
-  });
-  
-  res.json({ success: true, message: `Permissions updated for ${username}` });
-});
-
-app.post("/api/permissions/remove", (req, res) => {
-  const { username } = req.body;
-  
-  if (!username || !username.trim()) {
-    return res.status(400).json({ success: false, message: 'Username is required' });
-  }
-  
-  if (commandPermissions.has(username.toLowerCase())) {
-    commandPermissions.delete(username.toLowerCase());
-    
-    saveCommandPermissions();
-    
-    addLog('success', 'system', `Command permissions removed for ${username}`, { username });
-    res.json({ success: true, message: `Permissions removed for ${username}` });
-  } else {
-    res.status(404).json({ success: false, message: 'User not found' });
-  }
-});
-
-app.get("/api/cache/stats", (req, res) => {
-  res.json(cache.getStats());
-});
-
-app.post("/api/cache/clear", (req, res) => {
-  const { type } = req.body;
-  
-  if (type === 'all') {
-    cache.clearAll();
-  } else if (type === 'player') {
-    cache.playerDataCache.clear();
-    cache.uuidToIgnCache.clear();
-  } else if (type === 'guild') {
-    cache.guildCache.clear();
-  }
-  
-  addLog('success', 'system', `Cache cleared: ${type}`);
-  res.json({ success: true, stats: cache.getStats() });
-});
-
-app.get("/api/logs/all", (req, res) => {
-  res.json({ logs: detailedLogs, count: detailedLogs.length });
-});
-
-app.get("/api/logs/commands", (req, res) => {
-  res.json({ logs: commandLogs, count: commandLogs.length });
-});
-
-app.get("/api/logs/errors", (req, res) => {
-  res.json({ logs: errorLogs, count: errorLogs.length });
-});
-
-app.get("/api/logs/chat", (req, res) => {
-  res.json({ logs: chatLogs, count: chatLogs.length });
-});
-
-app.post("/api/logs/clear", (req, res) => {
-  const { category } = req.body;
-  
-  switch(category) {
-    case 'all':
-      detailedLogs = [];
-      commandLogs = [];
-      errorLogs = [];
-      chatLogs = [];
-      systemLogs = [];
-      break;
-    case 'commands':
-      commandLogs = [];
-      break;
-    case 'errors':
-      errorLogs = [];
-      break;
-    case 'chat':
-      chatLogs = [];
-      break;
-    case 'system':
-      systemLogs = [];
-      break;
-  }
-  
-  addLog('success', 'system', `Cleared ${category} logs`);
-  res.json({ success: true });
-});
-
-app.post("/chat", (req, res) => {
-  const { message } = req.body;
-  if (!message) return res.status(400).send("❌ Message required.");
-  if (bot && botReady && bot.chat && bot._client) {
-    try {
-      bot.chat(message);
-      addLog('info', 'chat', `Web panel message sent: ${message}`, { source: 'web', message });
-      res.json({ success: true });
-    } catch (err) {
-      addLog('error', 'chat', `Failed to send web message: ${err.message}`, { error: err.message });
-      res.status(500).json({ success: false, message: "❌ Error" });
-    }
-  } else {
-    res.status(500).json({ success: false, message: "❌ Bot not ready" });
-  }
-});
-
-app.post("/api/bot/reconnect", (req, res) => {
-  addLog('info', 'system', 'Manual reconnection requested via web panel');
-  
-  if (bot) {
-    try {
-      bot.quit();
-    } catch (err) {
-      addLog('warning', 'system', 'Error quitting bot for manual reconnect', { error: err.message });
-    }
-  }
-  
-  reconnectionManager.reset();
-  setTimeout(createBot, 2000);
-  
-  res.json({ success: true, message: 'Reconnection initiated' });
-});
-
-app.post("/api/bot/cancel-reconnect", (req, res) => {
-  reconnectionManager.cancelReconnect();
-  res.json({ success: true, message: 'Reconnection cancelled' });
-});
-
-app.get("/control", (req, res) => {
-  res.send(`<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RumoniumGC Control Panel</title>
-  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
-    * { font-family: 'Inter', sans-serif; }
-    .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); }
-    .scroll::-webkit-scrollbar { width: 6px; }
-    .scroll::-webkit-scrollbar-thumb { background: #9333ea; border-radius: 10px; }
-  </style>
-</head>
-<body class="bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950 text-white min-h-screen p-6">
-  <div id="root"></div>
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
-    const socket = io();
-
-    function App() {
-      const [tab, setTab] = useState('chat');
-      const [msg, setMsg] = useState('');
-      const [chat, setChat] = useState([]);
-      const [logs, setLogs] = useState([]);
-      const [stats, setStats] = useState({ 
-        uptime: '0h', 
-        commands: 0, 
-        messages: 0, 
-        queueLength: 0, 
-        apiCallCount: 0,
-        reconnection: { attempts: 0, maxAttempts: 20, failures: 0, isReconnecting: false }
-      });
-      const [status, setStatus] = useState('online');
-      const [flags, setFlags] = useState([]);
-      const [permissions, setPermissions] = useState([]);
-      const [availableCommands, setAvailableCommands] = useState([]);
-      
-      const [flagIgn, setFlagIgn] = useState('');
-      const [flagReason, setFlagReason] = useState('');
-      const [flaggedBy, setFlaggedBy] = useState('Admin');
-      
-      const [permUsername, setPermUsername] = useState('');
-      const [selectedAllowed, setSelectedAllowed] = useState([]);
-      const [selectedBanned, setSelectedBanned] = useState([]);
-      
-      const chatRef = useRef(null);
-
-      useEffect(() => {
-        socket.on('minecraft-chat', d => setChat(p => [...p, d].slice(-500)));
-        socket.on('bot-log', d => setLogs(p => [d, ...p].slice(0, 100)));
-        socket.on('bot-status', setStatus);
-        socket.on('stats-update', setStats);
-        
-        fetchFlags();
-        fetchPermissions();
-        
-        const apiStatsInterval = setInterval(async () => {
-          const res = await fetch('/api/stats');
-          const apiStats = await res.json();
-          setStats(prev => ({ ...prev, ...apiStats }));
-        }, 2000);
-        
-        return () => {
-          socket.off('minecraft-chat');
-          socket.off('bot-log');
-          socket.off('bot-status');
-          socket.off('stats-update');
-          clearInterval(apiStatsInterval);
-        };
-      }, []);
-
-      useEffect(() => {
-        if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
-      }, [chat]);
-
-      const fetchFlags = async () => {
-        try {
-          const res = await fetch('/api/flags');
-          const data = await res.json();
-          setFlags(data.flags || []);
-        } catch (err) {
-          console.error('Failed to fetch flags:', err);
-        }
-      };
-
-      const fetchPermissions = async () => {
-        try {
-          const res = await fetch('/api/permissions');
-          const data = await res.json();
-          setPermissions(data.permissions || []);
-          setAvailableCommands(data.availableCommands || []);
-        } catch (err) {
-          console.error('Failed to fetch permissions:', err);
-        }
-      };
-
-      const send = async () => {
-        if (!msg.trim()) return;
-        await fetch('/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: msg })
-        });
-        setMsg('');
-      };
-
-      const manualReconnect = async () => {
-        if (!confirm('Force bot reconnection?')) return;
-        try {
-          await fetch('/api/bot/reconnect', { method: 'POST' });
-          alert('Reconnection initiated');
-        } catch (err) {
-          alert('Error initiating reconnection');
-        }
-      };
-
-      const cancelReconnect = async () => {
-        try {
-          await fetch('/api/bot/cancel-reconnect', { method: 'POST' });
-          alert('Reconnection cancelled');
-        } catch (err) {
-          alert('Error cancelling reconnection');
-        }
-      };
-
-      const addFlag = async (e) => {
-        e.preventDefault();
-        if (!flagIgn.trim() || !flagReason.trim()) return;
-        
-        try {
-          const res = await fetch('/api/flags/add', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ ign: flagIgn, reason: flagReason, flaggedBy })
-          });
-          
-          const data = await res.json();
-          if (data.success) {
-            setFlagIgn('');
-            setFlagReason('');
-            fetchFlags();
-            alert('Player flagged successfully!');
-          } else {
-            alert('Error: ' + data.message);
-          }
-        } catch (err) {
-          alert('Error flagging player');
-        }
-      };
-
-      const removeFlag = async (uuid) => {
-        if (!confirm('Remove this flag?')) return;
-        
-        try {
-          await fetch('/api/flags/remove', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ uuid })
-          });
-          fetchFlags();
-        } catch (err) {
-          alert('Error removing flag');
-        }
-      };
-
-      const setPermission = async (e) => {
-        e.preventDefault();
-        if (!permUsername.trim()) return;
-        
-        try {
-          const res = await fetch('/api/permissions/set', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              username: permUsername,
-              allowedCommands: selectedAllowed,
-              bannedCommands: selectedBanned
-            })
-          });
-          
-          const data = await res.json();
-          if (data.success) {
-            setPermUsername('');
-            setSelectedAllowed([]);
-            setSelectedBanned([]);
-            fetchPermissions();
-            alert('Permissions updated!');
-          }
-        } catch (err) {
-          alert('Error updating permissions');
-        }
-      };
-
-      const removePermission = async (username) => {
-        if (!confirm(\`Remove permissions for \${username}?\`)) return;
-        
-        try {
-          await fetch('/api/permissions/remove', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username })
-          });
-          fetchPermissions();
-        } catch (err) {
-          alert('Error removing permissions');
-        }
-      };
-
-      const toggleCommand = (command, type) => {
-        if (type === 'allowed') {
-          setSelectedAllowed(prev => 
-            prev.includes(command) 
-              ? prev.filter(c => c !== command)
-              : [...prev, command]
-          );
-        } else {
-          setSelectedBanned(prev => 
-            prev.includes(command) 
-              ? prev.filter(c => c !== command)
-              : [...prev, command]
-          );
-        }
-      };
-
-      return (
-        <div className="max-w-7xl mx-auto">
-          <div className="glass rounded-3xl p-6 mb-6">
-            <div className="flex items-center justify-between">
-              <h1 className="text-4xl font-black bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                RumoniumGC
-              </h1>
-              <div className="flex items-center gap-4">
-                <div className="glass rounded-xl px-4 py-2 flex items-center gap-2">
-                  <div className={\`w-2 h-2 rounded-full \${status === 'online' ? 'bg-green-400' : status === 'connecting' ? 'bg-yellow-400' : 'bg-red-400'}\`}></div>
-                  <span className="text-sm font-bold uppercase">{status}</span>
-                </div>
-                {stats.reconnection?.isReconnecting && (
-                  <div className="glass rounded-xl px-4 py-2 bg-yellow-500/20 border border-yellow-500/50">
-                    <span className="text-sm font-bold text-yellow-400">Reconnecting...</span>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="grid grid-cols-6 gap-4 mt-6">
-              {[
-                { label: 'UPTIME', value: stats.uptime },
-                { label: 'COMMANDS', value: stats.commands },
-                { label: 'MESSAGES', value: stats.messages },
-                { label: 'FLAGS', value: flags.length },
-                { label: 'API QUEUE', value: stats.queueLength || 0 },
-                { label: 'CACHE', value: stats.cache?.totalCacheSize || 0 }
-              ].map((s, i) => (
-                <div key={i} className="glass rounded-xl p-4">
-                  <div className="text-2xl font-black">{s.value}</div>
-                  <div className="text-xs text-gray-400 font-bold">{s.label}</div>
-                </div>
-              ))}
-            </div>
-            
-            {stats.reconnection && (
-              <div className="mt-4 glass rounded-xl p-4 border border-purple-500/30">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="font-bold text-sm">RECONNECTION STATUS</h3>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={manualReconnect}
-                      className="px-3 py-1 bg-blue-600 rounded-lg text-xs font-bold hover:bg-blue-700"
-                    >
-                      Force Reconnect
-                    </button>
-                    {stats.reconnection.isReconnecting && (
-                      <button
-                        onClick={cancelReconnect}
-                        className="px-3 py-1 bg-red-600 rounded-lg text-xs font-bold hover:bg-red-700"
-                      >
-                        Cancel
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="grid grid-cols-4 gap-3 text-sm">
-                  <div>
-                    <div className="text-gray-400 text-xs">Attempts</div>
-                    <div className="font-bold">{stats.reconnection.attempts}/{stats.reconnection.maxAttempts}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-400 text-xs">Failures</div>
-                    <div className="font-bold text-red-400">{stats.reconnection.failures}</div>
-                  </div>
-                  <div>
-                    <div className="text-gray-400 text-xs">Status</div>
-                    <div className={\`font-bold \${stats.reconnection.isReconnecting ? 'text-yellow-400' : 'text-green-400'}\`}>
-                      {stats.reconnection.isReconnecting ? 'Reconnecting' : 'Ready'}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-gray-400 text-xs">Last Success</div>
-                    <div className="font-bold text-xs">
-                      {stats.reconnection.lastSuccessfulConnection 
-                        ? new Date(stats.reconnection.lastSuccessfulConnection).toLocaleTimeString()
-                        : 'Never'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="glass rounded-3xl p-2 mb-6 flex gap-2">
-            {['chat', 'logs', 'flags', 'permissions', 'cache'].map(t => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={\`flex-1 px-6 py-3 rounded-xl font-bold transition-all \${tab === t ? 'bg-gradient-to-r from-purple-600 to-blue-600' : 'hover:bg-white/5'}\`}
-              >
-                {t.toUpperCase()}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-3 gap-6">
-            <div className="col-span-2">
-              {tab === 'chat' && (
-                <div className="glass rounded-3xl overflow-hidden">
-                  <div className="p-4 border-b border-white/10">
-                    <h2 className="text-xl font-black">LIVE CHAT</h2>
-                  </div>
-                  <div ref={chatRef} className="h-96 overflow-y-auto scroll p-4 space-y-2 bg-black/30">
-                    {chat.map((m, i) => (
-                      <div key={i} className="glass rounded-xl px-4 py-2 text-sm">
-                        <span className="text-gray-500 mr-2">[{m.time}]</span>
-                        <span className="text-green-400">{m.message}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="p-4 border-t border-white/10">
-                    <div className="flex gap-3">
-                      <input
-                        type="text"
-                        value={msg}
-                        onChange={e => setMsg(e.target.value)}
-                        onKeyPress={e => e.key === 'Enter' && send()}
-                        placeholder="Type message..."
-                        className="flex-1 bg-black/30 border-2 border-purple-500/30 rounded-xl px-4 py-3 focus:outline-none focus:border-purple-500"
-                      />
-                      <button
-                        onClick={send}
-                        className="px-8 py-3 rounded-xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90"
-                      >
-                        SEND
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {tab === 'logs' && (
-                <div className="glass rounded-3xl p-6">
-                  <h2 className="text-2xl font-black mb-4">ALL LOGS</h2>
-                  <div className="space-y-2 max-h-96 overflow-y-auto scroll">
-                    {logs.map((log, i) => (
-                      <div key={i} className={\`glass rounded-xl p-3 text-sm border \${
-                        log.type === 'error' ? 'border-red-500/50' :
-                        log.type === 'success' ? 'border-green-500/50' :
-                        log.type === 'command' ? 'border-blue-500/50' : 'border-white/10'
-                      }\`}>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs text-gray-400">{log.time}</span>
-                          <span className="text-xs px-2 py-1 rounded-full bg-white/10">{log.type}</span>
-                        </div>
-                        <div>{log.msg}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {tab === 'flags' && (
-                <div className="glass rounded-3xl p-6">
-                  <h2 className="text-2xl font-black mb-4">FLAGGED PLAYERS</h2>
-                  
-                  <form onSubmit={addFlag} className="glass rounded-xl p-4 mb-4 border border-purple-500/30">
-                    <h3 className="font-bold mb-3">Add New Flag</h3>
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        placeholder="Player IGN"
-                        value={flagIgn}
-                        onChange={e => setFlagIgn(e.target.value)}
-                        className="w-full bg-black/30 border border-purple-500/30 rounded-lg px-4 py-2 focus:outline-none focus:border-purple-500"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Reason"
-                        value={flagReason}
-                        onChange={e => setFlagReason(e.target.value)}
-                        className="w-full bg-black/30 border border-purple-500/30 rounded-lg px-4 py-2 focus:outline-none focus:border-purple-500"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Flagged By (optional)"
-                        value={flaggedBy}
-                        onChange={e => setFlaggedBy(e.target.value)}
-                        className="w-full bg-black/30 border border-purple-500/30 rounded-lg px-4 py-2 focus:outline-none focus:border-purple-500"
-                      />
-                      <button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg px-4 py-2 font-bold hover:opacity-90">
-                        Add Flag
-                      </button>
-                    </div>
-                  </form>
-
-                  <divconst express = require("express");
+const express = require("express");
 const mineflayer = require("mineflayer");
 const axios = require("axios");
 const OpenAI = require("openai");
 const http = require("http");
 const { Server } = require("socket.io");
-const fs = require("fs");
-const path = require("path");
 
-// === OpenAI Setup ===
+// === 0. OpenAI Setup ===
 if (!process.env.OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY not found.");
+  console.error("❌ OPENAI_API_KEY not found. Please add it in Render Environment Variables.");
   process.exit(1);
 }
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-// === Express + Socket.IO ===
+// === 1. Express Web Server + Socket.IO ===
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
-const PORT = process.env.PORT || 3000;
 
+const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// === Logging Directory Setup ===
-const LOGS_DIR = path.join(__dirname, "logs");
-if (!fs.existsSync(LOGS_DIR)) {
-  fs.mkdirSync(LOGS_DIR, { recursive: true });
-}
-
-// === Global State ===
+// Store chat messages, settings, and theme
 let chatHistory = [];
-let gptSystemPrompt = `You are a Turkish nationalist uncle who answers in the user's language. You are knowledgeable, witty, ironic, and sincere. If someone is hostile towards Turks, you give them a piece of your mind.
-
-Current date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
-
-IMPORTANT: Your training data is from October 2023. When users ask about:
-- Current events, news, or recent happenings
-- Current prices, exchange rates, or market data
-- Recent statistics, scores, or rankings
-- "What happened today/recently/lately"
-- "Current/latest/güncel" information
-
-You MUST tell them: "My data is from October 2023. For current info, I'd need web access which isn't available here. Try asking about topics from before late 2023, or search the web directly."
-
-Keep responses under 500 characters for Minecraft chat compatibility.`;
-
+let gptSystemPrompt = "You're like a Turkish nationalist uncle who answers in the user's language. You answer questions knowledgeably and in a nationalistic manner. If you get a question that's hostile towards Turks, you give them a piece of your mind. You're ironic and witty. You're sincere.";
 let panelTheme = {
   primaryColor: '#9333ea',
   secondaryColor: '#3b82f6',
@@ -1486,339 +35,1672 @@ let panelTheme = {
   animations: true
 };
 
+// Enhanced bot settings
 let botSettings = {
   autoReconnect: true,
   welcomeMessages: true,
   commandCooldown: 45,
   maxTokens: 100,
-  chatFilter: { enabled: false, keywords: [], filterMode: 'blacklist' },
-  autoResponses: { enabled: true, responses: [] },
-  customCommands: [],
-  chatLogs: { enabled: true, maxHistory: 500 },
-  notifications: { onJoin: true, onLeave: true, onCommand: true },
-  performance: { 
-    messageDelay: 300, 
-    maxMessagesPerSecond: 2, 
-    autoReconnectDelay: 30000,
-    maxReconnectDelay: 300000,
-    reconnectBackoffMultiplier: 1.5
+  chatFilter: {
+    enabled: false,
+    keywords: [],
+    filterMode: 'blacklist' // blacklist or whitelist
   },
-  autoTracking: { enabled: false, interval: 30000 }
+  autoResponses: {
+    enabled: true,
+    responses: [
+      { trigger: 'hello', response: 'Hey there!', delay: 1000 },
+      { trigger: 'gg', response: 'Good game!', delay: 500 }
+    ]
+  },
+  customCommands: [
+    { name: '!discord', response: 'Join our Discord: discord.gg/example', cooldown: 30 },
+    { name: '!rules', response: 'Check guild rules at: rumoniumgc.com/rules', cooldown: 60 }
+  ],
+  chatLogs: {
+    enabled: true,
+    maxHistory: 500,
+    saveToFile: false
+  },
+  notifications: {
+    onJoin: true,
+    onLeave: true,
+    onCommand: true,
+    soundEnabled: false
+  },
+  performance: {
+    messageDelay: 300,
+    maxMessagesPerSecond: 2,
+    autoReconnectDelay: 10000
+  }
 };
 
-// === BOT RECONNECTION MANAGER ===
-class BotReconnectionManager {
-  constructor() {
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 20;
-    this.currentDelay = botSettings.performance.autoReconnectDelay;
-    this.isReconnecting = false;
-    this.lastDisconnectTime = null;
-    this.connectionFailures = 0;
-    this.lastSuccessfulConnection = null;
-    this.reconnectTimer = null;
-  }
+app.get("/", (req, res) => {
+  res.send("✅ Bot is running and online! (Render)");
+});
 
-  reset() {
-    this.reconnectAttempts = 0;
-    this.currentDelay = botSettings.performance.autoReconnectDelay;
-    this.connectionFailures = 0;
-    this.lastSuccessfulConnection = Date.now();
-    addLog('info', 'system', 'Reconnection manager reset - successful connection');
-  }
+// === PREMIUM CONTROL PANEL ===
+app.get("/control", (req, res) => {
+  res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RumoniumGC Premium Control Panel v2.0</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+    
+    * {
+      font-family: 'Inter', sans-serif;
+    }
+    
+    @keyframes gradient-shift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+    
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-20px); }
+    }
+    
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes slide-in {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    
+    @keyframes slide-up {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    @keyframes glow {
+      0%, 100% { box-shadow: 0 0 20px rgba(147, 51, 234, 0.3); }
+      50% { box-shadow: 0 0 40px rgba(147, 51, 234, 0.6); }
+    }
 
-  getNextDelay() {
-    const baseDelay = Math.min(
-      this.currentDelay * Math.pow(botSettings.performance.reconnectBackoffMultiplier, this.reconnectAttempts),
-      botSettings.performance.maxReconnectDelay
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); opacity: 1; }
+      100% { transform: scale(1.4); opacity: 0; }
+    }
+    
+    .animate-fade-in {
+      animation: fade-in 0.5s ease-out;
+    }
+    
+    .animate-slide-in {
+      animation: slide-in 0.3s ease-out;
+    }
+    
+    .animate-slide-up {
+      animation: slide-up 0.3s ease-out;
+    }
+    
+    .animate-gradient {
+      background-size: 200% 200%;
+      animation: gradient-shift 8s ease infinite;
+    }
+    
+    .animate-float {
+      animation: float 6s ease-in-out infinite;
+    }
+    
+    .animate-glow {
+      animation: glow 3s ease-in-out infinite;
+    }
+
+    .pulse-ring {
+      animation: pulse-ring 2s cubic-bezier(0.455, 0.03, 0.515, 0.955) infinite;
+    }
+    
+    .glass-morphism {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    .glass-morphism-strong {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(30px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 10px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 10px;
+    }
+    
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+    }
+    
+    .minecraft-message {
+      font-family: 'Courier New', monospace;
+      text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.3);
+    }
+    
+    .neon-border {
+      box-shadow: 0 0 10px rgba(147, 51, 234, 0.5), 0 0 20px rgba(59, 130, 246, 0.3);
+    }
+    
+    .hover-lift {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .hover-lift:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 10px 30px rgba(147, 51, 234, 0.3);
+    }
+    
+    .chat-input-container {
+      position: sticky;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(20px);
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .chat-bubble {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .chat-bubble::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+      transition: left 0.5s;
+    }
+
+    .chat-bubble:hover::before {
+      left: 100%;
+    }
+
+    .setting-card {
+      transition: all 0.3s ease;
+    }
+
+    .setting-card:hover {
+      transform: translateX(5px);
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script type="text/babel" data-type="module">
+    const { useState, useEffect, useRef } = React;
+    const socket = io();
+    
+    // Modern Icons as SVG components
+    const Activity = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+      </svg>
     );
     
-    const jitter = baseDelay * 0.2 * (Math.random() - 0.5);
-    const delay = baseDelay + jitter;
+    const MessageSquare = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+      </svg>
+    );
     
-    return Math.floor(delay);
-  }
+    const Users = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+        <circle cx="9" cy="7" r="4"></circle>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+      </svg>
+    );
+    
+    const Zap = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+      </svg>
+    );
+    
+    const Settings = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M12 1v6m0 6v6m8.66-15.66l-4.24 4.24M9.17 14.83l-4.24 4.24M23 12h-6m-6 0H1m19.07 7.07l-4.24-4.24M9.17 9.17L4.93 4.93"></path>
+      </svg>
+    );
+    
+    const Terminal = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="4 17 10 11 4 5"></polyline>
+        <line x1="12" y1="19" x2="20" y2="19"></line>
+      </svg>
+    );
+    
+    const Send = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="22" y1="2" x2="11" y2="13"></line>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+      </svg>
+    );
+    
+    const Power = () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+        <line x1="12" y1="2" x2="12" y2="12"></line>
+      </svg>
+    );
+    
+    const RefreshCw = () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+      </svg>
+    );
+    
+    const Clock = () => (
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <polyline points="12 6 12 12 16 14"></polyline>
+      </svg>
+    );
+    
+    const Brain = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"></path>
+        <path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"></path>
+      </svg>
+    );
+    
+    const Monitor = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+        <line x1="8" y1="21" x2="16" y2="21"></line>
+        <line x1="12" y1="17" x2="12" y2="21"></line>
+      </svg>
+    );
+    
+    const Palette = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="13.5" cy="6.5" r=".5"></circle>
+        <circle cx="17.5" cy="10.5" r=".5"></circle>
+        <circle cx="8.5" cy="7.5" r=".5"></circle>
+        <circle cx="6.5" cy="12.5" r=".5"></circle>
+        <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path>
+      </svg>
+    );
 
-  shouldReconnect() {
-    if (!botSettings.autoReconnect) {
-      addLog('warning', 'system', 'Auto-reconnect disabled, not attempting reconnection');
-      return false;
-    }
+    const Filter = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+      </svg>
+    );
 
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      addLog('error', 'system', 'Max reconnection attempts reached', {
-        attempts: this.reconnectAttempts,
-        maxAttempts: this.maxReconnectAttempts
+    const Command = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"></path>
+      </svg>
+    );
+
+    const Bell = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+      </svg>
+    );
+
+    const Sliders = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="4" y1="21" x2="4" y2="14"></line>
+        <line x1="4" y1="10" x2="4" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="12"></line>
+        <line x1="12" y1="8" x2="12" y2="3"></line>
+        <line x1="20" y1="21" x2="20" y2="16"></line>
+        <line x1="20" y1="12" x2="20" y2="3"></line>
+        <line x1="1" y1="14" x2="7" y2="14"></line>
+        <line x1="9" y1="8" x2="15" y2="8"></line>
+        <line x1="17" y1="16" x2="23" y2="16"></line>
+      </svg>
+    );
+
+    const Plus = () => (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    );
+
+    const Trash = () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+      </svg>
+    );
+
+    const Search = () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="11" cy="11" r="8"></circle>
+        <path d="m21 21-4.35-4.35"></path>
+      </svg>
+    );
+
+    const Download = () => (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+    );
+
+    function BotControlPanel() {
+      const [activeTab, setActiveTab] = useState('chat');
+      const [message, setMessage] = useState('');
+      const [minecraftChat, setMinecraftChat] = useState([]);
+      const [logs, setLogs] = useState([]);
+      const [stats, setStats] = useState({
+        uptime: '0h 0m',
+        commands: 0,
+        messages: 0,
+        users: 0
       });
-      return false;
-    }
+      const [botStatus, setBotStatus] = useState('online');
+      const [settings, setSettings] = useState({
+        autoReconnect: true,
+        welcomeMessages: true,
+        commandCooldown: 45,
+        maxTokens: 100,
+        chatFilter: {
+          enabled: false,
+          keywords: [],
+          filterMode: 'blacklist'
+        },
+        autoResponses: {
+          enabled: true,
+          responses: []
+        },
+        customCommands: [],
+        chatLogs: {
+          enabled: true,
+          maxHistory: 500,
+          saveToFile: false
+        },
+        notifications: {
+          onJoin: true,
+          onLeave: true,
+          onCommand: true,
+          soundEnabled: false
+        },
+        performance: {
+          messageDelay: 300,
+          maxMessagesPerSecond: 2,
+          autoReconnectDelay: 10000
+        }
+      });
+      const [gptPrompt, setGptPrompt] = useState('');
+      const [promptSaved, setPromptSaved] = useState(false);
+      const [theme, setTheme] = useState({
+        primaryColor: '#9333ea',
+        secondaryColor: '#3b82f6',
+        accentColor: '#ec4899',
+        bgStyle: 'gradient',
+        glassEffect: true,
+        animations: true
+      });
+      const [themeSaved, setThemeSaved] = useState(false);
+      const [settingsSaved, setSettingsSaved] = useState(false);
+      const [chatSearch, setChatSearch] = useState('');
+      const [filterActive, setFilterActive] = useState(false);
+      
+      const minecraftChatRef = useRef(null);
+      const logsRef = useRef(null);
 
-    if (this.connectionFailures > 5) {
-      const timeSinceLastFailure = Date.now() - this.lastDisconnectTime;
-      if (timeSinceLastFailure < 600000) {
-        addLog('warning', 'system', 'Too many connection failures, rate limiting reconnections', {
-          failures: this.connectionFailures,
-          timeSinceLastFailure: Math.floor(timeSinceLastFailure / 1000) + 's'
+      useEffect(() => {
+        // Fetch initial data
+        fetch('/api/gpt-prompt')
+          .then(res => res.json())
+          .then(data => setGptPrompt(data.prompt));
+
+        fetch('/api/theme')
+          .then(res => res.json())
+          .then(data => setTheme(data));
+
+        fetch('/api/settings')
+          .then(res => res.json())
+          .then(data => setSettings(data));
+
+        // Socket.IO listeners
+        socket.on('minecraft-chat', (data) => {
+          setMinecraftChat(prev => [...prev, data].slice(-500));
+          setStats(prev => ({ ...prev, messages: prev.messages + 1 }));
         });
-        return false;
-      } else {
-        this.connectionFailures = 0;
-      }
+
+        socket.on('bot-log', (data) => {
+          setLogs(prev => [data, ...prev].slice(0, 100));
+        });
+
+        socket.on('bot-status', (status) => {
+          setBotStatus(status);
+        });
+
+        socket.on('stats-update', (newStats) => {
+          setStats(newStats);
+        });
+
+        return () => {
+          socket.off('minecraft-chat');
+          socket.off('bot-log');
+          socket.off('bot-status');
+          socket.off('stats-update');
+        };
+      }, []);
+
+      useEffect(() => {
+        if (minecraftChatRef.current) {
+          minecraftChatRef.current.scrollTop = minecraftChatRef.current.scrollHeight;
+        }
+      }, [minecraftChat]);
+
+      const sendMessage = async () => {
+        if (!message.trim()) return;
+        
+        try {
+          const response = await fetch('/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message })
+          });
+          
+          if (response.ok) {
+            setMessage('');
+          }
+        } catch (err) {
+          console.error('Failed to send message:', err);
+        }
+      };
+
+      const executeCommand = (cmd) => {
+        fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: cmd })
+        });
+      };
+
+      const saveGptPrompt = async () => {
+        try {
+          const response = await fetch('/api/gpt-prompt', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ prompt: gptPrompt })
+          });
+          
+          if (response.ok) {
+            setPromptSaved(true);
+            setTimeout(() => setPromptSaved(false), 3000);
+          }
+        } catch (err) {
+          console.error('Failed to save prompt:', err);
+        }
+      };
+
+      const saveTheme = async () => {
+        try {
+          const response = await fetch('/api/theme', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(theme)
+          });
+          
+          if (response.ok) {
+            setThemeSaved(true);
+            setTimeout(() => {
+              setThemeSaved(false);
+              window.location.reload();
+            }, 1500);
+          }
+        } catch (err) {
+          console.error('Failed to save theme:', err);
+        }
+      };
+
+      const saveSettings = async () => {
+        try {
+          const response = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+          });
+          
+          if (response.ok) {
+            setSettingsSaved(true);
+            setTimeout(() => setSettingsSaved(false), 3000);
+          }
+        } catch (err) {
+          console.error('Failed to save settings:', err);
+        }
+      };
+
+      const exportChatLogs = () => {
+        const dataStr = JSON.stringify(minecraftChat, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = \`chat-logs-\${new Date().toISOString()}.json\`;
+        link.click();
+      };
+
+      const addCustomCommand = () => {
+        setSettings({
+          ...settings,
+          customCommands: [...settings.customCommands, { name: '!newcmd', response: 'Response', cooldown: 30 }]
+        });
+      };
+
+      const removeCustomCommand = (index) => {
+        setSettings({
+          ...settings,
+          customCommands: settings.customCommands.filter((_, i) => i !== index)
+        });
+      };
+
+      const updateCustomCommand = (index, field, value) => {
+        const updated = [...settings.customCommands];
+        updated[index][field] = value;
+        setSettings({ ...settings, customCommands: updated });
+      };
+
+      const addFilterKeyword = () => {
+        setSettings({
+          ...settings,
+          chatFilter: {
+            ...settings.chatFilter,
+            keywords: [...settings.chatFilter.keywords, '']
+          }
+        });
+      };
+
+      const removeFilterKeyword = (index) => {
+        setSettings({
+          ...settings,
+          chatFilter: {
+            ...settings.chatFilter,
+            keywords: settings.chatFilter.keywords.filter((_, i) => i !== index)
+          }
+        });
+      };
+
+      const updateFilterKeyword = (index, value) => {
+        const updated = [...settings.chatFilter.keywords];
+        updated[index] = value;
+        setSettings({
+          ...settings,
+          chatFilter: { ...settings.chatFilter, keywords: updated }
+        });
+      };
+
+      const addAutoResponse = () => {
+        setSettings({
+          ...settings,
+          autoResponses: {
+            ...settings.autoResponses,
+            responses: [...settings.autoResponses.responses, { trigger: '', response: '', delay: 1000 }]
+          }
+        });
+      };
+
+      const removeAutoResponse = (index) => {
+        setSettings({
+          ...settings,
+          autoResponses: {
+            ...settings.autoResponses,
+            responses: settings.autoResponses.responses.filter((_, i) => i !== index)
+          }
+        });
+      };
+
+      const updateAutoResponse = (index, field, value) => {
+        const updated = [...settings.autoResponses.responses];
+        updated[index][field] = value;
+        setSettings({
+          ...settings,
+          autoResponses: { ...settings.autoResponses, responses: updated }
+        });
+      };
+
+      const filteredChat = minecraftChat.filter(msg => 
+        !chatSearch || msg.message.toLowerCase().includes(chatSearch.toLowerCase())
+      );
+
+      const themePresets = [
+        { name: 'Purple Dream', primary: '#9333ea', secondary: '#3b82f6', accent: '#ec4899' },
+        { name: 'Ocean Blue', primary: '#0ea5e9', secondary: '#06b6d4', accent: '#14b8a6' },
+        { name: 'Sunset Orange', primary: '#f97316', secondary: '#ef4444', accent: '#ec4899' },
+        { name: 'Forest Green', primary: '#10b981', secondary: '#059669', accent: '#84cc16' },
+        { name: 'Royal Purple', primary: '#7c3aed', secondary: '#8b5cf6', accent: '#a78bfa' },
+        { name: 'Crimson Red', primary: '#dc2626', secondary: '#b91c1c', accent: '#f87171' }
+      ];
+
+      return (
+        <div className={\`min-h-screen text-white p-4 md:p-6 overflow-hidden \${
+          theme.bgStyle === 'gradient' ? 'bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950' :
+          theme.bgStyle === 'solid' ? 'bg-slate-950' : 'bg-gradient-to-br from-slate-950 via-purple-950 to-slate-950'
+        }\`}>
+          {/* Animated background effects */}
+          {theme.animations && (
+            <div className="fixed inset-0 overflow-hidden pointer-events-none">
+              <div className="absolute top-0 left-1/4 w-[600px] h-[600px] rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-float" style={{backgroundColor: theme.primaryColor}}></div>
+              <div className="absolute top-1/3 right-1/4 w-[600px] h-[600px] rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-float" style={{backgroundColor: theme.secondaryColor, animationDelay: '2s'}}></div>
+              <div className="absolute bottom-0 left-1/2 w-[600px] h-[600px] rounded-full mix-blend-multiply filter blur-[128px] opacity-20 animate-float" style={{backgroundColor: theme.accentColor, animationDelay: '4s'}}></div>
+            </div>
+          )}
+
+          <div className="max-w-[1800px] mx-auto relative z-10">
+            {/* Ultra-modern Header */}
+            <div className="mb-6 animate-fade-in">
+              <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 neon-border\`}>
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h1 className={\`text-5xl font-black bg-clip-text text-transparent \${theme.animations ? 'animate-gradient' : ''}\`} style={{backgroundImage: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.accentColor}, \${theme.secondaryColor})\`, backgroundSize: '200% 200%'}}>
+                      RumoniumGC
+                    </h1>
+                    <p className="text-gray-400 font-medium">Premium Control Center v2.0</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl px-6 py-3 flex items-center gap-3\`}>
+                      <div className="relative">
+                        <div className={\`w-3 h-3 rounded-full \${botStatus === 'online' ? 'bg-green-400' : 'bg-red-400'}\`}></div>
+                        {botStatus === 'online' && (
+                          <div className="absolute inset-0 w-3 h-3 rounded-full bg-green-400 pulse-ring"></div>
+                        )}
+                      </div>
+                      <span className="text-sm font-bold uppercase tracking-wider">{botStatus}</span>
+                    </div>
+                    <button 
+                      onClick={() => setBotStatus(botStatus === 'online' ? 'offline' : 'online')}
+                      className={\`px-8 py-3 rounded-2xl font-bold transition-all duration-300 flex items-center gap-3 \${theme.animations ? 'hover:scale-105 animate-glow' : ''}\`}
+                      style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                    >
+                      <Power />
+                      TOGGLE
+                    </button>
+                  </div>
+                </div>
+
+                {/* Modern Stats Grid */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {[
+                    { Icon: Clock, label: 'UPTIME', value: stats.uptime, gradient: \`linear-gradient(to bottom right, \${theme.primaryColor}, \${theme.accentColor})\` },
+                    { Icon: Zap, label: 'COMMANDS', value: stats.commands, gradient: \`linear-gradient(to bottom right, \${theme.secondaryColor}, \${theme.primaryColor})\` },
+                    { Icon: MessageSquare, label: 'MESSAGES', value: stats.messages, gradient: \`linear-gradient(to bottom right, \${theme.accentColor}, \${theme.primaryColor})\` },
+                    { Icon: Users, label: 'USERS', value: stats.users, gradient: \`linear-gradient(to bottom right, \${theme.secondaryColor}, \${theme.accentColor})\` }
+                  ].map((stat, idx) => (
+                    <div 
+                      key={idx}
+                      className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 \${theme.animations ? 'hover-lift' : ''} group cursor-pointer\`}
+                    >
+                      <div className={\`w-14 h-14 rounded-xl flex items-center justify-center mb-4 \${theme.animations ? 'group-hover:scale-110' : ''} transition-transform\`} style={{background: stat.gradient}}>
+                        <stat.Icon />
+                      </div>
+                      <div className="text-3xl font-black mb-1">{stat.value}</div>
+                      <div className="text-xs font-bold text-gray-400 uppercase tracking-wider">{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Modern Navigation */}
+            <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-2 mb-6 flex gap-2 overflow-x-auto\`}>
+              {[
+                { id: 'chat', Icon: Monitor, label: 'Live Chat' },
+                { id: 'commands', Icon: Terminal, label: 'Commands' },
+                { id: 'gpt', Icon: Brain, label: 'GPT Config' },
+                { id: 'advanced', Icon: Sliders, label: 'Advanced' },
+                { id: 'customize', Icon: Palette, label: 'Customize' },
+                { id: 'settings', Icon: Settings, label: 'Settings' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={\`flex-1 min-w-[120px] flex items-center justify-center gap-3 px-6 py-4 rounded-2xl font-bold transition-all duration-300 \${
+                    activeTab === tab.id
+                      ? ''
+                      : 'hover:bg-white/5'
+                  }\`}
+                  style={activeTab === tab.id ? {background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`, boxShadow: \`0 20px 60px \${theme.primaryColor}50\`} : {}}
+                >
+                  <tab.Icon />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Content Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Main Content */}
+              <div className="lg:col-span-2 space-y-6">
+                {activeTab === 'chat' && (
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl overflow-hidden animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
+                    <div className="p-6 border-b border-white/10">
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-black flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, #10b981, #059669)\`}}>
+                          <Monitor />
+                          LIVE MINECRAFT CHAT
+                        </h2>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => setFilterActive(!filterActive)}
+                            className={\`p-3 rounded-xl transition-all \${filterActive ? 'bg-green-500/20 text-green-400' : 'bg-white/5'} \${theme.animations ? 'hover:scale-110' : ''}\`}
+                          >
+                            <Filter />
+                          </button>
+                          <button
+                            onClick={exportChatLogs}
+                            className={\`p-3 rounded-xl bg-white/5 transition-all \${theme.animations ? 'hover:scale-110' : ''}\`}
+                          >
+                            <Download />
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {/* Search Bar */}
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={chatSearch}
+                          onChange={(e) => setChatSearch(e.target.value)}
+                          placeholder="Search messages..."
+                          className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 pl-12 focus:outline-none transition-all font-medium placeholder-gray-500"
+                          style={{borderColor: \`\${theme.primaryColor}30\`}}
+                        />
+                        <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
+                          <Search />
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Chat Display */}
+                    <div 
+                      ref={minecraftChatRef}
+                      className="h-[450px] overflow-y-auto custom-scrollbar space-y-2 bg-black/30 p-4"
+                    >
+                      {filteredChat.length === 0 ? (
+                        <div className="flex items-center justify-center h-full text-gray-500">
+                          <div className="text-center">
+                            <Monitor className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                            <p className="font-medium">{chatSearch ? 'No messages found' : 'Waiting for messages...'}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        filteredChat.map((msg, idx) => {
+                          const isCommand = msg.message.includes('!');
+                          const isJoin = msg.message.includes('joined');
+                          const isLeave = msg.message.includes('left');
+                          
+                          return (
+                            <div
+                              key={idx}
+                              className={\`chat-bubble minecraft-message text-sm rounded-xl px-4 py-3 border-l-4 transition-all \${
+                                isCommand ? 'bg-blue-500/10 border-blue-500/50 hover:bg-blue-500/20' :
+                                isJoin ? 'bg-green-500/10 border-green-500/50 hover:bg-green-500/20' :
+                                isLeave ? 'bg-red-500/10 border-red-500/50 hover:bg-red-500/20' :
+                                'bg-black/40 border-purple-500/30 hover:bg-black/60'
+                              } \${theme.animations ? 'animate-slide-up' : ''}\`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className="text-gray-500 text-xs mr-2">[{msg.time}]</span>
+                                  <span className="text-green-400 font-bold">{msg.message}</span>
+                                </div>
+                                {isCommand && <span className="text-xs bg-blue-500/30 text-blue-300 px-2 py-1 rounded-full">CMD</span>}
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Chat Input - Sticky at bottom */}
+                    <div className="chat-input-container p-4">
+                      <div className="space-y-3">
+                        <div className="flex gap-3">
+                          <input
+                            type="text"
+                            value={message}
+                            onChange={(e) => setMessage(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                            placeholder="Type your message..."
+                            className="flex-1 bg-black/30 border-2 rounded-2xl px-6 py-4 focus:outline-none transition-all font-medium placeholder-gray-500"
+                            style={{borderColor: \`\${theme.primaryColor}30\`}}
+                          />
+                          <button
+                            onClick={sendMessage}
+                            className={\`px-8 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center gap-2 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                            style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                          >
+                            <Send />
+                            SEND
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          {['Hello Guild!', 'GG WP!', 'Good Game!', 'Thanks!'].map(quick => (
+                            <button
+                              key={quick}
+                              onClick={() => setMessage(quick)}
+                              className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-xl px-4 py-2 text-sm font-bold transition-all border border-white/10 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                            >
+                              {quick}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'commands' && (
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
+                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.accentColor})\`}}>
+                      <Terminal />
+                      QUICK COMMANDS
+                    </h2>
+                    <div className="grid grid-cols-2 gap-4">
+                      {[
+                        { cmd: '!help', desc: 'Show help menu', color: theme.primaryColor },
+                        { cmd: '!about', desc: 'Bot info', color: theme.secondaryColor },
+                        { cmd: '!when', desc: 'Castle countdown', color: theme.accentColor },
+                        { cmd: '/chat g', desc: 'Guild chat', color: theme.primaryColor },
+                        { cmd: '/locraw', desc: 'Get location', color: theme.secondaryColor },
+                        { cmd: '!bw Relaquent', desc: 'Check stats', color: theme.accentColor }
+                      ].map(item => (
+                        <button
+                          key={item.cmd}
+                          onClick={() => executeCommand(item.cmd)}
+                          className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 text-left transition-all group border border-white/10 \${theme.animations ? 'hover-lift' : ''}\`}
+                        >
+                          <div className="inline-block px-3 py-1 rounded-lg font-mono font-bold text-sm mb-2" style={{backgroundColor: \`\${item.color}40\`, color: item.color}}>
+                            {item.cmd}
+                          </div>
+                          <div className="text-xs text-gray-400 font-medium">{item.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'gpt' && (
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
+                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.accentColor}, \${theme.primaryColor})\`}}>
+                      <Brain />
+                      GPT SYSTEM PROMPT
+                    </h2>
+                    <div className="space-y-4">
+                      <div className="bg-black/30 rounded-2xl p-4 border" style={{borderColor: \`\${theme.primaryColor}20\`}}>
+                        <p className="text-sm text-gray-400 mb-2 font-medium">Configure how the AI responds to !ask commands:</p>
+                      </div>
+                      <textarea
+                        value={gptPrompt}
+                        onChange={(e) => setGptPrompt(e.target.value)}
+                        rows="12"
+                        className="w-full bg-black/30 border-2 rounded-2xl px-6 py-4 focus:outline-none transition-all font-medium custom-scrollbar resize-none"
+                        style={{borderColor: \`\${theme.primaryColor}30\`}}
+                        placeholder="Enter system prompt for GPT..."
+                      />
+                      <button
+                        onClick={saveGptPrompt}
+                        className={\`w-full px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                        style={{background: promptSaved ? 'linear-gradient(to right, #10b981, #059669)' : \`linear-gradient(to right, \${theme.accentColor}, \${theme.primaryColor})\`}}
+                      >
+                        <Brain />
+                        {promptSaved ? '✓ SAVED!' : 'SAVE PROMPT'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'advanced' && (
+                  <div className="space-y-6 animate-fade-in">
+                    {/* Chat Filter */}
+                    <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 \${theme.animations ? 'hover-lift' : ''}\`}>
+                      <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}>
+                        <Filter />
+                        CHAT FILTER
+                      </h2>
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-bold text-lg">Enable Filter</div>
+                            <div className="text-sm text-gray-400 mt-1">Filter messages by keywords</div>
+                          </div>
+                          <button
+                            onClick={() => setSettings({...settings, chatFilter: {...settings.chatFilter, enabled: !settings.chatFilter.enabled}})}
+                            className="relative w-16 h-8 rounded-full transition-all"
+                            style={{backgroundColor: settings.chatFilter.enabled ? theme.primaryColor : '#374151'}}
+                          >
+                            <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${settings.chatFilter.enabled ? 'translate-x-8' : ''}\`}></div>
+                          </button>
+                        </div>
+
+                        <div>
+                          <label className="block font-bold text-lg mb-3">Filter Mode</label>
+                          <div className="grid grid-cols-2 gap-3">
+                            {['blacklist', 'whitelist'].map(mode => (
+                              <button
+                                key={mode}
+                                onClick={() => setSettings({...settings, chatFilter: {...settings.chatFilter, filterMode: mode}})}
+                                className={\`px-4 py-3 rounded-xl font-bold transition-all capitalize \${settings.chatFilter.filterMode === mode ? '' : 'bg-white/5'}\`}
+                                style={settings.chatFilter.filterMode === mode ? {background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`} : {}}
+                              >
+                                {mode}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <label className="block font-bold text-lg">Keywords</label>
+                            <button
+                              onClick={addFilterKeyword}
+                              className={\`p-2 rounded-xl transition-all \${theme.animations ? 'hover:scale-110' : ''}\`}
+                              style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                            >
+                              <Plus />
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {settings.chatFilter.keywords.map((keyword, index) => (
+                              <div key={index} className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={keyword}
+                                  onChange={(e) => updateFilterKeyword(index, e.target.value)}
+                                  placeholder="Enter keyword..."
+                                  className="flex-1 bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium"
+                                  style={{borderColor: \`\${theme.primaryColor}30\`}}
+                                />
+                                <button
+                                  onClick={() => removeFilterKeyword(index)}
+                                  className="p-3 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                                >
+                                  <Trash />
+                                </button>
+                              </div>
+                            ))}
+                            {settings.chatFilter.keywords.length === 0 && (
+                              <div className="text-center py-6 text-gray-500">
+                                <p className="text-sm">No keywords added</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Custom Commands */}
+                    <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 \${theme.animations ? 'hover-lift' : ''}\`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-black flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.secondaryColor}, \${theme.accentColor})\`}}>
+                          <Command />
+                          CUSTOM COMMANDS
+                        </h2>
+                        <button
+                          onClick={addCustomCommand}
+                          className={\`p-3 rounded-xl transition-all \${theme.animations ? 'hover:scale-110' : ''}\`}
+                          style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                        >
+                          <Plus />
+                        </button>
+                      </div>
+                      <div className="space-y-3">
+                        {settings.customCommands.map((cmd, index) => (
+                          <div key={index} className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10 space-y-3\`}>
+                            <div className="flex items-center justify-between">
+                              <div className="font-bold text-lg">Command #{index + 1}</div>
+                              <button
+                                onClick={() => removeCustomCommand(index)}
+                                className="p-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                              >
+                                <Trash />
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              value={cmd.name}
+                              onChange={(e) => updateCustomCommand(index, 'name', e.target.value)}
+                              placeholder="Command name (e.g., !mycommand)"
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                            <textarea
+                              value={cmd.response}
+                              onChange={(e) => updateCustomCommand(index, 'response', e.target.value)}
+                              placeholder="Response message"
+                              rows="3"
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium custom-scrollbar resize-none"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                            <div>
+                              <label className="block text-sm font-bold mb-2">Cooldown (seconds)</label>
+                              <input
+                                type="number"
+                                value={cmd.cooldown}
+                                onChange={(e) => updateCustomCommand(index, 'cooldown', parseInt(e.target.value) || 0)}
+                                className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-bold"
+                                style={{borderColor: \`\${theme.primaryColor}30\`}}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                        {settings.customCommands.length === 0 && (
+                          <div className="text-center py-8 text-gray-500">
+                            <Command className="w-16 h-16 mx-auto mb-4 opacity-30" />
+                            <p className="font-medium">No custom commands yet</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Auto Responses */}
+                    <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 \${theme.animations ? 'hover-lift' : ''}\`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <h2 className="text-2xl font-black flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.accentColor}, \${theme.secondaryColor})\`}}>
+                          <Zap />
+                          AUTO RESPONSES
+                        </h2>
+                        <button
+                          onClick={addAutoResponse}
+                          className={\`p-3 rounded-xl transition-all \${theme.animations ? 'hover:scale-110' : ''}\`}
+                          style={{background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                        >
+                          <Plus />
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between mb-4 bg-black/30 rounded-2xl p-4">
+                        <div>
+                          <div className="font-bold text-lg">Enable Auto Responses</div>
+                          <div className="text-sm text-gray-400 mt-1">Automatically reply to triggers</div>
+                        </div>
+                        <button
+                          onClick={() => setSettings({...settings, autoResponses: {...settings.autoResponses, enabled: !settings.autoResponses.enabled}})}
+                          className="relative w-16 h-8 rounded-full transition-all"
+                          style={{backgroundColor: settings.autoResponses.enabled ? theme.primaryColor : '#374151'}}
+                        >
+                          <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${settings.autoResponses.enabled ? 'translate-x-8' : ''}\`}></div>
+                        </button>
+                      </div>
+                      <div className="space-y-3">
+                        {settings.autoResponses.responses.map((resp, index) => (
+                          <div key={index} className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10 space-y-3\`}>
+                            <div className="flex items-center justify-between">
+                              <div className="font-bold text-lg">Response #{index + 1}</div>
+                              <button
+                                onClick={() => removeAutoResponse(index)}
+                                className="p-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                              >
+                                <Trash />
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              value={resp.trigger}
+                              onChange={(e) => updateAutoResponse(index, 'trigger', e.target.value)}
+                              placeholder="Trigger word"
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                            <input
+                              type="text"
+                              value={resp.response}
+                              onChange={(e) => updateAutoResponse(index, 'response', e.target.value)}
+                              placeholder="Auto response"
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-medium"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                            <div>
+                              <label className="block text-sm font-bold mb-2">Delay (ms)</label>
+                              <input
+                                type="number"
+                                value={resp.delay}
+                                onChange={(e) => updateAutoResponse(index, 'delay', parseInt(e.target.value) || 0)}
+                                className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-bold"
+                                style={{borderColor: \`\${theme.primaryColor}30\`}}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Save Button */}
+                    <button
+                      onClick={saveSettings}
+                      className={\`w-full px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                      style={{background: settingsSaved ? 'linear-gradient(to right, #10b981, #059669)' : \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                    >
+                      <Settings />
+                      {settingsSaved ? '✓ SETTINGS SAVED!' : 'SAVE ALL SETTINGS'}
+                    </button>
+                  </div>
+                )}
+
+                {activeTab === 'customize' && (
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
+                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}>
+                      <Palette />
+                      CUSTOMIZE PANEL
+                    </h2>
+                    <div className="space-y-6">
+                      {/* Theme Presets */}
+                      <div>
+                        <label className="block font-bold text-lg mb-3">Quick Presets</label>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                          {themePresets.map(preset => (
+                            <button
+                              key={preset.name}
+                              onClick={() => setTheme({...theme, primaryColor: preset.primary, secondaryColor: preset.secondary, accentColor: preset.accent})}
+                              className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-xl p-4 text-left transition-all border border-white/10 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                            >
+                              <div className="flex gap-2 mb-2">
+                                <div className="w-6 h-6 rounded-full" style={{backgroundColor: preset.primary}}></div>
+                                <div className="w-6 h-6 rounded-full" style={{backgroundColor: preset.secondary}}></div>
+                                <div className="w-6 h-6 rounded-full" style={{backgroundColor: preset.accent}}></div>
+                              </div>
+                              <div className="font-bold text-sm">{preset.name}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Color Pickers */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10\`}>
+                          <label className="block font-bold text-sm mb-3">Primary Color</label>
+                          <input
+                            type="color"
+                            value={theme.primaryColor}
+                            onChange={(e) => setTheme({...theme, primaryColor: e.target.value})}
+                            className="w-full h-16 rounded-xl cursor-pointer"
+                          />
+                        </div>
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10\`}>
+                          <label className="block font-bold text-sm mb-3">Secondary Color</label>
+                          <input
+                            type="color"
+                            value={theme.secondaryColor}
+                            onChange={(e) => setTheme({...theme, secondaryColor: e.target.value})}
+                            className="w-full h-16 rounded-xl cursor-pointer"
+                          />
+                        </div>
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-4 border border-white/10\`}>
+                          <label className="block font-bold text-sm mb-3">Accent Color</label>
+                          <input
+                            type="color"
+                            value={theme.accentColor}
+                            onChange={(e) => setTheme({...theme, accentColor: e.target.value})}
+                            className="w-full h-16 rounded-xl cursor-pointer"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Background Style */}
+                      <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <label className="block font-bold text-lg mb-3">Background Style</label>
+                        <div className="grid grid-cols-3 gap-3">
+                          {['gradient', 'solid', 'animated'].map(style => (
+                            <button
+                              key={style}
+                              onClick={() => setTheme({...theme, bgStyle: style})}
+                              className={\`px-4 py-3 rounded-xl font-bold transition-all capitalize \${theme.bgStyle === style ? '' : 'bg-white/5'}\`}
+                              style={theme.bgStyle === style ? {background: \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`} : {}}
+                            >
+                              {style}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Toggle Options */}
+                      <div className="space-y-3">
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 flex items-center justify-between border border-white/10\`}>
+                          <div>
+                            <div className="font-bold text-lg">Glass Effect</div>
+                            <div className="text-sm text-gray-400 mt-1">Frosted glass morphism</div>
+                          </div>
+                          <button
+                            onClick={() => setTheme({...theme, glassEffect: !theme.glassEffect})}
+                            className={\`relative w-16 h-8 rounded-full transition-all\`}
+                            style={{backgroundColor: theme.glassEffect ? theme.primaryColor : '#374151'}}
+                          >
+                            <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${theme.glassEffect ? 'translate-x-8' : ''}\`}></div>
+                          </button>
+                        </div>
+
+                        <div className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 flex items-center justify-between border border-white/10\`}>
+                          <div>
+                            <div className="font-bold text-lg">Animations</div>
+                            <div className="text-sm text-gray-400 mt-1">Enable smooth animations</div>
+                          </div>
+                          <button
+                            onClick={() => setTheme({...theme, animations: !theme.animations})}
+                            className={\`relative w-16 h-8 rounded-full transition-all\`}
+                            style={{backgroundColor: theme.animations ? theme.primaryColor : '#374151'}}
+                          >
+                            <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${theme.animations ? 'translate-x-8' : ''}\`}></div>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Save Button */}
+                      <button
+                        onClick={saveTheme}
+                        className={\`w-full px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                        style={{background: themeSaved ? 'linear-gradient(to right, #10b981, #059669)' : \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                      >
+                        <Palette />
+                        {themeSaved ? '✓ SAVED! RELOADING...' : 'SAVE & APPLY THEME'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {activeTab === 'settings' && (
+                  <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 animate-fade-in \${theme.animations ? 'hover-lift' : ''}\`}>
+                    <h2 className="text-2xl font-black mb-4 flex items-center gap-3 bg-clip-text text-transparent" style={{backgroundImage: \`linear-gradient(to right, \${theme.secondaryColor}, \${theme.primaryColor})\`}}>
+                      <Settings />
+                      BOT SETTINGS
+                    </h2>
+                    <div className="space-y-4">
+                      {[
+                        { key: 'autoReconnect', label: 'Auto Reconnect', desc: 'Automatically reconnect on disconnect' },
+                        { key: 'welcomeMessages', label: 'Welcome Messages', desc: 'Send welcome messages to new members' }
+                      ].map(setting => (
+                        <div key={setting.key} className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 flex items-center justify-between border border-white/10\`}>
+                          <div>
+                            <div className="font-bold text-lg">{setting.label}</div>
+                            <div className="text-sm text-gray-400 mt-1">{setting.desc}</div>
+                          </div>
+                          <button
+                            onClick={() => setSettings({...settings, [setting.key]: !settings[setting.key]})}
+                            className="relative w-16 h-8 rounded-full transition-all"
+                            style={{backgroundColor: settings[setting.key] ? theme.primaryColor : '#374151'}}
+                          >
+                            <div className={\`absolute top-1 left-1 w-6 h-6 bg-white rounded-full transition-transform shadow-lg \${settings[setting.key] ? 'translate-x-8' : ''}\`}></div>
+                          </button>
+                        </div>
+                      ))}
+                      
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <label className="block font-bold text-lg mb-3">Command Cooldown (seconds)</label>
+                        <input
+                          type="number"
+                          value={settings.commandCooldown}
+                          onChange={(e) => setSettings({...settings, commandCooldown: parseInt(e.target.value)})}
+                          className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-bold text-lg"
+                          style={{borderColor: \`\${theme.primaryColor}30\`}}
+                        />
+                      </div>
+                      
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <label className="block font-bold text-lg mb-3">Max GPT Tokens</label>
+                        <input
+                          type="number"
+                          value={settings.maxTokens}
+                          onChange={(e) => setSettings({...settings, maxTokens: parseInt(e.target.value)})}
+                          className="w-full bg-black/30 border-2 rounded-xl px-4 py-3 focus:outline-none font-bold text-lg"
+                          style={{borderColor: \`\${theme.primaryColor}30\`}}
+                        />
+                      </div>
+
+                      {/* Notifications */}
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                          <Bell />
+                          Notifications
+                        </h3>
+                        <div className="space-y-3">
+                          {[
+                            { key: 'onJoin', label: 'On Player Join' },
+                            { key: 'onLeave', label: 'On Player Leave' },
+                            { key: 'onCommand', label: 'On Command Use' },
+                            { key: 'soundEnabled', label: 'Sound Alerts' }
+                          ].map(notif => (
+                            <div key={notif.key} className="flex items-center justify-between bg-black/30 rounded-xl p-3">
+                              <span className="font-medium">{notif.label}</span>
+                              <button
+                                onClick={() => setSettings({...settings, notifications: {...settings.notifications, [notif.key]: !settings.notifications[notif.key]}})}
+                                className="relative w-12 h-6 rounded-full transition-all"
+                                style={{backgroundColor: settings.notifications[notif.key] ? theme.primaryColor : '#374151'}}
+                              >
+                                <div className={\`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform shadow-lg \${settings.notifications[notif.key] ? 'translate-x-6' : ''}\`}></div>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Performance */}
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
+                          <Sliders />
+                          Performance
+                        </h3>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-sm font-bold mb-2">Message Delay (ms)</label>
+                            <input
+                              type="number"
+                              value={settings.performance.messageDelay}
+                              onChange={(e) => setSettings({...settings, performance: {...settings.performance, messageDelay: parseInt(e.target.value)}})}
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-2 focus:outline-none font-bold"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold mb-2">Max Messages/Second</label>
+                            <input
+                              type="number"
+                              value={settings.performance.maxMessagesPerSecond}
+                              onChange={(e) => setSettings({...settings, performance: {...settings.performance, maxMessagesPerSecond: parseInt(e.target.value)}})}
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-2 focus:outline-none font-bold"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold mb-2">Auto Reconnect Delay (ms)</label>
+                            <input
+                              type="number"
+                              value={settings.performance.autoReconnectDelay}
+                              onChange={(e) => setSettings({...settings, performance: {...settings.performance, autoReconnectDelay: parseInt(e.target.value)}})}
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-2 focus:outline-none font-bold"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Chat Logs */}
+                      <div className={\`setting-card \${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-2xl p-5 border border-white/10\`}>
+                        <h3 className="font-bold text-lg mb-4">Chat Logs</h3>
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between bg-black/30 rounded-xl p-3">
+                            <span className="font-medium">Enable Logging</span>
+                            <button
+                              onClick={() => setSettings({...settings, chatLogs: {...settings.chatLogs, enabled: !settings.chatLogs.enabled}})}
+                              className="relative w-12 h-6 rounded-full transition-all"
+                              style={{backgroundColor: settings.chatLogs.enabled ? theme.primaryColor : '#374151'}}
+                            >
+                              <div className={\`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform shadow-lg \${settings.chatLogs.enabled ? 'translate-x-6' : ''}\`}></div>
+                            </button>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold mb-2">Max History</label>
+                            <input
+                              type="number"
+                              value={settings.chatLogs.maxHistory}
+                              onChange={(e) => setSettings({...settings, chatLogs: {...settings.chatLogs, maxHistory: parseInt(e.target.value)}})}
+                              className="w-full bg-black/30 border-2 rounded-xl px-4 py-2 focus:outline-none font-bold"
+                              style={{borderColor: \`\${theme.primaryColor}30\`}}
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={saveSettings}
+                        className={\`w-full px-6 py-4 rounded-2xl font-bold transition-all duration-300 flex items-center justify-center gap-3 \${theme.animations ? 'hover:scale-105' : ''}\`}
+                        style={{background: settingsSaved ? 'linear-gradient(to right, #10b981, #059669)' : \`linear-gradient(to right, \${theme.primaryColor}, \${theme.secondaryColor})\`}}
+                      >
+                        <Settings />
+                        {settingsSaved ? '✓ SETTINGS SAVED!' : 'SAVE ALL SETTINGS'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Live Logs Sidebar */}
+              <div className="lg:col-span-1">
+                <div className={\`\${theme.glassEffect ? 'glass-morphism-strong' : 'bg-slate-900/80'} rounded-3xl p-6 sticky top-6 \${theme.animations ? 'hover-lift' : ''}\`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-black flex items-center gap-2 bg-clip-text text-transparent" style={{backgroundImage: 'linear-gradient(to right, #10b981, #059669)'}}>
+                      <Activity />
+                      LIVE LOGS
+                    </h2>
+                    <button 
+                      onClick={() => setLogs([])}
+                      className={\`p-2 rounded-xl transition-all \${theme.animations ? 'hover:scale-110' : ''}\`} 
+                      style={{backgroundColor: 'rgba(255,255,255,0.1)'}}
+                    >
+                      <RefreshCw />
+                    </button>
+                  </div>
+                  <div ref={logsRef} className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar">
+                    {logs.length === 0 ? (
+                      <div className="text-center py-12 text-gray-500">
+                        <Activity className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                        <p className="text-sm font-medium">No logs yet</p>
+                      </div>
+                    ) : (
+                      logs.map((log, idx) => (
+                        <div
+                          key={idx}
+                          className={\`\${theme.glassEffect ? 'glass-morphism' : 'bg-slate-900/50'} rounded-xl p-4 text-sm border \${theme.animations ? 'animate-slide-in' : ''} \${
+                            log.type === 'error' ? 'border-red-500/50 bg-red-500/10' :
+                            log.type === 'success' ? 'border-green-500/50 bg-green-500/10' :
+                            log.type === 'command' ? 'border-blue-500/50 bg-blue-500/10' :
+                            'border-white/10'
+                          }\`}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-xs text-gray-400 font-mono">{log.time}</span>
+                            <span className={\`text-xs px-2 py-1 rounded-full font-bold uppercase \${
+                              log.type === 'error' ? 'bg-red-500/30 text-red-300' :
+                              log.type === 'success' ? 'bg-green-500/30 text-green-300' :
+                              log.type === 'command' ? 'bg-blue-500/30 text-blue-300' :
+                              'bg-gray-500/30 text-gray-300'
+                            }\`}>
+                              {log.type}
+                            </span>
+                          </div>
+                          <div className="text-gray-200 font-medium">{log.msg}</div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
     }
 
-    return true;
-  }
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<BotControlPanel />);
+  </script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</body>
+</html>
+  `);
+});
 
-  scheduleReconnect(callback) {
-    if (this.isReconnecting) {
-      addLog('warning', 'system', 'Reconnection already in progress');
-      return;
-    }
+// API endpoint to get/set theme
+app.get("/api/theme", (req, res) => {
+  res.json(panelTheme);
+});
 
-    if (!this.shouldReconnect()) {
-      return;
-    }
-
-    this.isReconnecting = true;
-    this.reconnectAttempts++;
-    this.connectionFailures++;
-    this.lastDisconnectTime = Date.now();
-
-    const delay = this.getNextDelay();
-    
-    addLog('info', 'system', `Scheduling reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`, {
-      delaySeconds: Math.floor(delay / 1000),
-      totalFailures: this.connectionFailures
+app.post("/api/theme", (req, res) => {
+  const newTheme = req.body;
+  if (newTheme) {
+    panelTheme = { ...panelTheme, ...newTheme };
+    console.log("🎨 Panel theme updated");
+    io.emit('bot-log', {
+      time: new Date().toLocaleTimeString(),
+      type: 'success',
+      msg: 'Panel theme customization saved'
     });
-
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-    }
-
-    this.reconnectTimer = setTimeout(() => {
-      this.isReconnecting = false;
-      this.reconnectTimer = null;
-      
-      addLog('info', 'system', 'Attempting to reconnect...', {
-        attempt: this.reconnectAttempts
-      });
-      
-      callback();
-    }, delay);
+    res.json({ success: true });
+  } else {
+    res.status(400).json({ success: false });
   }
-
-  cancelReconnect() {
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-      addLog('info', 'system', 'Reconnection cancelled');
-    }
-    this.isReconnecting = false;
-  }
-}
-
-const reconnectionManager = new BotReconnectionManager();
-
-// === Command Permissions System ===
-const commandPermissions = new Map();
-const PERMISSIONS_FILE = path.join(__dirname, "command_permissions.json");
-
-const AVAILABLE_COMMANDS = [
-  'bw', 'fkdr', 'gexp', 'stats', 'when', 'ask', 'about', 'help',
-  'flag_add', 'flag_remove', 'check'
-];
-
-function loadCommandPermissions() {
-  try {
-    if (fs.existsSync(PERMISSIONS_FILE)) {
-      const data = JSON.parse(fs.readFileSync(PERMISSIONS_FILE, 'utf8'));
-      Object.entries(data).forEach(([username, perms]) => {
-        commandPermissions.set(username.toLowerCase(), perms);
-      });
-      console.log(`✅ Loaded command permissions for ${commandPermissions.size} users`);
-      addLog('success', 'system', `Loaded command permissions for ${commandPermissions.size} users`);
-    } else {
-      console.log('ℹ️  No command permissions file found, starting fresh');
-      addLog('info', 'system', 'No command permissions file found, starting fresh');
-    }
-  } catch (err) {
-    console.error('❌ Failed to load command permissions:', err.message);
-    addLog('error', 'system', 'Failed to load command permissions', { error: err.message });
-  }
-}
-
-function saveCommandPermissions() {
-  try {
-    const data = Object.fromEntries(commandPermissions);
-    fs.writeFileSync(PERMISSIONS_FILE, JSON.stringify(data, null, 2), 'utf8');
-    console.log(`💾 Saved command permissions for ${commandPermissions.size} users`);
-  } catch (err) {
-    console.error('❌ Failed to save command permissions:', err.message);
-    addLog('error', 'system', 'Failed to save command permissions', { error: err.message });
-  }
-}
-
-function hasCommandPermission(username, command) {
-  const userPerms = commandPermissions.get(username.toLowerCase());
-  if (!userPerms) return true;
-  
-  if (userPerms.bannedCommands && userPerms.bannedCommands.includes(command)) {
-    return false;
-  }
-  
-  if (userPerms.allowedCommands && userPerms.allowedCommands.length > 0) {
-    return userPerms.allowedCommands.includes(command);
-  }
-  
-  return true;
-}
-
-setInterval(saveCommandPermissions, 2 * 60 * 1000);
-
-process.on('SIGINT', () => {
-  console.log('\n🛑 Shutting down gracefully...');
-  saveCommandPermissions();
-  saveTrackingData();
-  saveFlaggedPlayers();
-  process.exit(0);
 });
 
-process.on('SIGTERM', () => {
-  console.log('\n🛑 Shutting down gracefully...');
-  saveCommandPermissions();
-  saveTrackingData();
-  saveFlaggedPlayers();
-  process.exit(0);
+// API endpoint to get/set bot settings
+app.get("/api/settings", (req, res) => {
+  res.json(botSettings);
 });
 
-let bot;
-let botReady = false;
+app.post("/api/settings", (req, res) => {
+  const newSettings = req.body;
+  if (newSettings) {
+    botSettings = { ...botSettings, ...newSettings };
+    console.log("⚙️ Bot settings updated");
+    io.emit('bot-log', {
+      time: new Date().toLocaleTimeString(),
+      type: 'success',
+      msg: 'Bot settings configuration saved'
+    });
+    res.json({ success: true });
+  } else {
+    res.status(400).json({ success: false });
+  }
+});
+
+// API endpoint to get GPT prompt
+app.get("/api/gpt-prompt", (req, res) => {
+  res.json({ prompt: gptSystemPrompt });
+});
+
+// API endpoint to update GPT prompt
+app.post("/api/gpt-prompt", (req, res) => {
+  const { prompt } = req.body;
+  if (prompt) {
+    gptSystemPrompt = prompt;
+    console.log("📝 GPT System Prompt updated");
+    io.emit('bot-log', {
+      time: new Date().toLocaleTimeString(),
+      type: 'success',
+      msg: 'GPT prompt configuration updated'
+    });
+    res.json({ success: true });
+  } else {
+    res.status(400).json({ success: false });
+  }
+});
+
+// Basic Web Panel (Legacy)
+app.get("/panel", (req, res) => {
+  res.send(`
+    <html>
+      <head>
+        <title>RumoniumGC Panel</title>
+      </head>
+      <body style="font-family: sans-serif; text-align: center; margin-top: 50px;">
+        <h2>RumoniumGC Chat Panel</h2>
+        <form method="POST" action="/chat">
+          <input type="text" name="message" placeholder="Type your message" style="width:300px; padding:8px;" required />
+          <button type="submit" style="padding:8px 15px;">Send</button>
+        </form>
+        <br><br>
+        <a href="/control" style="padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: bold;">
+          🚀 Open Premium Control Panel
+        </a>
+      </body>
+    </html>
+  `);
+});
+
+// POST /chat -> send message to bot
+let bot; // global bot
+let botReady = false; // Track if bot is ready
 let startTime = Date.now();
 let commandCount = 0;
 let messageCount = 0;
 
-// === ADVANCED API RATE LIMITING SYSTEM ===
-const API_QUEUE = [];
-let isProcessingQueue = false;
-let apiCallCount = 0;
-let apiCallResetTime = Date.now();
-const MAX_CALLS_PER_MINUTE = 100;
-const MIN_CALL_DELAY = 600;
+app.post("/chat", (req, res) => {
+  const { message } = req.body;
+  if (!message) return res.status(400).send("❌ Message required.");
 
-async function queueApiRequest(requestFn) {
-  return new Promise((resolve, reject) => {
-    API_QUEUE.push({ requestFn, resolve, reject });
-    processQueue();
-  });
-}
-
-async function processQueue() {
-  if (isProcessingQueue || API_QUEUE.length === 0) return;
-  
-  isProcessingQueue = true;
-  
-  while (API_QUEUE.length > 0) {
-    const now = Date.now();
-    
-    if (now - apiCallResetTime > 60000) {
-      apiCallCount = 0;
-      apiCallResetTime = now;
-      addLog('info', 'system', 'API rate limit counter reset', { count: apiCallCount });
-    }
-    
-    if (apiCallCount >= MAX_CALLS_PER_MINUTE) {
-      const waitTime = 60000 - (now - apiCallResetTime);
-      addLog('warning', 'system', `API rate limit reached, waiting ${Math.ceil(waitTime/1000)}s`, {
-        count: apiCallCount,
-        limit: MAX_CALLS_PER_MINUTE
-      });
-      await sleep(waitTime);
-      apiCallCount = 0;
-      apiCallResetTime = Date.now();
-    }
-    
-    const { requestFn, resolve, reject } = API_QUEUE.shift();
-    
+  if (bot && botReady && bot.chat && bot._client) {
     try {
-      const result = await requestFn();
-      apiCallCount++;
-      resolve(result);
-      await sleep(MIN_CALL_DELAY);
+      bot.chat(message);
+      console.log(`🌐 Web chat sent: ${message}`);
+      
+      io.emit('bot-log', {
+        time: new Date().toLocaleTimeString(),
+        type: 'info',
+        msg: `Web message sent: ${message}`
+      });
+      
+      res.json({ success: true, message: `✅ Sent: ${message}` });
     } catch (err) {
-      reject(err);
+      console.error('Error sending message:', err);
+      res.status(500).json({ success: false, message: "❌ Error sending message." });
     }
+  } else {
+    res.status(500).json({ success: false, message: "❌ Bot not ready yet. Please wait..." });
   }
+});
+
+// Socket.IO connection
+io.on('connection', (socket) => {
+  console.log('👤 Client connected to control panel');
   
-  isProcessingQueue = false;
-}
-
-// === Detailed Logging System ===
-let detailedLogs = [];
-let commandLogs = [];
-let errorLogs = [];
-let chatLogs = [];
-let systemLogs = [];
-
-function addLog(type, category, message, details = {}) {
-  const logEntry = {
-    timestamp: new Date().toISOString(),
-    time: new Date().toLocaleTimeString(),
-    date: new Date().toLocaleDateString(),
-    type,
-    category,
-    message,
-    details
-  };
-
-  detailedLogs.unshift(logEntry);
-  if (detailedLogs.length > 1000) detailedLogs.pop();
-
-  switch (category) {
-    case 'command':
-      commandLogs.unshift(logEntry);
-      if (commandLogs.length > 500) commandLogs.pop();
-      break;
-    case 'error':
-      errorLogs.unshift(logEntry);
-      if (errorLogs.length > 200) errorLogs.pop();
-      break;
-    case 'chat':
-      chatLogs.unshift(logEntry);
-      if (chatLogs.length > 1000) chatLogs.pop();
-      break;
-    case 'system':
-      systemLogs.unshift(logEntry);
-      if (systemLogs.length > 500) systemLogs.pop();
-      break;
-  }
-
-  io.emit('bot-log', {
-    time: logEntry.time,
-    type: logEntry.type,
-    msg: logEntry.message
+  socket.on('disconnect', () => {
+    console.log('👤 Client disconnected');
   });
+});
 
-  saveLogToFile(logEntry);
-}
-
-function saveLogToFile(logEntry) {
-  const dateStr = new Date().toISOString().split('T')[0];
-  const fileName = `${dateStr}.log`;
-  const filePath = path.join(LOGS_DIR, fileName);
+// Update stats periodically
+setInterval(() => {
+  const uptime = Date.now() - startTime;
+  const hours = Math.floor(uptime / (1000 * 60 * 60));
+  const minutes = Math.floor((uptime % (1000 * 60 * 60)) / (1000 * 60));
   
-  const logLine = `[${logEntry.timestamp}] [${logEntry.type.toUpperCase()}] [${logEntry.category.toUpperCase()}] ${logEntry.message} ${JSON.stringify(logEntry.details)}\n`;
-  
-  fs.appendFile(filePath, logLine, (err) => {
-    if (err) console.error("Error writing log:", err);
+  io.emit('stats-update', {
+    uptime: `${hours}h ${minutes}m`,
+    commands: commandCount,
+    messages: messageCount,
+    users: Object.keys(bot?.players || {}).length
   });
-}
+}, 5000);
 
-// === Hypixel API ===
+server.listen(PORT, () => {
+  console.log(`🌐 Web server is running on port ${PORT} (Ready for UptimeRobot & Panel)`);
+});
+
+// === 2. Hypixel API Key Check ===
 if (!process.env.HYPIXEL_API_KEY) {
-  console.error("❌ HYPIXEL_API_KEY not found.");
+  console.error("❌ HYPIXEL_API_KEY not found. Please add it in Render Environment Variables.");
   process.exit(1);
 }
 const HYPIXEL_API_KEY = process.env.HYPIXEL_API_KEY;
+
+// === 3. Bot Settings ===
 const HYPIXEL_HOST = "mc.hypixel.net";
 const MC_VERSION = "1.8.9";
 
@@ -1829,382 +1711,548 @@ function ratio(num, den) {
   return (n / d).toFixed(2);
 }
 
-// === FKDR Tracking System ===
-const fkdrTracking = new Map();
-const TRACKING_FILE = path.join(__dirname, "tracking_data.json");
-
-// === Flag System ===
-const flaggedPlayers = new Map();
-const FLAGS_FILE = path.join(__dirname, "flagged_players.json");
-
-// === ADVANCED CACHE SYSTEM ===
-class SmartCache {
-  constructor() {
-    this.playerDataCache = new Map();
-    this.uuidToIgnCache = new Map();
-    this.guildCache = new Map();
-    this.PLAYER_CACHE_DURATION = 10 * 60 * 1000;
-    this.GUILD_CACHE_DURATION = 5 * 60 * 1000;
-    this.cacheHits = 0;
-    this.cacheMisses = 0;
-  }
-
-  getPlayer(ign) {
-    const cached = this.playerDataCache.get(ign.toLowerCase());
-    if (cached && (Date.now() - cached.timestamp) < this.PLAYER_CACHE_DURATION) {
-      this.cacheHits++;
-      addLog('info', 'system', `Cache HIT for ${ign}`, { 
-        type: 'player',
-        age: Math.floor((Date.now() - cached.timestamp) / 1000) + 's'
-      });
-      return cached.data;
-    }
-    this.cacheMisses++;
-    return null;
-  }
-
-  setPlayer(ign, data) {
-    this.playerDataCache.set(ign.toLowerCase(), {
-      data,
-      timestamp: Date.now()
-    });
-    
-    if (data.uuid) {
-      this.uuidToIgnCache.set(data.uuid, ign);
-    }
-    
-    addLog('info', 'system', `Cached player data for ${ign}`, { 
-      uuid: data.uuid,
-      cacheSize: this.playerDataCache.size 
-    });
-  }
-
-  getGuild(ign) {
-    const cached = this.guildCache.get(ign.toLowerCase());
-    if (cached && (Date.now() - cached.timestamp) < this.GUILD_CACHE_DURATION) {
-      this.cacheHits++;
-      addLog('info', 'system', `Cache HIT for guild ${ign}`, { 
-        type: 'guild',
-        age: Math.floor((Date.now() - cached.timestamp) / 1000) + 's'
-      });
-      return cached.data;
-    }
-    this.cacheMisses++;
-    return null;
-  }
-
-  setGuild(ign, data) {
-    this.guildCache.set(ign.toLowerCase(), {
-      data,
-      timestamp: Date.now()
-    });
-    
-    addLog('info', 'system', `Cached guild data for ${ign}`, { 
-      cacheSize: this.guildCache.size 
-    });
-  }
-
-  getIgnByUuid(uuid) {
-    return this.uuidToIgnCache.get(uuid);
-  }
-
-  invalidatePlayer(ign) {
-    this.playerDataCache.delete(ign.toLowerCase());
-    addLog('info', 'system', `Invalidated cache for ${ign}`);
-  }
-
-  invalidateGuild(ign) {
-    this.guildCache.delete(ign.toLowerCase());
-    addLog('info', 'system', `Invalidated guild cache for ${ign}`);
-  }
-
-  cleanup() {
-    const now = Date.now();
-    let cleaned = 0;
-
-    for (const [key, value] of this.playerDataCache.entries()) {
-      if (now - value.timestamp > this.PLAYER_CACHE_DURATION) {
-        this.playerDataCache.delete(key);
-        cleaned++;
-      }
-    }
-
-    for (const [key, value] of this.guildCache.entries()) {
-      if (now - value.timestamp > this.GUILD_CACHE_DURATION) {
-        this.guildCache.delete(key);
-        cleaned++;
-      }
-    }
-
-    if (cleaned > 0) {
-      addLog('info', 'system', `Cache cleanup: removed ${cleaned} expired entries`, {
-        playerCacheSize: this.playerDataCache.size,
-        guildCacheSize: this.guildCache.size
-      });
-    }
-  }
-
-  getStats() {
-    const totalRequests = this.cacheHits + this.cacheMisses;
-    const hitRate = totalRequests > 0 ? ((this.cacheHits / totalRequests) * 100).toFixed(2) : 0;
-    
-    return {
-      playerCacheSize: this.playerDataCache.size,
-      guildCacheSize: this.guildCache.size,
-      totalCacheSize: this.playerDataCache.size + this.guildCache.size,
-      cacheHits: this.cacheHits,
-      cacheMisses: this.cacheMisses,
-      hitRate: hitRate + '%',
-      totalRequests
-    };
-  }
-
-  clearAll() {
-    this.playerDataCache.clear();
-    this.guildCache.clear();
-    this.uuidToIgnCache.clear();
-    this.cacheHits = 0;
-    this.cacheMisses = 0;
-    
-    addLog('success', 'system', 'All cache cleared');
-  }
-}
-
-const cache = new SmartCache();
-setInterval(() => cache.cleanup(), 5 * 60 * 1000);
-
-function loadTrackingData() {
-  try {
-    if (fs.existsSync(TRACKING_FILE)) {
-      const data = JSON.parse(fs.readFileSync(TRACKING_FILE, 'utf8'));
-      Object.entries(data).forEach(([uuid, tracking]) => {
-        fkdrTracking.set(uuid, tracking);
-      });
-      console.log(`✅ Loaded ${fkdrTracking.size} tracked players`);
-      addLog('success', 'system', `Loaded ${fkdrTracking.size} tracked players`);
-    } else {
-      console.log('ℹ️  No tracking data file found, starting fresh');
-      addLog('info', 'system', 'No tracking data file found, starting fresh');
-    }
-  } catch (err) {
-    console.error('❌ Failed to load tracking data:', err.message);
-    addLog('error', 'system', 'Failed to load tracking data', { error: err.message });
-  }
-}
-
-function loadFlaggedPlayers() {
-  try {
-    if (fs.existsSync(FLAGS_FILE)) {
-      const data = JSON.parse(fs.readFileSync(FLAGS_FILE, 'utf8'));
-      Object.entries(data).forEach(([uuid, flag]) => {
-        flaggedPlayers.set(uuid, flag);
-      });
-      console.log(`✅ Loaded ${flaggedPlayers.size} flagged players`);
-      addLog('success', 'system', `Loaded ${flaggedPlayers.size} flagged players`);
-    } else {
-      console.log('ℹ️  No flagged players file found, starting fresh');
-      addLog('info', 'system', 'No flagged players file found, starting fresh');
-    }
-  } catch (err) {
-    console.error('❌ Failed to load flagged players:', err.message);
-    addLog('error', 'system', 'Failed to load flagged players', { error: err.message });
-  }
-}
-
-function saveTrackingData() {
-  try {
-    const data = Object.fromEntries(fkdrTracking);
-    fs.writeFileSync(TRACKING_FILE, JSON.stringify(data, null, 2), 'utf8');
-    console.log(`💾 Saved tracking data for ${fkdrTracking.size} players`);
-  } catch (err) {
-    console.error('❌ Failed to save tracking data:', err.message);
-    addLog('error', 'system', 'Failed to save tracking data', { error: err.message });
-  }
-}
-
-function saveFlaggedPlayers() {
-  try {
-    const data = Object.fromEntries(flaggedPlayers);
-    fs.writeFileSync(FLAGS_FILE, JSON.stringify(data, null, 2), 'utf8');
-    console.log(`💾 Saved ${flaggedPlayers.size} flagged players`);
-  } catch (err) {
-    console.error('❌ Failed to save flagged players:', err.message);
-    addLog('error', 'system', 'Failed to save flagged players', { error: err.message });
-  }
-}
-
-setInterval(saveTrackingData, 2 * 60 * 1000);
-setInterval(saveFlaggedPlayers, 2 * 60 * 1000);
-
-function initializePlayerTracking(uuid) {
-  const now = new Date();
-  return {
-    uuid,
-    daily: { finals: 0, deaths: 0, date: now.toDateString() },
-    weekly: { finals: 0, deaths: 0, weekStart: getWeekStart(now) },
-    monthly: { finals: 0, deaths: 0, month: now.getMonth(), year: now.getFullYear() },
-    yearly: { finals: 0, deaths: 0, year: now.getFullYear() },
-    lifetime: { finals: 0, deaths: 0 },
-    lastUpdate: now.toISOString(),
-    lastStats: { finals: 0, deaths: 0 }
-  };
-}
-
-function getWeekStart(date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.setDate(diff)).toDateString();
-}
-
-function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
-  const now = new Date();
-  let tracking = fkdrTracking.get(uuid);
-  
-  if (!tracking) {
-    tracking = initializePlayerTracking(uuid);
-    tracking.lastStats.finals = currentFinals;
-    tracking.lastStats.deaths = currentDeaths;
-    tracking.lifetime.finals = currentFinals;
-    tracking.lifetime.deaths = currentDeaths;
-    
-    tracking.daily.finals = 0;
-    tracking.daily.deaths = 0;
-    tracking.weekly.finals = 0;
-    tracking.weekly.deaths = 0;
-    tracking.monthly.finals = 0;
-    tracking.monthly.deaths = 0;
-    tracking.yearly.finals = 0;
-    tracking.yearly.deaths = 0;
-    
-    fkdrTracking.set(uuid, tracking);
-    
-    addLog('info', 'system', `New player tracked: ${uuid}`, {
-      uuid,
-      initialFinals: currentFinals,
-      initialDeaths: currentDeaths
-    });
-    
-    saveTrackingData();
-    return tracking;
-  }
-
-  if (tracking.daily.date !== now.toDateString()) {
-    tracking.daily = { finals: 0, deaths: 0, date: now.toDateString() };
-  }
-
-  const currentWeekStart = getWeekStart(now);
-  if (tracking.weekly.weekStart !== currentWeekStart) {
-    tracking.weekly = { finals: 0, deaths: 0, weekStart: currentWeekStart };
-  }
-
-  if (tracking.monthly.month !== now.getMonth() || tracking.monthly.year !== now.getFullYear()) {
-    tracking.monthly = { finals: 0, deaths: 0, month: now.getMonth(), year: now.getFullYear() };
-  }
-
-  if (tracking.yearly.year !== now.getFullYear()) {
-    tracking.yearly = { finals: 0, deaths: 0, year: now.getFullYear() };
-  }
-
-  const finalsDiff = Math.max(0, currentFinals - tracking.lastStats.finals);
-  const deathsDiff = Math.max(0, currentDeaths - tracking.lastStats.deaths);
-
-  if (finalsDiff > 0 || deathsDiff > 0) {
-    tracking.daily.finals += finalsDiff;
-    tracking.daily.deaths += deathsDiff;
-    tracking.weekly.finals += finalsDiff;
-    tracking.weekly.deaths += deathsDiff;
-    tracking.monthly.finals += finalsDiff;
-    tracking.monthly.deaths += deathsDiff;
-    tracking.yearly.finals += finalsDiff;
-    tracking.yearly.deaths += deathsDiff;
-    
-    addLog('info', 'system', `Player stats updated`, {
-      uuid,
-      finalsDiff,
-      deathsDiff,
-      newDaily: tracking.daily
-    });
-  }
-
-  tracking.lastStats.finals = currentFinals;
-  tracking.lastStats.deaths = currentDeaths;
-  tracking.lifetime.finals = currentFinals;
-  tracking.lifetime.deaths = currentDeaths;
-  tracking.lastUpdate = now.toISOString();
-
-  fkdrTracking.set(uuid, tracking);
-  saveTrackingData();
-  return tracking;
-}
-
-async function getPlayerUUID(ign) {
-  const cachedPlayer = cache.getPlayer(ign);
-  if (cachedPlayer) {
-    return cachedPlayer;
-  }
-
-  return queueApiRequest(async () => {
-    const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
-    const { data } = await axios.get(url, { timeout: 10000 });
-    if (!data?.success || !data?.player) throw new Error("Player not found");
-    
-    const result = {
-      uuid: data.player.uuid,
-      finals: data.player.stats?.Bedwars?.final_kills_bedwars || 0,
-      deaths: data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
-      fullData: data.player
-    };
-    
-    cache.setPlayer(ign, result);
-    return result;
-  });
-}
-
 function parseBWStats(player) {
-  const bw = (player?.stats?.Bedwars) || {};
+  const bw = (player?.stats && player.stats.Bedwars) || {};
   const ach = player?.achievements || {};
   const star = ach.bedwars_level ?? Math.floor((bw.Experience || 0) / 5000);
+
   return {
     star,
     fkdr: ratio(bw.final_kills_bedwars, bw.final_deaths_bedwars),
     kd: ratio(bw.kills_bedwars, bw.deaths_bedwars),
     wl: ratio(bw.wins_bedwars, bw.losses_bedwars),
     finals: bw.final_kills_bedwars || 0,
-    deaths: bw.final_deaths_bedwars || 0,
     wins: bw.wins_bedwars || 0,
     beds: bw.beds_broken_bedwars || 0,
   };
 }
 
 async function getPlayerStats(ign) {
-  const cachedPlayer = cache.getPlayer(ign);
-  if (cachedPlayer && cachedPlayer.fullData) {
-    return parseBWStats(cachedPlayer.fullData);
-  }
+  const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(
+    ign
+  )}`;
+  const { data } = await axios.get(url, { timeout: 10000 });
 
-  return queueApiRequest(async () => {
-    const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
-    const { data } = await axios.get(url, { timeout: 10000 });
-    if (!data?.success || !data?.player) throw new Error("Player not found");
+  if (data?.cause === "Invalid API key") throw new Error("Invalid API key (403)");
+  if (!data?.success) throw new Error("API request failed");
+  if (!data?.player) throw new Error("Player not found");
+
+  return parseBWStats(data.player);
+}
+
+function sleep(ms) {
+  return new Promise((res) => setTimeout(res, ms));
+}
+
+// === 4. Welcome Messages ===
+const welcomeMessages = [
+  "Hey! Welcome back {username}!",
+  "Welcome back, {username}! The legend has returned!",
+  "Greetings, {username}!",
+  "{username} has joined, hello!",
+  "{username} the GOAT is back!"
+];
+
+// === Cooldown Tracker for !ask ===
+const askCooldowns = {};
+const ASK_COOLDOWN_MS = 1 * 45 * 1000; // 45 seconds
+
+// === 5. Mineflayer Bot ===
+function createBot() {
+  bot = mineflayer.createBot({
+    host: HYPIXEL_HOST,
+    version: MC_VERSION,
+    auth: "microsoft",
+  });
+
+  bot.once("spawn", () => {
+    console.log("✅ Bot connected to Hypixel, switching to Guild chat...");
+    io.emit('bot-status', 'connecting');
+    io.emit('bot-log', {
+      time: new Date().toLocaleTimeString(),
+      type: 'success',
+      msg: 'Bot connected to Hypixel'
+    });
     
-    const playerData = {
-      uuid: data.player.uuid,
-      finals: data.player.stats?.Bedwars?.final_kills_bedwars || 0,
-      deaths: data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
-      fullData: data.player
+    setTimeout(() => {
+      if (bot && bot.chat && bot._client) {
+        try {
+          bot.chat("/chat g");
+          // Wait a bit more before marking as ready
+          setTimeout(() => {
+            botReady = true;
+            io.emit('bot-status', 'online');
+            io.emit('bot-log', {
+              time: new Date().toLocaleTimeString(),
+              type: 'success',
+              msg: 'Bot is now ready to send messages'
+            });
+          }, 2000);
+        } catch (err) {
+          console.error('Error switching to guild chat:', err);
+          io.emit('bot-log', {
+            time: new Date().toLocaleTimeString(),
+            type: 'error',
+            msg: 'Error switching to guild chat'
+          });
+        }
+      }
+    }, 1500);
+
+    setInterval(() => {
+      if (bot && botReady && bot.chat && bot._client) {
+        try {
+          bot.chat("/locraw");
+        } catch (err) {
+          console.error('Error sending /locraw:', err);
+        }
+      }
+    }, 60 * 1000);
+  });
+
+  bot.on("message", async (jsonMsg) => {
+    const msg = jsonMsg.toString();
+    
+    // Emit all messages to web panel
+    io.emit('minecraft-chat', {
+      time: new Date().toLocaleTimeString(),
+      message: msg
+    });
+    messageCount++;
+    
+    if (!msg.startsWith("Guild >")) return;
+    if (!botReady || !bot || !bot.chat || !bot._client) {
+      console.log('Bot not ready, skipping message processing');
+      return;
+    }
+
+    // Safe chat function with error handling
+    const safeChat = async (message) => {
+      if (!botReady || !bot || !bot.chat || !bot._client) {
+        console.error('Cannot send message: bot not ready');
+        return false;
+      }
+      try {
+        bot.chat(message);
+        return true;
+      } catch (err) {
+        console.error('Error sending chat message:', err);
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'error',
+          msg: `Failed to send message: ${err.message}`
+        });
+        return false;
+      }
     };
-    cache.setPlayer(ign, playerData);
+
+    // Check chat filter
+    if (botSettings.chatFilter.enabled && botSettings.chatFilter.keywords.length > 0) {
+      const msgLower = msg.toLowerCase();
+      const hasKeyword = botSettings.chatFilter.keywords.some(k => 
+        k && msgLower.includes(k.toLowerCase())
+      );
+      
+      if (botSettings.chatFilter.filterMode === 'blacklist' && hasKeyword) {
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'info',
+          msg: `Message filtered (blacklist): ${msg.substring(0, 50)}...`
+        });
+        return;
+      }
+      
+      if (botSettings.chatFilter.filterMode === 'whitelist' && !hasKeyword) {
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'info',
+          msg: `Message filtered (whitelist): ${msg.substring(0, 50)}...`
+        });
+        return;
+      }
+    }
+
+    // Check auto responses
+    if (botSettings.autoResponses.enabled) {
+      for (const resp of botSettings.autoResponses.responses) {
+        if (resp.trigger && msg.toLowerCase().includes(resp.trigger.toLowerCase())) {
+          await sleep(resp.delay || 1000);
+          await safeChat(resp.response);
+          io.emit('bot-log', {
+            time: new Date().toLocaleTimeString(),
+            type: 'info',
+            msg: `Auto response triggered: ${resp.trigger}`
+          });
+          break;
+        }
+      }
+    }
+
+    // Check custom commands
+    for (const cmd of botSettings.customCommands) {
+      if (cmd.name && msg.toLowerCase().includes(cmd.name.toLowerCase())) {
+        commandCount++;
+        await sleep(botSettings.performance.messageDelay);
+        await safeChat(cmd.response);
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'command',
+          msg: `Custom command executed: ${cmd.name}`
+        });
+        return;
+      }
+    }
+
+    // === !ask command (ChatGPT) ===
+    if (msg.toLowerCase().includes("!ask")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!ask\s+(.+)/i);
+      if (!match) return;
+      const username = match[1];
+      const userMessage = match[2];
+
+      commandCount++;
+
+      // Cooldown check (except for Relaquent)
+      if (username.toLowerCase() !== "relaquent") {
+        const now = Date.now();
+        const lastUsed = askCooldowns[username] || 0;
+        const timePassed = now - lastUsed;
+
+        if (timePassed < (botSettings.commandCooldown * 1000)) {
+          const secondsLeft = Math.ceil(((botSettings.commandCooldown * 1000) - timePassed) / 1000);
+          await safeChat(`${username}, you must wait ${secondsLeft}s before using "ask" command again.`);
+          io.emit('bot-log', {
+            time: new Date().toLocaleTimeString(),
+            type: 'info',
+            msg: `Cooldown: ${username} tried !ask too soon`
+          });
+          return;
+        }
+
+        askCooldowns[username] = now;
+      }
+
+      await safeChat("Thinking...");
+      io.emit('bot-log', {
+        time: new Date().toLocaleTimeString(),
+        type: 'command',
+        msg: `ChatGPT request from ${username}: ${userMessage}`
+      });
+
+      try {
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: gptSystemPrompt
+            },
+            { role: "user", content: userMessage }
+          ],
+          max_tokens: botSettings.maxTokens,
+        });
+
+        let reply = completion.choices[0].message.content.trim();
+
+        function splitMessage(msg, limit = 600) {
+          const parts = [];
+          for (let i = 0; i < msg.length; i += limit) {
+            parts.push(msg.slice(i, i + limit));
+          }
+          return parts;
+        }
+
+        const lines = reply.split("\n").filter(l => l.trim().length > 0);
+
+        for (const line of lines) {
+          const chunks = splitMessage(line);
+          for (const chunk of chunks) {
+            await safeChat(chunk);
+            io.emit('bot-log', {
+              time: new Date().toLocaleTimeString(),
+              type: 'success',
+              msg: `GPT reply: ${chunk.substring(0, 50)}...`
+            });
+            await sleep(botSettings.performance.messageDelay);
+          }
+        }
+
+      } catch (err) {
+        console.error("⚠️ OpenAI API error:", err.message);
+        await safeChat("Error: Could not get response from GPT.");
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'error',
+          msg: `OpenAI API error: ${err.message}`
+        });
+      }
+      return;
+    }
+
+    // === Welcome message ===
+    if (msg.includes("joined.")) {
+      if (!botSettings.welcomeMessages) return;
+      
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}) joined\./);
+      if (match) {
+        const username = match[1];
+
+        await sleep(2000);
+
+        if (username.toLowerCase() === "caillou16") {
+          const specialMsg = "Welcome back Caillou16 the bald.";
+          await safeChat(specialMsg);
+          io.emit('bot-log', {
+            time: new Date().toLocaleTimeString(),
+            type: 'info',
+            msg: `Special welcome sent to Caillou16`
+          });
+        } else {
+          const randomMsg = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
+          const finalMsg = randomMsg.replace("{username}", username);
+          await safeChat(finalMsg);
+          io.emit('bot-log', {
+            time: new Date().toLocaleTimeString(),
+            type: 'info',
+            msg: `Welcome message sent to ${username}`
+          });
+        }
+
+        if (botSettings.notifications.onJoin) {
+          io.emit('bot-log', {
+            time: new Date().toLocaleTimeString(),
+            type: 'success',
+            msg: `Player joined: ${username}`
+          });
+        }
+      }
+      return;
+    }
+
+    // === !bw command ===
+    if (msg.toLowerCase().includes("!bw")) {
+      const match = msg.match(/!bw\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+      const ign = match[1];
+
+      commandCount++;
+
+      if (ign.toLowerCase() === "relaquent") {
+        await sleep(botSettings.performance.messageDelay);
+        const specialMsg = "Relaquent | Star: 3628 | FKDR: 48.72 | KD: 2.32 | WL: 2.86";
+        await safeChat(specialMsg);
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'command',
+          msg: `!bw command executed for ${ign}`
+        });
+        return;
+      }
+
+      await sleep(botSettings.performance.messageDelay);
+      try {
+        const stats = await getPlayerStats(ign);
+        const line = `${ign} | Star: ${stats.star} | FKDR: ${stats.fkdr} | KD: ${stats.kd} | WL: ${stats.wl}`;
+        await safeChat(line);
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'command',
+          msg: `!bw command executed for ${ign}`
+        });
+      } catch (err) {
+        await safeChat(`Error - ${ign} | No data found.`);
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'error',
+          msg: `!bw error for ${ign}: ${err.message}`
+        });
+      }
+      return;
+    }
+
+    // === !stats command ===
+    if (msg.toLowerCase().includes("!stats")) {
+      const match = msg.match(/!stats\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+      const ign = match[1];
+      
+      commandCount++;
+      await sleep(botSettings.performance.messageDelay);
+
+      try {
+        const stats = await getPlayerStats(ign);
+        const line = `${ign} | Star: ${stats.star} | Finals: ${stats.finals} | Wins: ${stats.wins} | Beds: ${stats.beds}`;
+        await safeChat(line);
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'command',
+          msg: `!stats command executed for ${ign}`
+        });
+      } catch (err) {
+        await safeChat(`Error - ${ign} | No data found.`);
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'error',
+          msg: `!stats error for ${ign}: ${err.message}`
+        });
+      }
+      return;
+    }
+
+    // === !ping command ===
+    if (msg.toLowerCase().includes("!ping")) {
+      const match = msg.match(/!ping\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+      const ign = match[1];
+      
+      commandCount++;
+      await sleep(botSettings.performance.messageDelay);
+
+      const playerObj = bot.players[ign];
+      if (playerObj && typeof playerObj.ping === "number") {
+        const line = `RumoGC - ${ign}: ${playerObj.ping}ms`;
+        await safeChat(line);
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'command',
+          msg: `!ping command executed for ${ign}`
+        });
+      } else {
+        const line = `Error - ${ign}: I can only check my ping for now.`;
+        await safeChat(line);
+      }
+      return;
+    }
+
+    // === !when command (Castle countdown) ===
+    if (msg.toLowerCase().includes("!when")) {
+      commandCount++;
+      await sleep(botSettings.performance.messageDelay);
+
+      const firstEvent = new Date("2025-11-22T00:00:00Z");
+      const cycleDays = 56;
+      const now = new Date();
+
+      let diffMs = now.getTime() - firstEvent.getTime();
+      let cyclesPassed = Math.floor(diffMs / (cycleDays * 24 * 60 * 60 * 1000));
+
+      if (diffMs < 0) {
+        cyclesPassed = -1;
+      }
+
+      const nextEvent = new Date(firstEvent.getTime() + (cyclesPassed + 1) * cycleDays * 24 * 60 * 60 * 1000);
+      const msInDay = 24 * 60 * 60 * 1000;
+      const daysLeft = Math.ceil((nextEvent - now) / msInDay);
+
+      let response;
+      if (daysLeft > 0) {
+        response = `Castle will return in ${daysLeft} days (${nextEvent.toDateString()}) 5:30 PM EST.`;
+      } else if (daysLeft === 0) {
+        response = "Castle starts today!";
+      } else {
+        response = "Castle might be currently active!";
+      }
+
+      await safeChat(response);
+      io.emit('bot-log', {
+        time: new Date().toLocaleTimeString(),
+        type: 'command',
+        msg: `!when command executed`
+      });
+      return;
+    }
+
+    // === !about command ===
+    if (msg.toLowerCase().includes("!about")) {
+      commandCount++;
+      await sleep(botSettings.performance.messageDelay);
+      const aboutMsg = "RumoniumGC is automated by Relaquent, v2.0 - Last Update 15/11/25";
+      await safeChat(aboutMsg);
+      io.emit('bot-log', {
+        time: new Date().toLocaleTimeString(),
+        type: 'command',
+        msg: `!about command executed`
+      });
+      return;
+    }
+
+    // === !help command ===
+    if (msg.toLowerCase().includes("!help")) {
+      commandCount++;
+      await sleep(botSettings.performance.messageDelay);
+      const helpMsg = [
+        "----- RumoniumGC v2.0 -----",
+        "bw <user> → Shows Bedwars stats.",
+        "stats <user> → Shows detailed stats.",
+        "when → Next Castle date.",
+        "ask <msg> → Ask LumenRM.",
+        "about → Information about the bot.",
+        "help → Displays this page.",
+        "----- Powered by Relaquent -----"
+      ];
+      for (const line of helpMsg) {
+        await safeChat(line);
+        await sleep(500);
+      }
+      io.emit('bot-log', {
+        time: new Date().toLocaleTimeString(),
+        type: 'command',
+        msg: `!help command executed`
+      });
+      return;
+    }
+
+    if (botSettings.notifications.onCommand) {
+      if (msg.includes("!")) {
+        io.emit('bot-log', {
+          time: new Date().toLocaleTimeString(),
+          type: 'info',
+          msg: `Command detected in message`
+        });
+      }
+    }
+  });
+
+  bot.on("kicked", (reason) => {
+    console.log("❌ Kicked from server:", reason);
+    botReady = false;
+    io.emit('bot-status', 'offline');
+    io.emit('bot-log', {
+      time: new Date().toLocaleTimeString(),
+      type: 'error',
+      msg: `Kicked from server: ${reason}`
+    });
     
-    return parseBWStats(data.player);
+    if (botSettings.autoReconnect) {
+      setTimeout(createBot, botSettings.performance.autoReconnectDelay);
+    }
+  });
+
+  bot.on("end", () => {
+    console.log("🔌 Disconnected, reconnecting...");
+    botReady = false;
+    io.emit('bot-status', 'offline');
+    io.emit('bot-log', {
+      time: new Date().toLocaleTimeString(),
+      type: 'info',
+      msg: `Disconnected, reconnecting in ${botSettings.performance.autoReconnectDelay / 1000}s...`
+    });
+    
+    if (botSettings.autoReconnect) {
+      setTimeout(createBot, botSettings.performance.autoReconnectDelay);
+    }
+  });
+
+  bot.on("error", (err) => {
+    console.error("❌ Bot error:", err.message);
+    botReady = false;
+    io.emit('bot-log', {
+      time: new Date().toLocaleTimeString(),
+      type: 'error',
+      msg: `Bot error: ${err.message}`
+    });
   });
 }
 
-async function getGuildGEXP(playerIgn) {
-  const cachedGuild = cache.getGuild(playerIgn);
-  if (cachedGuild) {
-    return cachedGuild;
-  }
-
-  return queueApiRequest(async () => {
-    const playerUrl = `https://api.hypixel.net/
+// === 6. Start Bot ===
+createBot();
