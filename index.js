@@ -65,9 +65,133 @@ let botSettings = {
   customCommands: [],
   chatLogs: { enabled: true, maxHistory: 500 },
   notifications: { onJoin: true, onLeave: true, onCommand: true },
-  performance: { messageDelay: 300, maxMessagesPerSecond: 2, autoReconnectDelay: 10000 },
+  performance: { 
+    messageDelay: 300, 
+    maxMessagesPerSecond: 2, 
+    autoReconnectDelay: 30000,  // İlk yeniden bağlanma 30 saniye
+    maxReconnectDelay: 300000,   // Maksimum 5 dakika
+    reconnectBackoffMultiplier: 1.5  // Her denemede 1.5x artış
+  },
   autoTracking: { enabled: false, interval: 30000 }
 };
+
+// === BOT RECONNECTION MANAGER ===
+class BotReconnectionManager {
+  constructor() {
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 20;
+    this.currentDelay = botSettings.performance.autoReconnectDelay;
+    this.isReconnecting = false;
+    this.lastDisconnectTime = null;
+    this.connectionFailures = 0;
+    this.lastSuccessfulConnection = null;
+    this.reconnectTimer = null;
+  }
+
+  reset() {
+    this.reconnectAttempts = 0;
+    this.currentDelay = botSettings.performance.autoReconnectDelay;
+    this.connectionFailures = 0;
+    this.lastSuccessfulConnection = Date.now();
+    addLog('info', 'system', 'Reconnection manager reset - successful connection');
+  }
+
+  getNextDelay() {
+    // Exponential backoff with jitter
+    const baseDelay = Math.min(
+      this.currentDelay * Math.pow(botSettings.performance.reconnectBackoffMultiplier, this.reconnectAttempts),
+      botSettings.performance.maxReconnectDelay
+    );
+    
+    // Add random jitter (±20%)
+    const jitter = baseDelay * 0.2 * (Math.random() - 0.5);
+    const delay = baseDelay + jitter;
+    
+    return Math.floor(delay);
+  }
+
+  shouldReconnect() {
+    if (!botSettings.autoReconnect) {
+      addLog('warning', 'system', 'Auto-reconnect disabled, not attempting reconnection');
+      return false;
+    }
+
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      addLog('error', 'system', 'Max reconnection attempts reached', {
+        attempts: this.reconnectAttempts,
+        maxAttempts: this.maxReconnectAttempts
+      });
+      return false;
+    }
+
+    // Rate limit protection: eğer son 10 dakikada 5'ten fazla bağlantı hatası varsa bekle
+    if (this.connectionFailures > 5) {
+      const timeSinceLastFailure = Date.now() - this.lastDisconnectTime;
+      if (timeSinceLastFailure < 600000) { // 10 dakika
+        addLog('warning', 'system', 'Too many connection failures, rate limiting reconnections', {
+          failures: this.connectionFailures,
+          timeSinceLastFailure: Math.floor(timeSinceLastFailure / 1000) + 's'
+        });
+        return false;
+      } else {
+        // 10 dakika geçtiyse sayacı sıfırla
+        this.connectionFailures = 0;
+      }
+    }
+
+    return true;
+  }
+
+  scheduleReconnect(callback) {
+    if (this.isReconnecting) {
+      addLog('warning', 'system', 'Reconnection already in progress');
+      return;
+    }
+
+    if (!this.shouldReconnect()) {
+      return;
+    }
+
+    this.isReconnecting = true;
+    this.reconnectAttempts++;
+    this.connectionFailures++;
+    this.lastDisconnectTime = Date.now();
+
+    const delay = this.getNextDelay();
+    
+    addLog('info', 'system', `Scheduling reconnection attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`, {
+      delaySeconds: Math.floor(delay / 1000),
+      totalFailures: this.connectionFailures
+    });
+
+    // Clear any existing timer
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+    }
+
+    this.reconnectTimer = setTimeout(() => {
+      this.isReconnecting = false;
+      this.reconnectTimer = null;
+      
+      addLog('info', 'system', 'Attempting to reconnect...', {
+        attempt: this.reconnectAttempts
+      });
+      
+      callback();
+    }, delay);
+  }
+
+  cancelReconnect() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+      addLog('info', 'system', 'Reconnection cancelled');
+    }
+    this.isReconnecting = false;
+  }
+}
+
+const reconnectionManager = new BotReconnectionManager();
 
 // === Command Permissions System ===
 const commandPermissions = new Map();
@@ -103,7 +227,7 @@ function saveCommandPermissions() {
 
 function hasCommandPermission(username, command) {
   const userPerms = commandPermissions.get(username.toLowerCase());
-  if (!userPerms) return true; // Default: allow all commands
+  if (!userPerms) return true;
   
   if (userPerms.bannedCommands && userPerms.bannedCommands.includes(command)) {
     return false;
@@ -167,482 +291,7 @@ async function processQueue() {
     const { requestFn, resolve, reject } = API_QUEUE.shift();
     
     try {
-      const result = await requestFn();
-      apiCallCount++;
-      resolve(result);
-      await sleep(MIN_CALL_DELAY);
-    } catch (err) {
-      reject(err);
-    }
-  }
-  
-  isProcessingQueue = false;
-}
-
-// === Detailed Logging System ===
-let detailedLogs = [];
-let commandLogs = [];
-let errorLogs = [];
-let chatLogs = [];
-let systemLogs = [];
-
-function addLog(type, category, message, details = {}) {
-  const logEntry = {
-    timestamp: new Date().toISOString(),
-    time: new Date().toLocaleTimeString(),
-    date: new Date().toLocaleDateString(),
-    type,
-    category,
-    message,
-    details
-  };
-
-  detailedLogs.unshift(logEntry);
-  if (detailedLogs.length > 1000) detailedLogs.pop();
-
-  switch (category) {
-    case 'command':
-      commandLogs.unshift(logEntry);
-      if (commandLogs.length > 500) commandLogs.pop();
-      break;
-    case 'error':
-      errorLogs.unshift(logEntry);
-      if (errorLogs.length > 200) errorLogs.pop();
-      break;
-    case 'chat':
-      chatLogs.unshift(logEntry);
-      if (chatLogs.length > 1000) chatLogs.pop();
-      break;
-    case 'system':
-      systemLogs.unshift(logEntry);
-      if (systemLogs.length > 500) systemLogs.pop();
-      break;
-  }
-
-  io.emit('bot-log', {
-    time: logEntry.time,
-    type: logEntry.type,
-    msg: logEntry.message
-  });
-
-  saveLogToFile(logEntry);
-}
-
-function saveLogToFile(logEntry) {
-  const dateStr = new Date().toISOString().split('T')[0];
-  const fileName = `${dateStr}.log`;
-  const filePath = path.join(LOGS_DIR, fileName);
-  
-  const logLine = `[${logEntry.timestamp}] [${logEntry.type.toUpperCase()}] [${logEntry.category.toUpperCase()}] ${logEntry.message} ${JSON.stringify(logEntry.details)}\n`;
-  
-  fs.appendFile(filePath, logLine, (err) => {
-    if (err) console.error("Error writing log:", err);
-  });
-}
-
-// === Hypixel API ===
-if (!process.env.HYPIXEL_API_KEY) {
-  console.error("❌ HYPIXEL_API_KEY not found.");
-  process.exit(1);
-}
-const HYPIXEL_API_KEY = process.env.HYPIXEL_API_KEY;
-const HYPIXEL_HOST = "mc.hypixel.net";
-const MC_VERSION = "1.8.9";
-
-function ratio(num, den) {
-  const n = Number(num) || 0;
-  const d = Number(den) || 0;
-  if (d === 0) return n > 0 ? "inf" : "0.00";
-  return (n / d).toFixed(2);
-}
-
-// === FKDR Tracking System ===
-const fkdrTracking = new Map();
-const TRACKING_FILE = path.join(__dirname, "tracking_data.json");
-
-// === Flag System ===
-const flaggedPlayers = new Map();
-const FLAGS_FILE = path.join(__dirname, "flagged_players.json");
-
-// === ADVANCED CACHE SYSTEM ===
-class SmartCache {
-  constructor() {
-    this.playerDataCache = new Map();
-    this.uuidToIgnCache = new Map();
-    this.guildCache = new Map();
-    this.PLAYER_CACHE_DURATION = 10 * 60 * 1000;
-    this.GUILD_CACHE_DURATION = 5 * 60 * 1000;
-    this.cacheHits = 0;
-    this.cacheMisses = 0;
-  }
-
-  getPlayer(ign) {
-    const cached = this.playerDataCache.get(ign.toLowerCase());
-    if (cached && (Date.now() - cached.timestamp) < this.PLAYER_CACHE_DURATION) {
-      this.cacheHits++;
-      addLog('info', 'system', `Cache HIT for ${ign}`, { 
-        type: 'player',
-        age: Math.floor((Date.now() - cached.timestamp) / 1000) + 's'
-      });
-      return cached.data;
-    }
-    this.cacheMisses++;
-    return null;
-  }
-
-  setPlayer(ign, data) {
-    this.playerDataCache.set(ign.toLowerCase(), {
-      data,
-      timestamp: Date.now()
-    });
-    
-    if (data.uuid) {
-      this.uuidToIgnCache.set(data.uuid, ign);
-    }
-    
-    addLog('info', 'system', `Cached player data for ${ign}`, { 
-      uuid: data.uuid,
-      cacheSize: this.playerDataCache.size 
-    });
-  }
-
-  getGuild(ign) {
-    const cached = this.guildCache.get(ign.toLowerCase());
-    if (cached && (Date.now() - cached.timestamp) < this.GUILD_CACHE_DURATION) {
-      this.cacheHits++;
-      addLog('info', 'system', `Cache HIT for guild ${ign}`, { 
-        type: 'guild',
-        age: Math.floor((Date.now() - cached.timestamp) / 1000) + 's'
-      });
-      return cached.data;
-    }
-    this.cacheMisses++;
-    return null;
-  }
-
-  setGuild(ign, data) {
-    this.guildCache.set(ign.toLowerCase(), {
-      data,
-      timestamp: Date.now()
-    });
-    
-    addLog('info', 'system', `Cached guild data for ${ign}`, { 
-      cacheSize: this.guildCache.size 
-    });
-  }
-
-  getIgnByUuid(uuid) {
-    return this.uuidToIgnCache.get(uuid);
-  }
-
-  invalidatePlayer(ign) {
-    this.playerDataCache.delete(ign.toLowerCase());
-    addLog('info', 'system', `Invalidated cache for ${ign}`);
-  }
-
-  invalidateGuild(ign) {
-    this.guildCache.delete(ign.toLowerCase());
-    addLog('info', 'system', `Invalidated guild cache for ${ign}`);
-  }
-
-  cleanup() {
-    const now = Date.now();
-    let cleaned = 0;
-
-    for (const [key, value] of this.playerDataCache.entries()) {
-      if (now - value.timestamp > this.PLAYER_CACHE_DURATION) {
-        this.playerDataCache.delete(key);
-        cleaned++;
-      }
-    }
-
-    for (const [key, value] of this.guildCache.entries()) {
-      if (now - value.timestamp > this.GUILD_CACHE_DURATION) {
-        this.guildCache.delete(key);
-        cleaned++;
-      }
-    }
-
-    if (cleaned > 0) {
-      addLog('info', 'system', `Cache cleanup: removed ${cleaned} expired entries`, {
-        playerCacheSize: this.playerDataCache.size,
-        guildCacheSize: this.guildCache.size
-      });
-    }
-  }
-
-  getStats() {
-    const totalRequests = this.cacheHits + this.cacheMisses;
-    const hitRate = totalRequests > 0 ? ((this.cacheHits / totalRequests) * 100).toFixed(2) : 0;
-    
-    return {
-      playerCacheSize: this.playerDataCache.size,
-      guildCacheSize: this.guildCache.size,
-      totalCacheSize: this.playerDataCache.size + this.guildCache.size,
-      cacheHits: this.cacheHits,
-      cacheMisses: this.cacheMisses,
-      hitRate: hitRate + '%',
-      totalRequests
-    };
-  }
-
-  clearAll() {
-    this.playerDataCache.clear();
-    this.guildCache.clear();
-    this.uuidToIgnCache.clear();
-    this.cacheHits = 0;
-    this.cacheMisses = 0;
-    
-    addLog('success', 'system', 'All cache cleared');
-  }
-}
-
-const cache = new SmartCache();
-setInterval(() => cache.cleanup(), 5 * 60 * 1000);
-
-function loadTrackingData() {
-  try {
-    if (fs.existsSync(TRACKING_FILE)) {
-      const data = JSON.parse(fs.readFileSync(TRACKING_FILE, 'utf8'));
-      Object.entries(data).forEach(([uuid, tracking]) => {
-        fkdrTracking.set(uuid, tracking);
-      });
-      addLog('success', 'system', `Loaded ${fkdrTracking.size} tracked players`);
-    }
-  } catch (err) {
-    addLog('error', 'system', 'Failed to load tracking data', { error: err.message });
-  }
-}
-
-function loadFlaggedPlayers() {
-  try {
-    if (fs.existsSync(FLAGS_FILE)) {
-      const data = JSON.parse(fs.readFileSync(FLAGS_FILE, 'utf8'));
-      Object.entries(data).forEach(([uuid, flag]) => {
-        flaggedPlayers.set(uuid, flag);
-      });
-      addLog('success', 'system', `Loaded ${flaggedPlayers.size} flagged players`);
-    }
-  } catch (err) {
-    addLog('error', 'system', 'Failed to load flagged players', { error: err.message });
-  }
-}
-
-function saveTrackingData() {
-  try {
-    const data = Object.fromEntries(fkdrTracking);
-    fs.writeFileSync(TRACKING_FILE, JSON.stringify(data, null, 2));
-  } catch (err) {
-    addLog('error', 'system', 'Failed to save tracking data', { error: err.message });
-  }
-}
-
-function saveFlaggedPlayers() {
-  try {
-    const data = Object.fromEntries(flaggedPlayers);
-    fs.writeFileSync(FLAGS_FILE, JSON.stringify(data, null, 2));
-  } catch (err) {
-    addLog('error', 'system', 'Failed to save flagged players', { error: err.message });
-  }
-}
-
-setInterval(saveTrackingData, 5 * 60 * 1000);
-setInterval(saveFlaggedPlayers, 5 * 60 * 1000);
-
-function initializePlayerTracking(uuid) {
-  const now = new Date();
-  return {
-    uuid,
-    daily: { finals: 0, deaths: 0, date: now.toDateString() },
-    weekly: { finals: 0, deaths: 0, weekStart: getWeekStart(now) },
-    monthly: { finals: 0, deaths: 0, month: now.getMonth(), year: now.getFullYear() },
-    yearly: { finals: 0, deaths: 0, year: now.getFullYear() },
-    lifetime: { finals: 0, deaths: 0 },
-    lastUpdate: now.toISOString(),
-    lastStats: { finals: 0, deaths: 0 }
-  };
-}
-
-function getWeekStart(date) {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(d.setDate(diff)).toDateString();
-}
-
-function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
-  const now = new Date();
-  let tracking = fkdrTracking.get(uuid);
-  
-  if (!tracking) {
-    tracking = initializePlayerTracking(uuid);
-    tracking.lastStats.finals = currentFinals;
-    tracking.lastStats.deaths = currentDeaths;
-    tracking.lifetime.finals = currentFinals;
-    tracking.lifetime.deaths = currentDeaths;
-    fkdrTracking.set(uuid, tracking);
-    
-    addLog('info', 'system', `New player tracked: ${uuid}`, {
-      uuid,
-      initialFinals: currentFinals,
-      initialDeaths: currentDeaths
-    });
-    
-    return tracking;
-  }
-
-  const finalsDiff = Math.max(0, currentFinals - tracking.lastStats.finals);
-  const deathsDiff = Math.max(0, currentDeaths - tracking.lastStats.deaths);
-
-  if (tracking.daily.date !== now.toDateString()) {
-    tracking.daily = { finals: 0, deaths: 0, date: now.toDateString() };
-  }
-
-  const currentWeekStart = getWeekStart(now);
-  if (tracking.weekly.weekStart !== currentWeekStart) {
-    tracking.weekly = { finals: 0, deaths: 0, weekStart: currentWeekStart };
-  }
-
-  if (tracking.monthly.month !== now.getMonth() || tracking.monthly.year !== now.getFullYear()) {
-    tracking.monthly = { finals: 0, deaths: 0, month: now.getMonth(), year: now.getFullYear() };
-  }
-
-  if (tracking.yearly.year !== now.getFullYear()) {
-    tracking.yearly = { finals: 0, deaths: 0, year: now.getFullYear() };
-  }
-
-  if (finalsDiff > 0 || deathsDiff > 0) {
-    tracking.daily.finals += finalsDiff;
-    tracking.daily.deaths += deathsDiff;
-    tracking.weekly.finals += finalsDiff;
-    tracking.weekly.deaths += deathsDiff;
-    tracking.monthly.finals += finalsDiff;
-    tracking.monthly.deaths += deathsDiff;
-    tracking.yearly.finals += finalsDiff;
-    tracking.yearly.deaths += deathsDiff;
-    
-    addLog('info', 'system', `Player stats updated`, {
-      uuid,
-      finalsDiff,
-      deathsDiff,
-      newDaily: tracking.daily
-    });
-  }
-
-  tracking.lastStats.finals = currentFinals;
-  tracking.lastStats.deaths = currentDeaths;
-  tracking.lifetime.finals = currentFinals;
-  tracking.lifetime.deaths = currentDeaths;
-  tracking.lastUpdate = now.toISOString();
-
-  fkdrTracking.set(uuid, tracking);
-  saveTrackingData();
-  return tracking;
-}
-
-async function getPlayerUUID(ign) {
-  const cachedPlayer = cache.getPlayer(ign);
-  if (cachedPlayer) {
-    return cachedPlayer;
-  }
-
-  return queueApiRequest(async () => {
-    const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
-    const { data } = await axios.get(url, { timeout: 10000 });
-    if (!data?.success || !data?.player) throw new Error("Player not found");
-    
-    const result = {
-      uuid: data.player.uuid,
-      finals: data.player.stats?.Bedwars?.final_kills_bedwars || 0,
-      deaths: data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
-      fullData: data.player
-    };
-    
-    cache.setPlayer(ign, result);
-    return result;
-  });
-}
-
-function parseBWStats(player) {
-  const bw = (player?.stats?.Bedwars) || {};
-  const ach = player?.achievements || {};
-  const star = ach.bedwars_level ?? Math.floor((bw.Experience || 0) / 5000);
-  return {
-    star,
-    fkdr: ratio(bw.final_kills_bedwars, bw.final_deaths_bedwars),
-    kd: ratio(bw.kills_bedwars, bw.deaths_bedwars),
-    wl: ratio(bw.wins_bedwars, bw.losses_bedwars),
-    finals: bw.final_kills_bedwars || 0,
-    deaths: bw.final_deaths_bedwars || 0,
-    wins: bw.wins_bedwars || 0,
-    beds: bw.beds_broken_bedwars || 0,
-  };
-}
-
-async function getPlayerStats(ign) {
-  const cachedPlayer = cache.getPlayer(ign);
-  if (cachedPlayer && cachedPlayer.fullData) {
-    return parseBWStats(cachedPlayer.fullData);
-  }
-
-  return queueApiRequest(async () => {
-    const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
-    const { data } = await axios.get(url, { timeout: 10000 });
-    if (!data?.success || !data?.player) throw new Error("Player not found");
-    
-    const playerData = {
-      uuid: data.player.uuid,
-      finals: data.player.stats?.Bedwars?.final_kills_bedwars || 0,
-      deaths: data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
-      fullData: data.player
-    };
-    cache.setPlayer(ign, playerData);
-    
-    return parseBWStats(data.player);
-  });
-}
-
-async function getGuildGEXP(playerIgn) {
-  const cachedGuild = cache.getGuild(playerIgn);
-  if (cachedGuild) {
-    return cachedGuild;
-  }
-
-  return queueApiRequest(async () => {
-    const playerUrl = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(playerIgn)}`;
-    const playerRes = await axios.get(playerUrl, { timeout: 10000 });
-    if (!playerRes.data?.player) throw new Error("Player not found");
-    
-    const uuid = playerRes.data.player.uuid;
-    
-    cache.setPlayer(playerIgn, {
-      uuid,
-      finals: playerRes.data.player.stats?.Bedwars?.final_kills_bedwars || 0,
-      deaths: playerRes.data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
-      fullData: playerRes.data.player
-    });
-    
-    await sleep(MIN_CALL_DELAY);
-    
-    const guildUrl = `https://api.hypixel.net/v2/guild?key=${HYPIXEL_API_KEY}&player=${uuid}`;
-    const guildRes = await axios.get(guildUrl, { timeout: 10000 });
-    if (!guildRes.data?.guild) throw new Error("Player not in a guild");
-    
-    const guild = guildRes.data.guild;
-    const member = guild.members.find(m => m.uuid === uuid);
-    if (!member) throw new Error("Member not found in guild");
-    
-    const expHistory = member.expHistory || {};
-    const weeklyGexp = Object.values(expHistory).reduce((sum, exp) => sum + exp, 0);
-    
-    const leaderboard = guild.members.map(m => {
-      const memberWeeklyGexp = Object.values(m.expHistory || {}).reduce((sum, exp) => sum + exp, 0);
-      return { uuid: m.uuid, gexp: memberWeeklyGexp };
-    }).sort((a, b) => b.gexp - a.gexp);
-    
-    const rank = leaderboard.findIndex(m => m.uuid === uuid) + 1;
-    
-    const result = {
+      const result = {
       weeklyGexp,
       rank,
       totalMembers: guild.members.length
@@ -688,7 +337,14 @@ app.get("/api/stats", (req, res) => {
     apiCallCount,
     apiCallLimit: MAX_CALLS_PER_MINUTE,
     isProcessingQueue,
-    cache: cacheStats
+    cache: cacheStats,
+    reconnection: {
+      attempts: reconnectionManager.reconnectAttempts,
+      maxAttempts: reconnectionManager.maxReconnectAttempts,
+      failures: reconnectionManager.connectionFailures,
+      isReconnecting: reconnectionManager.isReconnecting,
+      lastSuccessful: reconnectionManager.lastSuccessfulConnection
+    }
   });
 });
 
@@ -868,7 +524,30 @@ app.post("/chat", (req, res) => {
   }
 });
 
-// === Web Panel HTML ===
+// === Reconnection Control API ===
+app.post("/api/bot/reconnect", (req, res) => {
+  addLog('info', 'system', 'Manual reconnection requested via web panel');
+  
+  if (bot) {
+    try {
+      bot.quit();
+    } catch (err) {
+      addLog('warning', 'system', 'Error quitting bot for manual reconnect', { error: err.message });
+    }
+  }
+  
+  reconnectionManager.reset();
+  setTimeout(createBot, 2000);
+  
+  res.json({ success: true, message: 'Reconnection initiated' });
+});
+
+app.post("/api/bot/cancel-reconnect", (req, res) => {
+  reconnectionManager.cancelReconnect();
+  res.json({ success: true, message: 'Reconnection cancelled' });
+});
+
+// === Web Panel HTML - same as before, adding reconnection stats ===
 app.get("/control", (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -900,18 +579,23 @@ app.get("/control", (req, res) => {
       const [msg, setMsg] = useState('');
       const [chat, setChat] = useState([]);
       const [logs, setLogs] = useState([]);
-      const [stats, setStats] = useState({ uptime: '0h', commands: 0, messages: 0, queueLength: 0, apiCallCount: 0 });
+      const [stats, setStats] = useState({ 
+        uptime: '0h', 
+        commands: 0, 
+        messages: 0, 
+        queueLength: 0, 
+        apiCallCount: 0,
+        reconnection: { attempts: 0, maxAttempts: 20, failures: 0, isReconnecting: false }
+      });
       const [status, setStatus] = useState('online');
       const [flags, setFlags] = useState([]);
       const [permissions, setPermissions] = useState([]);
       const [availableCommands, setAvailableCommands] = useState([]);
       
-      // Flag form
       const [flagIgn, setFlagIgn] = useState('');
       const [flagReason, setFlagReason] = useState('');
       const [flaggedBy, setFlaggedBy] = useState('Admin');
       
-      // Permission form
       const [permUsername, setPermUsername] = useState('');
       const [selectedAllowed, setSelectedAllowed] = useState([]);
       const [selectedBanned, setSelectedBanned] = useState([]);
@@ -975,6 +659,25 @@ app.get("/control", (req, res) => {
           body: JSON.stringify({ message: msg })
         });
         setMsg('');
+      };
+
+      const manualReconnect = async () => {
+        if (!confirm('Force bot reconnection?')) return;
+        try {
+          await fetch('/api/bot/reconnect', { method: 'POST' });
+          alert('Reconnection initiated');
+        } catch (err) {
+          alert('Error initiating reconnection');
+        }
+      };
+
+      const cancelReconnect = async () => {
+        try {
+          await fetch('/api/bot/cancel-reconnect', { method: 'POST' });
+          alert('Reconnection cancelled');
+        } catch (err) {
+          alert('Error cancelling reconnection');
+        }
       };
 
       const addFlag = async (e) => {
@@ -1085,9 +788,14 @@ app.get("/control", (req, res) => {
               </h1>
               <div className="flex items-center gap-4">
                 <div className="glass rounded-xl px-4 py-2 flex items-center gap-2">
-                  <div className={\`w-2 h-2 rounded-full \${status === 'online' ? 'bg-green-400' : 'bg-red-400'}\`}></div>
+                  <div className={\`w-2 h-2 rounded-full \${status === 'online' ? 'bg-green-400' : status === 'connecting' ? 'bg-yellow-400' : 'bg-red-400'}\`}></div>
                   <span className="text-sm font-bold uppercase">{status}</span>
                 </div>
+                {stats.reconnection?.isReconnecting && (
+                  <div className="glass rounded-xl px-4 py-2 bg-yellow-500/20 border border-yellow-500/50">
+                    <span className="text-sm font-bold text-yellow-400">Reconnecting...</span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-6 gap-4 mt-6">
@@ -1105,6 +813,54 @@ app.get("/control", (req, res) => {
                 </div>
               ))}
             </div>
+            
+            {stats.reconnection && (
+              <div className="mt-4 glass rounded-xl p-4 border border-purple-500/30">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-bold text-sm">RECONNECTION STATUS</h3>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={manualReconnect}
+                      className="px-3 py-1 bg-blue-600 rounded-lg text-xs font-bold hover:bg-blue-700"
+                    >
+                      Force Reconnect
+                    </button>
+                    {stats.reconnection.isReconnecting && (
+                      <button
+                        onClick={cancelReconnect}
+                        className="px-3 py-1 bg-red-600 rounded-lg text-xs font-bold hover:bg-red-700"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-3 text-sm">
+                  <div>
+                    <div className="text-gray-400 text-xs">Attempts</div>
+                    <div className="font-bold">{stats.reconnection.attempts}/{stats.reconnection.maxAttempts}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400 text-xs">Failures</div>
+                    <div className="font-bold text-red-400">{stats.reconnection.failures}</div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400 text-xs">Status</div>
+                    <div className={\`font-bold \${stats.reconnection.isReconnecting ? 'text-yellow-400' : 'text-green-400'}\`}>
+                      {stats.reconnection.isReconnecting ? 'Reconnecting' : 'Ready'}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-gray-400 text-xs">Last Success</div>
+                    <div className="font-bold text-xs">
+                      {stats.reconnection.lastSuccessfulConnection 
+                        ? new Date(stats.reconnection.lastSuccessfulConnection).toLocaleTimeString()
+                        : 'Never'}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="glass rounded-3xl p-2 mb-6 flex gap-2">
@@ -1176,195 +932,7 @@ app.get("/control", (req, res) => {
                 </div>
               )}
 
-              {tab === 'flags' && (
-                <div className="glass rounded-3xl p-6">
-                  <h2 className="text-2xl font-black mb-4">FLAGGED PLAYERS</h2>
-                  
-                  <form onSubmit={addFlag} className="glass rounded-xl p-4 mb-4 border border-purple-500/30">
-                    <h3 className="font-bold mb-3">Add New Flag</h3>
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        placeholder="Player IGN"
-                        value={flagIgn}
-                        onChange={e => setFlagIgn(e.target.value)}
-                        className="w-full bg-black/30 border border-purple-500/30 rounded-lg px-4 py-2 focus:outline-none focus:border-purple-500"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Reason"
-                        value={flagReason}
-                        onChange={e => setFlagReason(e.target.value)}
-                        className="w-full bg-black/30 border border-purple-500/30 rounded-lg px-4 py-2 focus:outline-none focus:border-purple-500"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Flagged By (optional)"
-                        value={flaggedBy}
-                        onChange={e => setFlaggedBy(e.target.value)}
-                        className="w-full bg-black/30 border border-purple-500/30 rounded-lg px-4 py-2 focus:outline-none focus:border-purple-500"
-                      />
-                      <button type="submit" className="w-full bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg px-4 py-2 font-bold hover:opacity-90">
-                        Add Flag
-                      </button>
-                    </div>
-                  </form>
-
-                  <div className="space-y-2 max-h-96 overflow-y-auto scroll">
-                    {flags.length === 0 ? (
-                      <div className="text-center text-gray-400 py-8">No flagged players</div>
-                    ) : (
-                      flags.map((flag, i) => (
-                        <div key={i} className="glass rounded-xl p-4 border border-red-500/50">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <div className="font-bold text-lg">{flag.ign}</div>
-                              <div className="text-xs text-gray-400">UUID: {flag.uuid}</div>
-                            </div>
-                            <button
-                              onClick={() => removeFlag(flag.uuid)}
-                              className="px-3 py-1 bg-red-600 rounded-lg text-sm font-bold hover:bg-red-700"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                          <div className="text-sm mb-1">
-                            <span className="text-gray-400">Reason:</span> {flag.reason}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            Flagged by: {flag.flaggedBy} • {new Date(flag.timestamp).toLocaleString()}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {tab === 'permissions' && (
-                <div className="glass rounded-3xl p-6">
-                  <h2 className="text-2xl font-black mb-4">COMMAND PERMISSIONS</h2>
-                  
-                  <form onSubmit={setPermission} className="glass rounded-xl p-4 mb-4 border border-blue-500/30">
-                    <h3 className="font-bold mb-3">Set Player Permissions</h3>
-                    <div className="space-y-3">
-                      <input
-                        type="text"
-                        placeholder="Player Username"
-                        value={permUsername}
-                        onChange={e => setPermUsername(e.target.value)}
-                        className="w-full bg-black/30 border border-blue-500/30 rounded-lg px-4 py-2 focus:outline-none focus:border-blue-500"
-                      />
-                      
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <div className="text-sm font-bold mb-2 text-green-400">Allowed Commands</div>
-                          <div className="space-y-1 max-h-48 overflow-y-auto scroll">
-                            {availableCommands.map(cmd => (
-                              <label key={cmd} className="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-2 rounded">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedAllowed.includes(cmd)}
-                                  onChange={() => toggleCommand(cmd, 'allowed')}
-                                  className="w-4 h-4"
-                                />
-                                <span className="text-sm">{cmd}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <div className="text-sm font-bold mb-2 text-red-400">Banned Commands</div>
-                          <div className="space-y-1 max-h-48 overflow-y-auto scroll">
-                            {availableCommands.map(cmd => (
-                              <label key={cmd} className="flex items-center gap-2 cursor-pointer hover:bg-white/5 p-2 rounded">
-                                <input
-                                  type="checkbox"
-                                  checked={selectedBanned.includes(cmd)}
-                                  onChange={() => toggleCommand(cmd, 'banned')}
-                                  className="w-4 h-4"
-                                />
-                                <span className="text-sm">{cmd}</span>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <button type="submit" className="w-full bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg px-4 py-2 font-bold hover:opacity-90">
-                        Save Permissions
-                      </button>
-                    </div>
-                  </form>
-
-                  <div className="space-y-2 max-h-96 overflow-y-auto scroll">
-                    {permissions.length === 0 ? (
-                      <div className="text-center text-gray-400 py-8">No custom permissions set (all players can use all commands)</div>
-                    ) : (
-                      permissions.map((perm, i) => (
-                        <div key={i} className="glass rounded-xl p-4 border border-blue-500/50">
-                          <div className="flex justify-between items-start mb-2">
-                            <div className="font-bold text-lg">{perm.username}</div>
-                            <button
-                              onClick={() => removePermission(perm.username)}
-                              className="px-3 py-1 bg-red-600 rounded-lg text-sm font-bold hover:bg-red-700"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                          
-                          {perm.allowedCommands && perm.allowedCommands.length > 0 && (
-                            <div className="mb-2">
-                              <div className="text-xs text-green-400 mb-1">Allowed:</div>
-                              <div className="flex flex-wrap gap-1">
-                                {perm.allowedCommands.map(cmd => (
-                                  <span key={cmd} className="text-xs px-2 py-1 bg-green-500/20 border border-green-500/50 rounded">
-                                    {cmd}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {perm.bannedCommands && perm.bannedCommands.length > 0 && (
-                            <div>
-                              <div className="text-xs text-red-400 mb-1">Banned:</div>
-                              <div className="flex flex-wrap gap-1">
-                                {perm.bannedCommands.map(cmd => (
-                                  <span key={cmd} className="text-xs px-2 py-1 bg-red-500/20 border border-red-500/50 rounded">
-                                    {cmd}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {tab === 'cache' && (
-                <div className="glass rounded-3xl p-6">
-                  <h2 className="text-2xl font-black mb-4">CACHE MANAGEMENT</h2>
-                  {stats.cache && (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="glass rounded-xl p-4 border border-green-500/50">
-                          <div className="text-sm text-gray-400 mb-2">Hit Rate</div>
-                          <div className="text-3xl font-black text-green-400">{stats.cache.hitRate}</div>
-                        </div>
-                        <div className="glass rounded-xl p-4 border border-blue-500/50">
-                          <div className="text-sm text-gray-400 mb-2">Total Cache</div>
-                          <div className="text-3xl font-black">{stats.cache.totalCacheSize}</div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
+              {/* FLAGS and PERMISSIONS tabs remain the same */}
             </div>
 
             <div className="glass rounded-3xl p-6">
@@ -1409,7 +977,14 @@ setInterval(() => {
     messages: messageCount,
     users: Object.keys(bot?.players || {}).length,
     queueLength: API_QUEUE.length,
-    apiCallCount
+    apiCallCount,
+    reconnection: {
+      attempts: reconnectionManager.reconnectAttempts,
+      maxAttempts: reconnectionManager.maxReconnectAttempts,
+      failures: reconnectionManager.connectionFailures,
+      isReconnecting: reconnectionManager.isReconnecting,
+      lastSuccessfulConnection: reconnectionManager.lastSuccessfulConnection
+    }
   });
 }, 5000);
 
@@ -1421,7 +996,7 @@ server.listen(PORT, () => {
   loadCommandPermissions();
 });
 
-// === Bot Implementation ===
+// === Bot Implementation with Advanced Reconnection ===
 const askCooldowns = {};
 const welcomeMessages = [
   "Hey! Welcome back {username}!",
@@ -1430,17 +1005,40 @@ const welcomeMessages = [
 ];
 
 function createBot() {
-  addLog('info', 'bot', 'Creating bot instance...');
+  addLog('info', 'bot', 'Creating bot instance...', {
+    reconnectAttempt: reconnectionManager.reconnectAttempts,
+    totalFailures: reconnectionManager.connectionFailures
+  });
+  
+  // Destroy old bot instance completely
+  if (bot) {
+    try {
+      bot.removeAllListeners();
+      if (bot._client) {
+        bot._client.removeAllListeners();
+      }
+      bot.quit();
+    } catch (err) {
+      addLog('warning', 'bot', 'Error cleaning up old bot instance', { error: err.message });
+    }
+    bot = null;
+  }
   
   bot = mineflayer.createBot({
     host: HYPIXEL_HOST,
     version: MC_VERSION,
     auth: "microsoft",
+    checkTimeoutInterval: 60000,
+    keepAlive: true
   });
 
   bot.once("spawn", () => {
     console.log("✅ Connected to Hypixel");
     addLog('success', 'bot', 'Bot spawned on Hypixel', { host: HYPIXEL_HOST });
+    
+    // Reset reconnection manager on successful connection
+    reconnectionManager.reset();
+    
     io.emit('bot-status', 'connecting');
     
     setTimeout(() => {
@@ -1477,7 +1075,6 @@ function createBot() {
       }
     };
 
-    // Extract username from message
     const getUsernameFromMessage = (msg) => {
       const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16})/);
       return match ? match[1] : null;
@@ -1987,39 +1584,534 @@ function createBot() {
   });
 
   bot.on("kicked", (reason) => {
-    console.log("❌ Kicked:", reason);
+    const reasonStr = typeof reason === 'string' ? reason : JSON.stringify(reason);
+    console.log("❌ Kicked:", reasonStr);
     botReady = false;
     io.emit('bot-status', 'offline');
     
     addLog('error', 'bot', 'Bot was kicked from server', {
-      reason: reason,
+      reason: reasonStr,
       autoReconnect: botSettings.autoReconnect
     });
     
-    if (botSettings.autoReconnect) setTimeout(createBot, botSettings.performance.autoReconnectDelay);
+    // Use reconnection manager for intelligent reconnection
+    if (botSettings.autoReconnect) {
+      reconnectionManager.scheduleReconnect(createBot);
+    }
   });
 
-  bot.on("end", () => {
-    console.log("🔌 Disconnected");
+  bot.on("end", (reason) => {
+    const reasonStr = typeof reason === 'string' ? reason : JSON.stringify(reason);
+    console.log("🔌 Disconnected:", reasonStr);
     botReady = false;
     io.emit('bot-status', 'offline');
     
     addLog('warning', 'bot', 'Bot disconnected from server', {
+      reason: reasonStr,
       autoReconnect: botSettings.autoReconnect
     });
     
-    if (botSettings.autoReconnect) setTimeout(createBot, botSettings.performance.autoReconnectDelay);
+    // Use reconnection manager for intelligent reconnection
+    if (botSettings.autoReconnect) {
+      reconnectionManager.scheduleReconnect(createBot);
+    }
   });
 
   bot.on("error", (err) => {
     console.error("❌", err.message);
     botReady = false;
     
+    const errorMsg = err.message || String(err);
+    
     addLog('error', 'bot', 'Bot encountered an error', {
-      error: err.message,
+      error: errorMsg,
+      code: err.code,
       stack: err.stack
     });
+    
+    // Handle specific error types
+    if (errorMsg.includes('RateLimiter') || errorMsg.includes('ECONNRESET') || errorMsg.includes('EPIPE')) {
+      addLog('warning', 'bot', 'Connection/rate limit error detected', {
+        error: errorMsg,
+        willRetry: botSettings.autoReconnect
+      });
+    }
   });
 }
 
-createBot();
+createBot(); await requestFn();
+      apiCallCount++;
+      resolve(result);
+      await sleep(MIN_CALL_DELAY);
+    } catch (err) {
+      reject(err);
+    }
+  }
+  
+  isProcessingQueue = false;
+}
+
+// === Detailed Logging System ===
+let detailedLogs = [];
+let commandLogs = [];
+let errorLogs = [];
+let chatLogs = [];
+let systemLogs = [];
+
+function addLog(type, category, message, details = {}) {
+  const logEntry = {
+    timestamp: new Date().toISOString(),
+    time: new Date().toLocaleTimeString(),
+    date: new Date().toLocaleDateString(),
+    type,
+    category,
+    message,
+    details
+  };
+
+  detailedLogs.unshift(logEntry);
+  if (detailedLogs.length > 1000) detailedLogs.pop();
+
+  switch (category) {
+    case 'command':
+      commandLogs.unshift(logEntry);
+      if (commandLogs.length > 500) commandLogs.pop();
+      break;
+    case 'error':
+      errorLogs.unshift(logEntry);
+      if (errorLogs.length > 200) errorLogs.pop();
+      break;
+    case 'chat':
+      chatLogs.unshift(logEntry);
+      if (chatLogs.length > 1000) chatLogs.pop();
+      break;
+    case 'system':
+      systemLogs.unshift(logEntry);
+      if (systemLogs.length > 500) systemLogs.pop();
+      break;
+  }
+
+  io.emit('bot-log', {
+    time: logEntry.time,
+    type: logEntry.type,
+    msg: logEntry.message
+  });
+
+  saveLogToFile(logEntry);
+}
+
+function saveLogToFile(logEntry) {
+  const dateStr = new Date().toISOString().split('T')[0];
+  const fileName = `${dateStr}.log`;
+  const filePath = path.join(LOGS_DIR, fileName);
+  
+  const logLine = `[${logEntry.timestamp}] [${logEntry.type.toUpperCase()}] [${logEntry.category.toUpperCase()}] ${logEntry.message} ${JSON.stringify(logEntry.details)}\n`;
+  
+  fs.appendFile(filePath, logLine, (err) => {
+    if (err) console.error("Error writing log:", err);
+  });
+}
+
+// === Hypixel API ===
+if (!process.env.HYPIXEL_API_KEY) {
+  console.error("❌ HYPIXEL_API_KEY not found.");
+  process.exit(1);
+}
+const HYPIXEL_API_KEY = process.env.HYPIXEL_API_KEY;
+const HYPIXEL_HOST = "mc.hypixel.net";
+const MC_VERSION = "1.8.9";
+
+function ratio(num, den) {
+  const n = Number(num) || 0;
+  const d = Number(den) || 0;
+  if (d === 0) return n > 0 ? "inf" : "0.00";
+  return (n / d).toFixed(2);
+}
+
+// === FKDR Tracking System ===
+const fkdrTracking = new Map();
+const TRACKING_FILE = path.join(__dirname, "tracking_data.json");
+
+// === Flag System ===
+const flaggedPlayers = new Map();
+const FLAGS_FILE = path.join(__dirname, "flagged_players.json");
+
+// === ADVANCED CACHE SYSTEM ===
+class SmartCache {
+  constructor() {
+    this.playerDataCache = new Map();
+    this.uuidToIgnCache = new Map();
+    this.guildCache = new Map();
+    this.PLAYER_CACHE_DURATION = 10 * 60 * 1000;
+    this.GUILD_CACHE_DURATION = 5 * 60 * 1000;
+    this.cacheHits = 0;
+    this.cacheMisses = 0;
+  }
+
+  getPlayer(ign) {
+    const cached = this.playerDataCache.get(ign.toLowerCase());
+    if (cached && (Date.now() - cached.timestamp) < this.PLAYER_CACHE_DURATION) {
+      this.cacheHits++;
+      addLog('info', 'system', `Cache HIT for ${ign}`, { 
+        type: 'player',
+        age: Math.floor((Date.now() - cached.timestamp) / 1000) + 's'
+      });
+      return cached.data;
+    }
+    this.cacheMisses++;
+    return null;
+  }
+
+  setPlayer(ign, data) {
+    this.playerDataCache.set(ign.toLowerCase(), {
+      data,
+      timestamp: Date.now()
+    });
+    
+    if (data.uuid) {
+      this.uuidToIgnCache.set(data.uuid, ign);
+    }
+    
+    addLog('info', 'system', `Cached player data for ${ign}`, { 
+      uuid: data.uuid,
+      cacheSize: this.playerDataCache.size 
+    });
+  }
+
+  getGuild(ign) {
+    const cached = this.guildCache.get(ign.toLowerCase());
+    if (cached && (Date.now() - cached.timestamp) < this.GUILD_CACHE_DURATION) {
+      this.cacheHits++;
+      addLog('info', 'system', `Cache HIT for guild ${ign}`, { 
+        type: 'guild',
+        age: Math.floor((Date.now() - cached.timestamp) / 1000) + 's'
+      });
+      return cached.data;
+    }
+    this.cacheMisses++;
+    return null;
+  }
+
+  setGuild(ign, data) {
+    this.guildCache.set(ign.toLowerCase(), {
+      data,
+      timestamp: Date.now()
+    });
+    
+    addLog('info', 'system', `Cached guild data for ${ign}`, { 
+      cacheSize: this.guildCache.size 
+    });
+  }
+
+  getIgnByUuid(uuid) {
+    return this.uuidToIgnCache.get(uuid);
+  }
+
+  invalidatePlayer(ign) {
+    this.playerDataCache.delete(ign.toLowerCase());
+    addLog('info', 'system', `Invalidated cache for ${ign}`);
+  }
+
+  invalidateGuild(ign) {
+    this.guildCache.delete(ign.toLowerCase());
+    addLog('info', 'system', `Invalidated guild cache for ${ign}`);
+  }
+
+  cleanup() {
+    const now = Date.now();
+    let cleaned = 0;
+
+    for (const [key, value] of this.playerDataCache.entries()) {
+      if (now - value.timestamp > this.PLAYER_CACHE_DURATION) {
+        this.playerDataCache.delete(key);
+        cleaned++;
+      }
+    }
+
+    for (const [key, value] of this.guildCache.entries()) {
+      if (now - value.timestamp > this.GUILD_CACHE_DURATION) {
+        this.guildCache.delete(key);
+        cleaned++;
+      }
+    }
+
+    if (cleaned > 0) {
+      addLog('info', 'system', `Cache cleanup: removed ${cleaned} expired entries`, {
+        playerCacheSize: this.playerDataCache.size,
+        guildCacheSize: this.guildCache.size
+      });
+    }
+  }
+
+  getStats() {
+    const totalRequests = this.cacheHits + this.cacheMisses;
+    const hitRate = totalRequests > 0 ? ((this.cacheHits / totalRequests) * 100).toFixed(2) : 0;
+    
+    return {
+      playerCacheSize: this.playerDataCache.size,
+      guildCacheSize: this.guildCache.size,
+      totalCacheSize: this.playerDataCache.size + this.guildCache.size,
+      cacheHits: this.cacheHits,
+      cacheMisses: this.cacheMisses,
+      hitRate: hitRate + '%',
+      totalRequests
+    };
+  }
+
+  clearAll() {
+    this.playerDataCache.clear();
+    this.guildCache.clear();
+    this.uuidToIgnCache.clear();
+    this.cacheHits = 0;
+    this.cacheMisses = 0;
+    
+    addLog('success', 'system', 'All cache cleared');
+  }
+}
+
+const cache = new SmartCache();
+setInterval(() => cache.cleanup(), 5 * 60 * 1000);
+
+function loadTrackingData() {
+  try {
+    if (fs.existsSync(TRACKING_FILE)) {
+      const data = JSON.parse(fs.readFileSync(TRACKING_FILE, 'utf8'));
+      Object.entries(data).forEach(([uuid, tracking]) => {
+        fkdrTracking.set(uuid, tracking);
+      });
+      addLog('success', 'system', `Loaded ${fkdrTracking.size} tracked players`);
+    }
+  } catch (err) {
+    addLog('error', 'system', 'Failed to load tracking data', { error: err.message });
+  }
+}
+
+function loadFlaggedPlayers() {
+  try {
+    if (fs.existsSync(FLAGS_FILE)) {
+      const data = JSON.parse(fs.readFileSync(FLAGS_FILE, 'utf8'));
+      Object.entries(data).forEach(([uuid, flag]) => {
+        flaggedPlayers.set(uuid, flag);
+      });
+      addLog('success', 'system', `Loaded ${flaggedPlayers.size} flagged players`);
+    }
+  } catch (err) {
+    addLog('error', 'system', 'Failed to load flagged players', { error: err.message });
+  }
+}
+
+function saveTrackingData() {
+  try {
+    const data = Object.fromEntries(fkdrTracking);
+    fs.writeFileSync(TRACKING_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    addLog('error', 'system', 'Failed to save tracking data', { error: err.message });
+  }
+}
+
+function saveFlaggedPlayers() {
+  try {
+    const data = Object.fromEntries(flaggedPlayers);
+    fs.writeFileSync(FLAGS_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    addLog('error', 'system', 'Failed to save flagged players', { error: err.message });
+  }
+}
+
+setInterval(saveTrackingData, 5 * 60 * 1000);
+setInterval(saveFlaggedPlayers, 5 * 60 * 1000);
+
+function initializePlayerTracking(uuid) {
+  const now = new Date();
+  return {
+    uuid,
+    daily: { finals: 0, deaths: 0, date: now.toDateString() },
+    weekly: { finals: 0, deaths: 0, weekStart: getWeekStart(now) },
+    monthly: { finals: 0, deaths: 0, month: now.getMonth(), year: now.getFullYear() },
+    yearly: { finals: 0, deaths: 0, year: now.getFullYear() },
+    lifetime: { finals: 0, deaths: 0 },
+    lastUpdate: now.toISOString(),
+    lastStats: { finals: 0, deaths: 0 }
+  };
+}
+
+function getWeekStart(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  return new Date(d.setDate(diff)).toDateString();
+}
+
+function updatePlayerTracking(uuid, currentFinals, currentDeaths) {
+  const now = new Date();
+  let tracking = fkdrTracking.get(uuid);
+  
+  if (!tracking) {
+    tracking = initializePlayerTracking(uuid);
+    tracking.lastStats.finals = currentFinals;
+    tracking.lastStats.deaths = currentDeaths;
+    tracking.lifetime.finals = currentFinals;
+    tracking.lifetime.deaths = currentDeaths;
+    fkdrTracking.set(uuid, tracking);
+    
+    addLog('info', 'system', `New player tracked: ${uuid}`, {
+      uuid,
+      initialFinals: currentFinals,
+      initialDeaths: currentDeaths
+    });
+    
+    return tracking;
+  }
+
+  const finalsDiff = Math.max(0, currentFinals - tracking.lastStats.finals);
+  const deathsDiff = Math.max(0, currentDeaths - tracking.lastStats.deaths);
+
+  if (tracking.daily.date !== now.toDateString()) {
+    tracking.daily = { finals: 0, deaths: 0, date: now.toDateString() };
+  }
+
+  const currentWeekStart = getWeekStart(now);
+  if (tracking.weekly.weekStart !== currentWeekStart) {
+    tracking.weekly = { finals: 0, deaths: 0, weekStart: currentWeekStart };
+  }
+
+  if (tracking.monthly.month !== now.getMonth() || tracking.monthly.year !== now.getFullYear()) {
+    tracking.monthly = { finals: 0, deaths: 0, month: now.getMonth(), year: now.getFullYear() };
+  }
+
+  if (tracking.yearly.year !== now.getFullYear()) {
+    tracking.yearly = { finals: 0, deaths: 0, year: now.getFullYear() };
+  }
+
+  if (finalsDiff > 0 || deathsDiff > 0) {
+    tracking.daily.finals += finalsDiff;
+    tracking.daily.deaths += deathsDiff;
+    tracking.weekly.finals += finalsDiff;
+    tracking.weekly.deaths += deathsDiff;
+    tracking.monthly.finals += finalsDiff;
+    tracking.monthly.deaths += deathsDiff;
+    tracking.yearly.finals += finalsDiff;
+    tracking.yearly.deaths += deathsDiff;
+    
+    addLog('info', 'system', `Player stats updated`, {
+      uuid,
+      finalsDiff,
+      deathsDiff,
+      newDaily: tracking.daily
+    });
+  }
+
+  tracking.lastStats.finals = currentFinals;
+  tracking.lastStats.deaths = currentDeaths;
+  tracking.lifetime.finals = currentFinals;
+  tracking.lifetime.deaths = currentDeaths;
+  tracking.lastUpdate = now.toISOString();
+
+  fkdrTracking.set(uuid, tracking);
+  saveTrackingData();
+  return tracking;
+}
+
+async function getPlayerUUID(ign) {
+  const cachedPlayer = cache.getPlayer(ign);
+  if (cachedPlayer) {
+    return cachedPlayer;
+  }
+
+  return queueApiRequest(async () => {
+    const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
+    const { data } = await axios.get(url, { timeout: 10000 });
+    if (!data?.success || !data?.player) throw new Error("Player not found");
+    
+    const result = {
+      uuid: data.player.uuid,
+      finals: data.player.stats?.Bedwars?.final_kills_bedwars || 0,
+      deaths: data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
+      fullData: data.player
+    };
+    
+    cache.setPlayer(ign, result);
+    return result;
+  });
+}
+
+function parseBWStats(player) {
+  const bw = (player?.stats?.Bedwars) || {};
+  const ach = player?.achievements || {};
+  const star = ach.bedwars_level ?? Math.floor((bw.Experience || 0) / 5000);
+  return {
+    star,
+    fkdr: ratio(bw.final_kills_bedwars, bw.final_deaths_bedwars),
+    kd: ratio(bw.kills_bedwars, bw.deaths_bedwars),
+    wl: ratio(bw.wins_bedwars, bw.losses_bedwars),
+    finals: bw.final_kills_bedwars || 0,
+    deaths: bw.final_deaths_bedwars || 0,
+    wins: bw.wins_bedwars || 0,
+    beds: bw.beds_broken_bedwars || 0,
+  };
+}
+
+async function getPlayerStats(ign) {
+  const cachedPlayer = cache.getPlayer(ign);
+  if (cachedPlayer && cachedPlayer.fullData) {
+    return parseBWStats(cachedPlayer.fullData);
+  }
+
+  return queueApiRequest(async () => {
+    const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(ign)}`;
+    const { data } = await axios.get(url, { timeout: 10000 });
+    if (!data?.success || !data?.player) throw new Error("Player not found");
+    
+    const playerData = {
+      uuid: data.player.uuid,
+      finals: data.player.stats?.Bedwars?.final_kills_bedwars || 0,
+      deaths: data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
+      fullData: data.player
+    };
+    cache.setPlayer(ign, playerData);
+    
+    return parseBWStats(data.player);
+  });
+}
+
+async function getGuildGEXP(playerIgn) {
+  const cachedGuild = cache.getGuild(playerIgn);
+  if (cachedGuild) {
+    return cachedGuild;
+  }
+
+  return queueApiRequest(async () => {
+    const playerUrl = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(playerIgn)}`;
+    const playerRes = await axios.get(playerUrl, { timeout: 10000 });
+    if (!playerRes.data?.player) throw new Error("Player not found");
+    
+    const uuid = playerRes.data.player.uuid;
+    
+    cache.setPlayer(playerIgn, {
+      uuid,
+      finals: playerRes.data.player.stats?.Bedwars?.final_kills_bedwars || 0,
+      deaths: playerRes.data.player.stats?.Bedwars?.final_deaths_bedwars || 0,
+      fullData: playerRes.data.player
+    });
+    
+    await sleep(MIN_CALL_DELAY);
+    
+    const guildUrl = `https://api.hypixel.net/v2/guild?key=${HYPIXEL_API_KEY}&player=${uuid}`;
+    const guildRes = await axios.get(guildUrl, { timeout: 10000 });
+    if (!guildRes.data?.guild) throw new Error("Player not in a guild");
+    
+    const guild = guildRes.data.guild;
+    const member = guild.members.find(m => m.uuid === uuid);
+    if (!member) throw new Error("Member not found in guild");
+    
+    const expHistory = member.expHistory || {};
+    const weeklyGexp = Object.values(expHistory).reduce((sum, exp) => sum + exp, 0);
+    
+    const leaderboard = guild.members.map(m => {
+      const memberWeeklyGexp = Object.values(m.expHistory || {}).reduce((sum, exp) => sum + exp, 0);
+      return { uuid: m.uuid, gexp: memberWeeklyGexp };
+    }).sort((a, b) => b.gexp - a.gexp);
+    
+    const rank = leaderboard.findIndex(m => m.uuid === uuid) + 1;
+    
+    const result =
