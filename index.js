@@ -80,6 +80,7 @@ function saveCommandPermissions() {
   try {
     const data = Object.fromEntries(commandPermissions);
     fs.writeFileSync(PERMISSIONS_FILE, JSON.stringify(data, null, 2));
+    console.log(`💾 Saved ${commandPermissions.size} permission entries`);
   } catch (err) {
     console.error('❌ Failed to save permissions:', err.message);
   }
@@ -459,6 +460,10 @@ app.get("/api/permissions", (req, res) => {
 app.post("/api/permissions/set", (req, res) => {
   const { username, allowedCommands, bannedCommands } = req.body;
   
+  if (!username || username.trim() === '') {
+    return res.status(400).json({ success: false, message: 'Username required' });
+  }
+  
   commandPermissions.set(username.toLowerCase(), {
     allowedCommands: allowedCommands || [],
     bannedCommands: bannedCommands || []
@@ -495,7 +500,7 @@ app.post("/chat", (req, res) => {
   }
 });
 
-// === Simplified Web Panel ===
+// === Web Panel ===
 app.get("/control", (req, res) => {
   res.send(`<!DOCTYPE html>
 <html lang="en">
@@ -525,6 +530,16 @@ app.get("/control", (req, res) => {
       const [permissions, setPermissions] = useState([]);
       const [availableCommands, setAvailableCommands] = useState([]);
       
+      // Flag form
+      const [flagIgn, setFlagIgn] = useState('');
+      const [flagReason, setFlagReason] = useState('');
+      const [flaggedBy, setFlaggedBy] = useState('Admin');
+      
+      // Permission form
+      const [permUsername, setPermUsername] = useState('');
+      const [selectedAllowed, setSelectedAllowed] = useState([]);
+      const [selectedBanned, setSelectedBanned] = useState([]);
+      
       useEffect(() => {
         socket.on('minecraft-chat', d => setChat(p => [...p, d].slice(-100)));
         socket.on('bot-log', d => setLogs(p => [d, ...p].slice(0, 50)));
@@ -541,16 +556,24 @@ app.get("/control", (req, res) => {
       }, []);
 
       const fetchFlags = async () => {
-        const res = await fetch('/api/flags');
-        const data = await res.json();
-        setFlags(data.flags || []);
+        try {
+          const res = await fetch('/api/flags');
+          const data = await res.json();
+          setFlags(data.flags || []);
+        } catch (err) {
+          console.error('Failed to fetch flags:', err);
+        }
       };
 
       const fetchPermissions = async () => {
-        const res = await fetch('/api/permissions');
-        const data = await res.json();
-        setPermissions(data.permissions || []);
-        setAvailableCommands(data.availableCommands || []);
+        try {
+          const res = await fetch('/api/permissions');
+          const data = await res.json();
+          setPermissions(data.permissions || []);
+          setAvailableCommands(data.availableCommands || []);
+        } catch (err) {
+          console.error('Failed to fetch permissions:', err);
+        }
       };
 
       const send = async () => {
@@ -563,28 +586,115 @@ app.get("/control", (req, res) => {
         setMsg('');
       };
 
+      const addFlag = async (e) => {
+        e.preventDefault();
+        if (!flagIgn.trim() || !flagReason.trim()) {
+          alert('IGN and Reason are required!');
+          return;
+        }
+        
+        try {
+          const res = await fetch('/api/flags/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ign: flagIgn, reason: flagReason, flaggedBy })
+          });
+          
+          const data = await res.json();
+          if (data.success) {
+            setFlagIgn('');
+            setFlagReason('');
+            fetchFlags();
+            alert('Player flagged successfully!');
+          } else {
+            alert('Error: ' + data.message);
+          }
+        } catch (err) {
+          alert('Error flagging player');
+        }
+      };
+
       const removeFlag = async (uuid) => {
-        if (!confirm('Remove flag?')) return;
-        await fetch('/api/flags/remove', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ uuid })
-        });
-        fetchFlags();
+        if (!confirm('Remove this flag?')) return;
+        
+        try {
+          await fetch('/api/flags/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ uuid })
+          });
+          fetchFlags();
+        } catch (err) {
+          alert('Error removing flag');
+        }
+      };
+
+      const setPermission = async (e) => {
+        e.preventDefault();
+        if (!permUsername.trim()) {
+          alert('Username is required!');
+          return;
+        }
+        
+        try {
+          const res = await fetch('/api/permissions/set', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: permUsername,
+              allowedCommands: selectedAllowed,
+              bannedCommands: selectedBanned
+            })
+          });
+          
+          const data = await res.json();
+          if (data.success) {
+            setPermUsername('');
+            setSelectedAllowed([]);
+            setSelectedBanned([]);
+            fetchPermissions();
+            alert('Permissions updated successfully!');
+          } else {
+            alert('Error: ' + data.message);
+          }
+        } catch (err) {
+          alert('Error updating permissions');
+        }
       };
 
       const removePermission = async (username) => {
         if (!confirm(\`Remove permissions for \${username}?\`)) return;
-        await fetch('/api/permissions/remove', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username })
-        });
-        fetchPermissions();
+        
+        try {
+          await fetch('/api/permissions/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+          });
+          fetchPermissions();
+        } catch (err) {
+          alert('Error removing permissions');
+        }
+      };
+
+      const toggleCommand = (command, type) => {
+        if (type === 'allowed') {
+          setSelectedAllowed(prev => 
+            prev.includes(command) 
+              ? prev.filter(c => c !== command)
+              : [...prev, command]
+          );
+        } else {
+          setSelectedBanned(prev => 
+            prev.includes(command) 
+              ? prev.filter(c => c !== command)
+              : [...prev, command]
+          );
+        }
       };
 
       return (
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <div className="bg-gray-800 rounded-lg p-6 mb-6">
             <h1 className="text-3xl font-bold mb-4">RumoniumGC Control Panel</h1>
             <div className="grid grid-cols-4 gap-4">
@@ -612,108 +722,261 @@ app.get("/control", (req, res) => {
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={\`flex-1 px-4 py-2 rounded font-bold \${tab === t ? 'bg-purple-600' : 'bg-gray-700'}\`}
+                className={\`flex-1 px-4 py-2 rounded font-bold transition-colors \${tab === t ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'}\`}
               >
                 {t.toUpperCase()}
               </button>
             ))}
           </div>
 
-          {tab === 'chat' && (
-            <div className="bg-gray-800 rounded-lg overflow-hidden">
-              <div className="h-96 overflow-y-auto p-4 space-y-2 bg-gray-900">
-                {chat.map((m, i) => (
-                  <div key={i} className="bg-gray-800 rounded px-3 py-2 text-sm">
-                    <span className="text-gray-500">[{m.time}]</span> {m.message}
+          <div className="grid grid-cols-3 gap-6">
+            <div className="col-span-2">
+              {tab === 'chat' && (
+                <div className="bg-gray-800 rounded-lg overflow-hidden">
+                  <div className="p-4 border-b border-gray-700">
+                    <h2 className="text-xl font-bold">LIVE CHAT</h2>
                   </div>
-                ))}
-              </div>
-              <div className="p-4">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={msg}
-                    onChange={e => setMsg(e.target.value)}
-                    onKeyPress={e => e.key === 'Enter' && send()}
-                    placeholder="Type message..."
-                    className="flex-1 bg-gray-700 rounded px-4 py-2 focus:outline-none"
-                  />
-                  <button onClick={send} className="px-6 py-2 rounded bg-purple-600 font-bold">
-                    SEND
-                  </button>
+                  <div className="h-96 overflow-y-auto p-4 space-y-2 bg-gray-900">
+                    {chat.map((m, i) => (
+                      <div key={i} className="bg-gray-800 rounded px-3 py-2 text-sm">
+                        <span className="text-gray-500">[{m.time}]</span> {m.message}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-4 border-t border-gray-700">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={msg}
+                        onChange={e => setMsg(e.target.value)}
+                        onKeyPress={e => e.key === 'Enter' && send()}
+                        placeholder="Type message..."
+                        className="flex-1 bg-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                      />
+                      <button onClick={send} className="px-6 py-2 rounded bg-purple-600 font-bold hover:bg-purple-700">
+                        SEND
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {tab === 'logs' && (
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h2 className="text-xl font-bold mb-4">LOGS</h2>
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {logs.map((log, i) => (
-                  <div key={i} className="bg-gray-700 rounded p-3 text-sm">
-                    <span className="text-gray-400">{log.time}</span> - {log.msg}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {tab === 'flags' && (
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h2 className="text-xl font-bold mb-4">FLAGGED PLAYERS</h2>
-              <div className="space-y-2">
-                {flags.map((flag, i) => (
-                  <div key={i} className="bg-gray-700 rounded p-4">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <div className="font-bold">{flag.ign}</div>
-                        <div className="text-sm text-gray-400">{flag.reason}</div>
-                        <div className="text-xs text-gray-500">by {flag.flaggedBy}</div>
+              {tab === 'logs' && (
+                <div className="bg-gray-800 rounded-lg p-6">
+                  <h2 className="text-xl font-bold mb-4">LOGS</h2>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {logs.map((log, i) => (
+                      <div key={i} className="bg-gray-700 rounded p-3 text-sm">
+                        <span className="text-gray-400">{log.time}</span> - 
+                        <span className={\`ml-2 px-2 py-1 rounded text-xs \${
+                          log.type === 'error' ? 'bg-red-600' :
+                          log.type === 'success' ? 'bg-green-600' :
+                          log.type === 'warning' ? 'bg-yellow-600' : 'bg-blue-600'
+                        }\`}>{log.type}</span>
+                        <div className="mt-1">{log.msg}</div>
                       </div>
-                      <button
-                        onClick={() => removeFlag(flag.uuid)}
-                        className="px-3 py-1 bg-red-600 rounded text-sm"
-                      >
-                        Remove
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {tab === 'flags' && (
+                <div className="bg-gray-800 rounded-lg p-6">
+                  <h2 className="text-xl font-bold mb-4">FLAGGED PLAYERS</h2>
+                  
+                  <form onSubmit={addFlag} className="bg-gray-700 rounded-lg p-4 mb-4">
+                    <h3 className="font-bold mb-3">Add New Flag</h3>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        placeholder="Player IGN"
+                        value={flagIgn}
+                        onChange={e => setFlagIgn(e.target.value)}
+                        className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Reason"
+                        value={flagReason}
+                        onChange={e => setFlagReason(e.target.value)}
+                        className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Flagged By (optional)"
+                        value={flaggedBy}
+                        onChange={e => setFlaggedBy(e.target.value)}
+                        className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                      />
+                      <button type="submit" className="w-full bg-purple-600 rounded px-4 py-2 font-bold hover:bg-purple-700">
+                        Add Flag
                       </button>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
+                  </form>
 
-          {tab === 'permissions' && (
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h2 className="text-xl font-bold mb-4">PERMISSIONS</h2>
-              <div className="space-y-2">
-                {permissions.map((perm, i) => (
-                  <div key={i} className="bg-gray-700 rounded p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="font-bold">{perm.username}</div>
-                      <button
-                        onClick={() => removePermission(perm.username)}
-                        className="px-3 py-1 bg-red-600 rounded text-sm"
-                      >
-                        Remove
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {flags.length === 0 ? (
+                      <div className="text-center text-gray-400 py-8">No flagged players</div>
+                    ) : (
+                      flags.map((flag, i) => (
+                        <div key={i} className="bg-gray-700 rounded-lg p-4 border-l-4 border-red-500">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <div className="font-bold text-lg">{flag.ign}</div>
+                              <div className="text-xs text-gray-400">UUID: {flag.uuid}</div>
+                            </div>
+                            <button
+                              onClick={() => removeFlag(flag.uuid)}
+                              className="px-3 py-1 bg-red-600 rounded text-sm font-bold hover:bg-red-700"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <div className="text-sm mb-1">
+                            <span className="text-gray-400">Reason:</span> {flag.reason}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            Flagged by: {flag.flaggedBy} • {new Date(flag.timestamp).toLocaleString()}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {tab === 'permissions' && (
+                <div className="bg-gray-800 rounded-lg p-6">
+                  <h2 className="text-xl font-bold mb-4">COMMAND PERMISSIONS</h2>
+                  
+                  <form onSubmit={setPermission} className="bg-gray-700 rounded-lg p-4 mb-4">
+                    <h3 className="font-bold mb-3">Set Player Permissions</h3>
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        placeholder="Player Username"
+                        value={permUsername}
+                        onChange={e => setPermUsername(e.target.value)}
+                        className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      />
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-sm font-bold mb-2 text-green-400">✓ Allowed Commands</div>
+                          <div className="bg-gray-600 rounded p-3 space-y-1 max-h-48 overflow-y-auto">
+                            {availableCommands.map(cmd => (
+                              <label key={cmd} className="flex items-center gap-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedAllowed.includes(cmd)}
+                                  onChange={() => toggleCommand(cmd, 'allowed')}
+                                  className="w-4 h-4 accent-green-500"
+                                />
+                                <span className="text-sm">{cmd}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-2">
+                            If any command is selected here, ONLY these commands will be allowed for this user
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <div className="text-sm font-bold mb-2 text-red-400">✗ Banned Commands</div>
+                          <div className="bg-gray-600 rounded p-3 space-y-1 max-h-48 overflow-y-auto">
+                            {availableCommands.map(cmd => (
+                              <label key={cmd} className="flex items-center gap-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedBanned.includes(cmd)}
+                                  onChange={() => toggleCommand(cmd, 'banned')}
+                                  className="w-4 h-4 accent-red-500"
+                                />
+                                <span className="text-sm">{cmd}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-2">
+                            Selected commands will be blocked for this user
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <button type="submit" className="w-full bg-blue-600 rounded px-4 py-2 font-bold hover:bg-blue-700">
+                        Save Permissions
                       </button>
                     </div>
-                    {perm.allowedCommands?.length > 0 && (
-                      <div className="text-sm text-green-400">
-                        Allowed: {perm.allowedCommands.join(', ')}
+                  </form>
+
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {permissions.length === 0 ? (
+                      <div className="text-center text-gray-400 py-8">
+                        No custom permissions set
+                        <div className="text-sm mt-2">All players can use all commands by default</div>
                       </div>
+                    ) : (
+                      permissions.map((perm, i) => (
+                        <div key={i} className="bg-gray-700 rounded-lg p-4 border-l-4 border-blue-500">
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="font-bold text-lg">{perm.username}</div>
+                            <button
+                              onClick={() => removePermission(perm.username)}
+                              className="px-3 py-1 bg-red-600 rounded text-sm font-bold hover:bg-red-700"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          
+                          {perm.allowedCommands && perm.allowedCommands.length > 0 && (
+                            <div className="mb-2">
+                              <div className="text-xs text-green-400 mb-1 font-semibold">✓ Allowed Commands:</div>
+                              <div className="flex flex-wrap gap-1">
+                                {perm.allowedCommands.map(cmd => (
+                                  <span key={cmd} className="text-xs px-2 py-1 bg-green-600 bg-opacity-30 border border-green-500 rounded">
+                                    {cmd}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {perm.bannedCommands && perm.bannedCommands.length > 0 && (
+                            <div>
+                              <div className="text-xs text-red-400 mb-1 font-semibold">✗ Banned Commands:</div>
+                              <div className="flex flex-wrap gap-1">
+                                {perm.bannedCommands.map(cmd => (
+                                  <span key={cmd} className="text-xs px-2 py-1 bg-red-600 bg-opacity-30 border border-red-500 rounded">
+                                    {cmd}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {(!perm.allowedCommands || perm.allowedCommands.length === 0) && 
+                           (!perm.bannedCommands || perm.bannedCommands.length === 0) && (
+                            <div className="text-sm text-gray-400">No restrictions set</div>
+                          )}
+                        </div>
+                      ))
                     )}
-                    {perm.bannedCommands?.length > 0 && (
-                      <div className="text-sm text-red-400">
-                        Banned: {perm.bannedCommands.join(', ')}
-                      </div>
-                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h2 className="text-xl font-bold mb-4">RECENT ACTIVITY</h2>
+              <div className="space-y-2 max-h-screen overflow-y-auto">
+                {logs.slice(0, 20).map((log, i) => (
+                  <div key={i} className="bg-gray-700 rounded p-3 text-xs">
+                    <div className="text-gray-400 mb-1">{log.time}</div>
+                    <div className="text-gray-200">{log.msg}</div>
                   </div>
                 ))}
               </div>
             </div>
-          )}
+          </div>
         </div>
       );
     }
@@ -815,7 +1078,8 @@ function createBot() {
       const [, requester, ign] = match;
       
       if (!hasCommandPermission(requester, 'gexp')) {
-        await safeChat(`${requester}, you don't have permission`);
+        await safeChat(`${requester}, you don't have permission to use !gexp`);
+        addLog('warning', `${requester} tried to use !gexp but was denied`);
         return;
       }
       
@@ -838,7 +1102,8 @@ function createBot() {
       const [, username, userMessage] = match;
       
       if (!hasCommandPermission(username, 'ask')) {
-        await safeChat(`${username}, you don't have permission`);
+        await safeChat(`${username}, you don't have permission to use !ask`);
+        addLog('warning', `${username} tried to use !ask but was denied`);
         return;
       }
       
@@ -907,7 +1172,8 @@ function createBot() {
       const [, requester, ign] = match;
       
       if (!hasCommandPermission(requester, 'bw')) {
-        await safeChat(`${requester}, you don't have permission`);
+        await safeChat(`${requester}, you don't have permission to use !bw`);
+        addLog('warning', `${requester} tried to use !bw but was denied`);
         return;
       }
       
@@ -930,7 +1196,8 @@ function createBot() {
       const [, requester, ign] = match;
       
       if (!hasCommandPermission(requester, 'stats')) {
-        await safeChat(`${requester}, you don't have permission`);
+        await safeChat(`${requester}, you don't have permission to use !stats`);
+        addLog('warning', `${requester} tried to use !stats but was denied`);
         return;
       }
       
@@ -952,7 +1219,8 @@ function createBot() {
       const requester = match ? match[1] : 'unknown';
       
       if (!hasCommandPermission(requester, 'when')) {
-        await safeChat(`${requester}, you don't have permission`);
+        await safeChat(`${requester}, you don't have permission to use !when`);
+        addLog('warning', `${requester} tried to use !when but was denied`);
         return;
       }
       
@@ -977,7 +1245,8 @@ function createBot() {
       const requester = match ? match[1] : 'unknown';
       
       if (!hasCommandPermission(requester, 'about')) {
-        await safeChat(`${requester}, you don't have permission`);
+        await safeChat(`${requester}, you don't have permission to use !about`);
+        addLog('warning', `${requester} tried to use !about but was denied`);
         return;
       }
       
@@ -993,7 +1262,8 @@ function createBot() {
       const requester = match ? match[1] : 'unknown';
       
       if (!hasCommandPermission(requester, 'help')) {
-        await safeChat(`${requester}, you don't have permission`);
+        await safeChat(`${requester}, you don't have permission to use !help`);
+        addLog('warning', `${requester} tried to use !help but was denied`);
         return;
       }
       
@@ -1004,6 +1274,7 @@ function createBot() {
         "--- RumoniumGC ---",
         "bw <user> - Bedwars stats",
         "gexp <user> - Weekly GEXP",
+        "stats <user> - Detailed stats",
         "when - Next Castle",
         "ask <msg> - Ask AI",
         "flag add <user> <reason>",
@@ -1025,7 +1296,8 @@ function createBot() {
       const [, flagger, ign, reason] = match;
       
       if (!hasCommandPermission(flagger, 'flag_add')) {
-        await safeChat(`${flagger}, you don't have permission`);
+        await safeChat(`${flagger}, you don't have permission to use !flag add`);
+        addLog('warning', `${flagger} tried to use !flag add but was denied`);
         return;
       }
       
@@ -1057,7 +1329,8 @@ function createBot() {
       const [, remover, ign] = match;
       
       if (!hasCommandPermission(remover, 'flag_remove')) {
-        await safeChat(`${remover}, you don't have permission`);
+        await safeChat(`${remover}, you don't have permission to use !flag remove`);
+        addLog('warning', `${remover} tried to use !flag remove but was denied`);
         return;
       }
       
@@ -1092,7 +1365,8 @@ function createBot() {
       const [, checker, ign] = match;
       
       if (!hasCommandPermission(checker, 'check')) {
-        await safeChat(`${checker}, you don't have permission`);
+        await safeChat(`${checker}, you don't have permission to use !check`);
+        addLog('warning', `${checker} tried to use !check but was denied`);
         return;
       }
       
