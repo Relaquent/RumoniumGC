@@ -303,6 +303,7 @@ async function updateFkdrSnapshot(username) {
       fkdr: parseFloat(stats.fkdr)
     });
     
+    // Keep only last 90 days of snapshots
     const ninetyDaysAgo = now.getTime() - (90 * 24 * 60 * 60 * 1000);
     tracking.snapshots = tracking.snapshots.filter(s => 
       new Date(s.timestamp).getTime() > ninetyDaysAgo
@@ -326,16 +327,19 @@ function calculateFkdrProgress(tracking) {
   const snapshots = tracking.snapshots;
   const latest = snapshots[snapshots.length - 1];
   
+  // Daily (24 hours ago)
   const oneDayAgo = now.getTime() - (24 * 60 * 60 * 1000);
   const dailySnapshot = snapshots.filter(s => 
     new Date(s.timestamp).getTime() >= oneDayAgo
   )[0];
   
+  // Weekly (7 days ago)
   const oneWeekAgo = now.getTime() - (7 * 24 * 60 * 60 * 1000);
   const weeklySnapshot = snapshots.filter(s => 
     new Date(s.timestamp).getTime() >= oneWeekAgo
   )[0];
   
+  // Monthly (30 days ago)
   const oneMonthAgo = now.getTime() - (30 * 24 * 60 * 60 * 1000);
   const monthlySnapshot = snapshots.filter(s => 
     new Date(s.timestamp).getTime() >= oneMonthAgo
@@ -377,11 +381,8 @@ class SmartCache {
   constructor() {
     this.playerDataCache = new Map();
     this.guildCache = new Map();
-    this.guildMembersCache = null;
-    this.guildMembersCacheTime = 0;
     this.PLAYER_CACHE_DURATION = 10 * 60 * 1000;
     this.GUILD_CACHE_DURATION = 5 * 60 * 1000;
-    this.GUILD_MEMBERS_CACHE_DURATION = 15 * 60 * 1000;
   }
 
   getPlayer(ign) {
@@ -414,23 +415,9 @@ class SmartCache {
     });
   }
 
-  getGuildMembers() {
-    if (this.guildMembersCache && (Date.now() - this.guildMembersCacheTime) < this.GUILD_MEMBERS_CACHE_DURATION) {
-      return this.guildMembersCache;
-    }
-    return null;
-  }
-
-  setGuildMembers(members) {
-    this.guildMembersCache = members;
-    this.guildMembersCacheTime = Date.now();
-  }
-
   clearAll() {
     this.playerDataCache.clear();
     this.guildCache.clear();
-    this.guildMembersCache = null;
-    this.guildMembersCacheTime = 0;
   }
 }
 
@@ -467,10 +454,7 @@ function parseBWStats(player) {
     finals: bw.final_kills_bedwars || 0,
     deaths: bw.final_deaths_bedwars || 0,
     wins: bw.wins_bedwars || 0,
-    losses: bw.losses_bedwars || 0,
     beds: bw.beds_broken_bedwars || 0,
-    kills: bw.kills_bedwars || 0,
-    bedwarsDeaths: bw.deaths_bedwars || 0,
   };
 }
 
@@ -538,62 +522,29 @@ async function getGuildGEXP(playerIgn) {
 
 // === Get Guild Members ===
 async function getGuildMembers() {
-  const cached = cache.getGuildMembers();
-  if (cached) {
-    console.log('✅ Using cached guild members');
-    return cached;
-  }
-
   try {
-    console.log('🔄 Fetching guild members from API...');
     const guildUrl = `https://api.hypixel.net/v2/guild?key=${HYPIXEL_API_KEY}&name=Rumonium`;
-    const { data } = await axios.get(guildUrl, { timeout: 15000 });
+    const { data } = await axios.get(guildUrl, { timeout: 10000 });
     
     if (!data?.guild) return [];
     
-    console.log(`📊 Found ${data.guild.members.length} members, fetching details...`);
-    
-    const members = [];
-    const batchSize = 10;
-    
-    for (let i = 0; i < data.guild.members.length; i += batchSize) {
-      const batch = data.guild.members.slice(i, i + batchSize);
-      
-      const batchPromises = batch.map(async (member) => {
+    // Get member names from UUID
+    const members = await Promise.all(
+      data.guild.members.slice(0, 50).map(async (member) => {
         try {
           const playerUrl = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&uuid=${member.uuid}`;
           const playerRes = await axios.get(playerUrl, { timeout: 5000 });
-          
-          if (playerRes.data?.player) {
-            const stats = parseBWStats(playerRes.data.player);
-            const expHistory = member.expHistory || {};
-            const weeklyGexp = Object.values(expHistory).reduce((sum, exp) => sum + exp, 0);
-            
-            return {
-              uuid: member.uuid,
-              username: playerRes.data.player.displayname || 'Unknown',
-              rank: member.rank || 'Member',
-              joined: member.joined,
-              weeklyGexp: weeklyGexp,
-              stats: stats
-            };
-          }
-        } catch (err) {
-          console.error(`Failed to fetch player ${member.uuid}:`, err.message);
+          return {
+            uuid: member.uuid,
+            username: playerRes.data?.player?.displayname || 'Unknown'
+          };
+        } catch {
+          return { uuid: member.uuid, username: 'Unknown' };
         }
-        return null;
-      });
-      
-      const batchResults = await Promise.all(batchPromises);
-      members.push(...batchResults.filter(m => m !== null));
-      
-      await sleep(1000);
-      console.log(`✅ Processed ${Math.min(i + batchSize, data.guild.members.length)}/${data.guild.members.length} members`);
-    }
+      })
+    );
     
-    console.log(`✅ Successfully loaded ${members.length} guild members`);
-    cache.setGuildMembers(members);
-    return members;
+    return members.filter(m => m.username !== 'Unknown');
   } catch (err) {
     console.error('Failed to fetch guild members:', err.message);
     return [];
@@ -623,16 +574,7 @@ app.get("/api/stats", (req, res) => {
   res.json({
     queueLength: API_QUEUE.length,
     apiCallCount,
-    cacheSize: cache.playerDataCache.size + cache.guildCache.size,
-    detailedStats: {
-      uptime: Date.now() - startTime,
-      commands: commandCount,
-      messages: messageCount,
-      reconnects: reconnectAttempts,
-      flags: flaggedPlayers.size,
-      tracking: fkdrTracking.size,
-      permissions: commandPermissions.size
-    }
+    cacheSize: cache.playerDataCache.size + cache.guildCache.size
   });
 });
 
@@ -640,22 +582,7 @@ app.get("/api/stats", (req, res) => {
 app.get("/api/guild-members", async (req, res) => {
   try {
     const members = await getGuildMembers();
-    res.json({ 
-      members, 
-      count: members.length,
-      cached: cache.guildMembersCache !== null
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
-app.post("/api/guild-members/refresh", async (req, res) => {
-  try {
-    cache.guildMembersCache = null;
-    cache.guildMembersCacheTime = 0;
-    const members = await getGuildMembers();
-    res.json({ success: true, count: members.length });
+    res.json({ members, count: members.length });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -766,24 +693,6 @@ app.post("/api/fkdr-tracking/remove", (req, res) => {
   }
 });
 
-// === Logs API ===
-app.get("/api/logs", (req, res) => {
-  res.json({ logs: detailedLogs, count: detailedLogs.length });
-});
-
-app.get("/api/logs/download", (req, res) => {
-  const timestamp = new Date().toISOString().replace(/:/g, '-');
-  const filename = `rumonium-logs-${timestamp}.json`;
-  
-  res.setHeader('Content-Type', 'application/json');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-  res.json({
-    exportDate: new Date().toISOString(),
-    totalLogs: detailedLogs.length,
-    logs: detailedLogs
-  });
-});
-
 app.post("/chat", (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).send("❌ Message required.");
@@ -802,104 +711,37 @@ app.post("/chat", (req, res) => {
 // === Web Panel ===
 app.get("/control", (req, res) => {
   res.send(`<!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RumoniumGC Control Panel</title>
+  <title>RumoniumGC Control</title>
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-    
-    * {
-      font-family: 'Inter', sans-serif;
-    }
-    
     .minecraft-head {
       image-rendering: pixelated;
       image-rendering: -moz-crisp-edges;
       image-rendering: crisp-edges;
     }
-    
-    .glass-effect {
-      background: rgba(17, 24, 39, 0.7);
-      backdrop-filter: blur(16px);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    
-    .stat-card {
-      transition: all 0.3s ease;
-    }
-    
-    .stat-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
-    }
-    
-    .glow-purple {
-      box-shadow: 0 0 20px rgba(147, 51, 234, 0.3);
-    }
-    
-    .glow-blue {
-      box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
-    }
-    
-    .glow-green {
-      box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
-    }
-    
-    .glow-red {
-      box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
-    }
-    
-    .pulse {
-      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-    }
-    
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.7; }
-    }
-    
-    .gradient-bg {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-    
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 8px;
-    }
-    
-    .custom-scrollbar::-webkit-scrollbar-track {
-      background: rgba(31, 41, 55, 0.5);
-      border-radius: 4px;
-    }
-    
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: rgba(147, 51, 234, 0.5);
-      border-radius: 4px;
-    }
-    
-    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-      background: rgba(147, 51, 234, 0.7);
-    }
   </style>
 </head>
-<body class="bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 text-white min-h-screen p-4">
+<body class="bg-gray-900 text-white min-h-screen p-6">
   <div id="root"></div>
   <script type="text/babel">
     const { useState, useEffect } = React;
     const socket = io();
 
+    // Minecraft Head Component
     function MinecraftHead({ username, size = 48 }) {
       return (
         <img 
           src={\`https://mc-heads.net/avatar/\${username}/\${size}\`}
           alt={username}
-          className="minecraft-head rounded-lg border-2 border-purple-500/30 shadow-lg"
+          className="minecraft-head rounded border-2 border-gray-600"
           width={size}
           height={size}
         />
@@ -907,7 +749,7 @@ app.get("/control", (req, res) => {
     }
 
     function App() {
-      const [tab, setTab] = useState('overview');
+      const [tab, setTab] = useState('chat');
       const [msg, setMsg] = useState('');
       const [chat, setChat] = useState([]);
       const [logs, setLogs] = useState([]);
@@ -917,52 +759,39 @@ app.get("/control", (req, res) => {
       const [availableCommands, setAvailableCommands] = useState([]);
       const [guildMembers, setGuildMembers] = useState([]);
       const [fkdrTracking, setFkdrTracking] = useState([]);
-      const [loading, setLoading] = useState(false);
-      const [detailedStats, setDetailedStats] = useState(null);
       
+      // Flag form
       const [flagIgn, setFlagIgn] = useState('');
       const [flagReason, setFlagReason] = useState('');
       const [flaggedBy, setFlaggedBy] = useState('Admin');
       const [flagSearch, setFlagSearch] = useState('');
       
+      // Permission form
+      const [permUsername, setPermUsername] = useState('');
+      const [selectedAllowed, setSelectedAllowed] = useState([]);
+      const [selectedBanned, setSelectedBanned] = useState([]);
       const [permSearch, setPermSearch] = useState('');
-      const [memberSearch, setMemberSearch] = useState('');
+      const [showGuildMembers, setShowGuildMembers] = useState(false);
+      
+      // FKDR tracking
       const [fkdrSearch, setFkdrSearch] = useState('');
       
       useEffect(() => {
         socket.on('minecraft-chat', d => setChat(p => [...p, d].slice(-100)));
-        socket.on('bot-log', d => setLogs(p => [d, ...p].slice(0, 100)));
+        socket.on('bot-log', d => setLogs(p => [d, ...p].slice(0, 50)));
         socket.on('stats-update', setStats);
         
-        fetchAll();
-        
-        const interval = setInterval(fetchDetailedStats, 5000);
+        fetchFlags();
+        fetchPermissions();
+        fetchGuildMembers();
+        fetchFkdrTracking();
         
         return () => {
           socket.off('minecraft-chat');
           socket.off('bot-log');
           socket.off('stats-update');
-          clearInterval(interval);
         };
       }, []);
-
-      const fetchAll = () => {
-        fetchFlags();
-        fetchPermissions();
-        fetchGuildMembers();
-        fetchFkdrTracking();
-        fetchDetailedStats();
-      };
-
-      const fetchDetailedStats = async () => {
-        try {
-          const res = await fetch('/api/stats');
-          const data = await res.json();
-          setDetailedStats(data);
-        } catch (err) {
-          console.error('Failed to fetch detailed stats:', err);
-        }
-      };
 
       const fetchFlags = async () => {
         try {
@@ -986,31 +815,12 @@ app.get("/control", (req, res) => {
       };
 
       const fetchGuildMembers = async () => {
-        setLoading(true);
         try {
           const res = await fetch('/api/guild-members');
           const data = await res.json();
           setGuildMembers(data.members || []);
         } catch (err) {
           console.error('Failed to fetch guild members:', err);
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      const refreshGuildMembers = async () => {
-        setLoading(true);
-        try {
-          const res = await fetch('/api/guild-members/refresh', { method: 'POST' });
-          const data = await res.json();
-          if (data.success) {
-            await fetchGuildMembers();
-            alert('Guild members yenilendi!');
-          }
-        } catch (err) {
-          alert('Yenileme başarısız');
-        } finally {
-          setLoading(false);
         }
       };
 
@@ -1024,17 +834,18 @@ app.get("/control", (req, res) => {
         }
       };
 
-      const downloadLogs = async () => {
+      const removeFkdrTracking = async (username) => {
+        if (!confirm(\`Remove FKDR tracking for \${username}?\`)) return;
+        
         try {
-          const res = await fetch('/api/logs/download');
-          const blob = await res.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = \`rumonium-logs-\${new Date().toISOString()}.json\`;
-          a.click();
+          await fetch('/api/fkdr-tracking/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+          });
+          fetchFkdrTracking();
         } catch (err) {
-          alert('Log indirme hatası');
+          alert('Error removing FKDR tracking');
         }
       };
 
@@ -1051,7 +862,7 @@ app.get("/control", (req, res) => {
       const addFlag = async (e) => {
         e.preventDefault();
         if (!flagIgn.trim() || !flagReason.trim()) {
-          alert('IGN ve Sebep gerekli!');
+          alert('IGN and Reason are required!');
           return;
         }
         
@@ -1067,17 +878,17 @@ app.get("/control", (req, res) => {
             setFlagIgn('');
             setFlagReason('');
             fetchFlags();
-            alert('Oyuncu işaretlendi!');
+            alert('Player flagged successfully!');
           } else {
-            alert('Hata: ' + data.message);
+            alert('Error: ' + data.message);
           }
         } catch (err) {
-          alert('İşaretleme hatası');
+          alert('Error flagging player');
         }
       };
 
       const removeFlag = async (uuid) => {
-        if (!confirm('Bu işareti kaldır?')) return;
+        if (!confirm('Remove this flag?')) return;
         
         try {
           await fetch('/api/flags/remove', {
@@ -1087,416 +898,218 @@ app.get("/control", (req, res) => {
           });
           fetchFlags();
         } catch (err) {
-          alert('Silme hatası');
+          alert('Error removing flag');
         }
       };
 
-      const removeFkdrTracking = async (username) => {
-        if (!confirm(\`\${username} için FKDR takibini kaldır?\`)) return;
+      const setPermission = async (e) => {
+        e.preventDefault();
+        if (!permUsername.trim()) {
+          alert('Username is required!');
+          return;
+        }
         
         try {
-          await fetch('/api/fkdr-tracking/remove', {
+          const res = await fetch('/api/permissions/set', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              username: permUsername,
+              allowedCommands: selectedAllowed,
+              bannedCommands: selectedBanned
+            })
+          });
+          
+          const data = await res.json();
+          if (data.success) {
+            setPermUsername('');
+            setSelectedAllowed([]);
+            setSelectedBanned([]);
+            setShowGuildMembers(false);
+            fetchPermissions();
+            alert('Permissions updated successfully!');
+          } else {
+            alert('Error: ' + data.message);
+          }
+        } catch (err) {
+          alert('Error updating permissions');
+        }
+      };
+
+      const removePermission = async (username) => {
+        if (!confirm(\`Remove permissions for \${username}?\`)) return;
+        
+        try {
+          await fetch('/api/permissions/remove', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username })
           });
-          fetchFkdrTracking();
+          fetchPermissions();
         } catch (err) {
-          alert('Silme hatası');
+          alert('Error removing permissions');
         }
       };
 
-      const toggleCommandBan = async (username, command) => {
-        const member = guildMembers.find(m => m.username === username);
-        if (!member) return;
-        
-        const currentPerms = commandPermissions.get(username.toLowerCase()) || { bannedCommands: [] };
-        const bannedCmds = currentPerms.bannedCommands || [];
-        const isBanned = bannedCmds.includes(command);
-        
-        const newBanned = isBanned 
-          ? bannedCmds.filter(c => c !== command)
-          : [...bannedCmds, command];
-        
-        try {
-          await fetch('/api/permissions/set', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              username: username,
-              allowedCommands: [],
-              bannedCommands: newBanned
-            })
-          });
-          fetchPermissions();
-        } catch (err) {
-          alert('İzin güncelleme hatası');
+      const toggleCommand = (command, type) => {
+        if (type === 'allowed') {
+          setSelectedAllowed(prev => 
+            prev.includes(command) 
+              ? prev.filter(c => c !== command)
+              : [...prev, command]
+          );
+        } else {
+          setSelectedBanned(prev => 
+            prev.includes(command) 
+              ? prev.filter(c => c !== command)
+              : [...prev, command]
+          );
         }
+      };
+
+      const selectMember = (username) => {
+        setPermUsername(username);
+        setShowGuildMembers(false);
       };
 
       const filteredFlags = flags.filter(flag => 
-        flag.ign?.toLowerCase().includes(flagSearch.toLowerCase()) ||
-        flag.reason?.toLowerCase().includes(flagSearch.toLowerCase())
+        flag.ign.toLowerCase().includes(flagSearch.toLowerCase()) ||
+        flag.reason.toLowerCase().includes(flagSearch.toLowerCase())
+      );
+
+      const filteredPermissions = permissions.filter(perm =>
+        perm.username.toLowerCase().includes(permSearch.toLowerCase())
       );
 
       const filteredMembers = guildMembers.filter(member =>
-        member.username.toLowerCase().includes(memberSearch.toLowerCase())
+        member.username.toLowerCase().includes(permUsername.toLowerCase())
       );
 
-      const tabs = [
-        { id: 'overview', name: 'Genel Bakış', icon: '📊' },
-        { id: 'chat', name: 'Canlı Sohbet', icon: '💬' },
-        { id: 'members', name: 'Üyeler', icon: '👥' },
-        { id: 'flags', name: 'İşaretliler', icon: '🚩' },
-        { id: 'fkdr', name: 'FKDR Takip', icon: '📈' },
-        { id: 'logs', name: 'Loglar', icon: '📋' }
-      ];
-
       return (
-        <div className="max-w-[1800px] mx-auto p-6 space-y-6">
-          {/* Header */}
-          <div className="glass-effect rounded-2xl p-8 glow-purple">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
-                  RumoniumGC Control Panel
-                </h1>
-                <p className="text-gray-400">Gelişmiş Bot Yönetim Sistemi</p>
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-gray-800 rounded-lg p-6 mb-6 border border-gray-700">
+            <h1 className="text-3xl font-bold mb-4 text-purple-400">
+              RumoniumGC Control Panel
+            </h1>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="bg-gray-700 rounded-lg p-4">
+                <div className="text-2xl font-bold text-purple-400">{stats.uptime}</div>
+                <div className="text-sm text-gray-400">UPTIME</div>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="px-4 py-2 rounded-xl bg-green-500/20 border border-green-500/30 flex items-center gap-2">
-                  <div className="w-3 h-3 bg-green-500 rounded-full pulse"></div>
-                  <span className="text-green-400 font-semibold">Çevrimiçi</span>
-                </div>
+              <div className="bg-gray-700 rounded-lg p-4">
+                <div className="text-2xl font-bold text-blue-400">{stats.commands}</div>
+                <div className="text-sm text-gray-400">COMMANDS</div>
+              </div>
+              <div className="bg-gray-700 rounded-lg p-4">
+                <div className="text-2xl font-bold text-green-400">{stats.messages}</div>
+                <div className="text-sm text-gray-400">MESSAGES</div>
+              </div>
+              <div className="bg-gray-700 rounded-lg p-4">
+                <div className="text-2xl font-bold text-red-400">{flags.length}</div>
+                <div className="text-sm text-gray-400">FLAGS</div>
               </div>
             </div>
           </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="glass-effect rounded-2xl p-6 stat-card glow-purple">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-purple-500/20 rounded-xl">
-                  <span className="text-3xl">⏱️</span>
-                </div>
-                <span className="text-purple-400 text-sm font-semibold">UPTIME</span>
-              </div>
-              <div className="text-3xl font-bold text-white">{stats.uptime}</div>
-              <div className="text-gray-400 text-sm mt-2">Bot Çalışma Süresi</div>
-            </div>
-
-            <div className="glass-effect rounded-2xl p-6 stat-card glow-blue">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-blue-500/20 rounded-xl">
-                  <span className="text-3xl">⚡</span>
-                </div>
-                <span className="text-blue-400 text-sm font-semibold">KOMUTLAR</span>
-              </div>
-              <div className="text-3xl font-bold text-white">{stats.commands}</div>
-              <div className="text-gray-400 text-sm mt-2">Toplam Komut Sayısı</div>
-            </div>
-
-            <div className="glass-effect rounded-2xl p-6 stat-card glow-green">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-green-500/20 rounded-xl">
-                  <span className="text-3xl">💬</span>
-                </div>
-                <span className="text-green-400 text-sm font-semibold">MESAJLAR</span>
-              </div>
-              <div className="text-3xl font-bold text-white">{stats.messages}</div>
-              <div className="text-gray-400 text-sm mt-2">İşlenen Mesaj Sayısı</div>
-            </div>
-
-            <div className="glass-effect rounded-2xl p-6 stat-card glow-red">
-              <div className="flex items-center justify-between mb-4">
-                <div className="p-3 bg-red-500/20 rounded-xl">
-                  <span className="text-3xl">🚩</span>
-                </div>
-                <span className="text-red-400 text-sm font-semibold">İŞARETLİLER</span>
-              </div>
-              <div className="text-3xl font-bold text-white">{flags.length}</div>
-              <div className="text-gray-400 text-sm mt-2">Flaglı Oyuncu Sayısı</div>
-            </div>
-          </div>
-
-          {/* Detailed Stats */}
-          {detailedStats && (
-            <div className="glass-effect rounded-2xl p-6">
-              <h3 className="text-xl font-bold mb-4 text-purple-400">📊 Detaylı İstatistikler</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-gray-800/50 rounded-xl p-4">
-                  <div className="text-gray-400 text-sm mb-1">API Kuyruğu</div>
-                  <div className="text-2xl font-bold text-cyan-400">{detailedStats.queueLength}</div>
-                </div>
-                <div className="bg-gray-800/50 rounded-xl p-4">
-                  <div className="text-gray-400 text-sm mb-1">API Çağrıları</div>
-                  <div className="text-2xl font-bold text-yellow-400">{detailedStats.apiCallCount}/100</div>
-                </div>
-                <div className="bg-gray-800/50 rounded-xl p-4">
-                  <div className="text-gray-400 text-sm mb-1">Cache Boyutu</div>
-                  <div className="text-2xl font-bold text-green-400">{detailedStats.cacheSize}</div>
-                </div>
-                <div className="bg-gray-800/50 rounded-xl p-4">
-                  <div className="text-gray-400 text-sm mb-1">FKDR Takip</div>
-                  <div className="text-2xl font-bold text-purple-400">{detailedStats.detailedStats?.tracking || 0}</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Tab Navigation */}
-          <div className="glass-effect rounded-2xl p-2 flex gap-2 overflow-x-auto">
-            {tabs.map(t => (
+          <div className="bg-gray-800 rounded-lg p-2 mb-6 flex gap-2 border border-gray-700">
+            {['chat', 'logs', 'flags', 'permissions', 'fkdr'].map(t => (
               <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={\`flex-1 min-w-[140px] px-6 py-3 rounded-xl font-bold transition-all duration-300 \${
-                  tab === t.id 
-                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg glow-purple' 
-                    : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                key={t}
+                onClick={() => setTab(t)}
+                className={\`flex-1 px-4 py-2 rounded font-bold \${
+                  tab === t 
+                    ? 'bg-purple-600' 
+                    : 'bg-gray-700 hover:bg-gray-600'
                 }\`}
               >
-                <span className="mr-2">{t.icon}</span>
-                {t.name}
+                {t.toUpperCase()}
               </button>
             ))}
           </div>
 
-          {/* Tab Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              {/* Overview Tab */}
-              {tab === 'overview' && (
-                <div className="space-y-6">
-                  <div className="glass-effect rounded-2xl p-6">
-                    <h2 className="text-2xl font-bold mb-4 text-purple-400">🎮 Guild Özet</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 rounded-xl p-4 border border-purple-500/30">
-                        <div className="text-gray-400 text-sm mb-1">Toplam Üye</div>
-                        <div className="text-3xl font-bold text-white">{guildMembers.length}</div>
-                      </div>
-                      <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-xl p-4 border border-blue-500/30">
-                        <div className="text-gray-400 text-sm mb-1">İzinli Üyeler</div>
-                        <div className="text-3xl font-bold text-white">{permissions.length}</div>
-                      </div>
-                      <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl p-4 border border-green-500/30">
-                        <div className="text-gray-400 text-sm mb-1">Aktif Takip</div>
-                        <div className="text-3xl font-bold text-white">{fkdrTracking.length}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="glass-effect rounded-2xl p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-2xl font-bold text-blue-400">🏆 En İyi Performans</h2>
-                      <button onClick={refreshGuildMembers} className="px-4 py-2 bg-blue-600 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-all">
-                        Yenile
-                      </button>
-                    </div>
-                    <div className="space-y-3">
-                      {guildMembers
-                        .filter(m => m.stats)
-                        .sort((a, b) => parseFloat(b.stats.fkdr) - parseFloat(a.stats.fkdr))
-                        .slice(0, 5)
-                        .map((member, i) => (
-                          <div key={i} className="flex items-center gap-4 bg-gray-800/50 rounded-xl p-4">
-                            <div className="text-2xl font-bold text-yellow-400">#{i + 1}</div>
-                            <MinecraftHead username={member.username} size={48} />
-                            <div className="flex-1">
-                              <div className="font-bold text-white">{member.username}</div>
-                              <div className="text-sm text-gray-400">⭐ {member.stats.star} Yıldız</div>
-                            </div>
-                            <div className="text-right">
-                              <div className="font-bold text-purple-400">{member.stats.fkdr}</div>
-                              <div className="text-xs text-gray-400">FKDR</div>
-                            </div>
-                          </div>
-                        ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Chat Tab */}
+          <div className="grid grid-cols-3 gap-6">
+            <div className="col-span-2">
               {tab === 'chat' && (
-                <div className="glass-effect rounded-2xl overflow-hidden">
-                  <div className="p-6 border-b border-gray-700/50 bg-gradient-to-r from-purple-900/30 to-pink-900/30">
-                    <h2 className="text-2xl font-bold text-purple-400">💬 Canlı Sohbet</h2>
+                <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+                  <div className="p-4 border-b border-gray-700 bg-gradient-to-r from-purple-900/50 to-gray-800">
+                    <h2 className="text-xl font-bold">LIVE CHAT</h2>
                   </div>
-                  <div className="h-[500px] overflow-y-auto p-6 space-y-2 bg-gray-900/30 custom-scrollbar">
+                  <div className="h-96 overflow-y-auto p-4 space-y-2 bg-gray-900/50">
                     {chat.map((m, i) => (
-                      <div key={i} className="bg-gray-800/70 rounded-xl px-4 py-3 text-sm border border-gray-700/50 hover:border-purple-500/30 transition-all">
-                        <span className="text-gray-500 font-mono">[{m.time}]</span> 
-                        <span className="ml-2 text-gray-200">{m.message}</span>
+                      <div key={i} className="bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
+                        <span className="text-gray-500">[{m.time}]</span> {m.message}
                       </div>
                     ))}
                   </div>
-                  <div className="p-6 border-t border-gray-700/50 bg-gray-800/30">
-                    <div className="flex gap-3">
+                  <div className="p-4 border-t border-gray-700 bg-gray-800/50">
+                    <div className="flex gap-2">
                       <input
                         type="text"
                         value={msg}
                         onChange={e => setMsg(e.target.value)}
                         onKeyPress={e => e.key === 'Enter' && send()}
-                        placeholder="Mesaj yaz..."
-                        className="flex-1 bg-gray-700/50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-purple-600 border border-gray-600/50"
+                        placeholder="Type message..."
+                        className="flex-1 bg-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600 border border-gray-600"
                       />
-                      <button onClick={send} className="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 font-bold hover:from-purple-700 hover:to-pink-700 shadow-lg glow-purple transition-all">
-                        Gönder
+                      <button onClick={send} className="px-6 py-2 rounded bg-gradient-to-r from-purple-600 to-pink-600 font-bold hover:from-purple-700 hover:to-pink-700 shadow-lg">
+                        SEND
                       </button>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Members Tab */}
-              {tab === 'members' && (
-                <div className="glass-effect rounded-2xl p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-cyan-400">👥 Guild Üyeleri</h2>
-                    <button 
-                      onClick={refreshGuildMembers} 
-                      disabled={loading}
-                      className="px-4 py-2 bg-cyan-600 rounded-xl text-sm font-semibold hover:bg-cyan-700 transition-all disabled:opacity-50"
-                    >
-                      {loading ? '⏳ Yükleniyor...' : '🔄 Yenile'}
-                    </button>
-                  </div>
-
-                  <div className="mb-4">
-                    <input
-                      type="text"
-                      placeholder="🔍 Üye ara..."
-                      value={memberSearch}
-                      onChange={e => setMemberSearch(e.target.value)}
-                      className="w-full bg-gray-700/50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-cyan-600 border border-gray-600/50"
-                    />
-                  </div>
-
-                  <div className="space-y-3 max-h-[600px] overflow-y-auto custom-scrollbar">
-                    {loading ? (
-                      <div className="text-center py-12 text-gray-400">
-                        <div className="text-4xl mb-4">⏳</div>
-                        <div>Guild üyeleri yükleniyor...</div>
+              {tab === 'logs' && (
+                <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <h2 className="text-xl font-bold mb-4 text-blue-400">LOGS</h2>
+                  <div className="space-y-2 max-h-96 overflow-y-auto">
+                    {logs.map((log, i) => (
+                      <div key={i} className="bg-gray-700 rounded p-3 text-sm border border-gray-600">
+                        <span className="text-gray-400">{log.time}</span> - 
+                        <span className={\`ml-2 px-2 py-1 rounded text-xs font-semibold \${
+                          log.type === 'error' ? 'bg-red-600' :
+                          log.type === 'success' ? 'bg-green-600' :
+                          log.type === 'warning' ? 'bg-yellow-600' : 'bg-blue-600'
+                        }\`}>{log.type}</span>
+                        <div className="mt-1">{log.msg}</div>
                       </div>
-                    ) : filteredMembers.length === 0 ? (
-                      <div className="text-center text-gray-400 py-12">
-                        <div className="text-4xl mb-4">😕</div>
-                        <div>{memberSearch ? 'Eşleşen oyuncu bulunamadı' : 'Üye bulunamadı'}</div>
-                      </div>
-                    ) : (
-                      filteredMembers.map((member, i) => {
-                        const userPerms = commandPermissions.get(member.username.toLowerCase()) || {};
-                        const bannedCmds = userPerms.bannedCommands || [];
-                        
-                        return (
-                          <div key={i} className="bg-gray-800/50 rounded-xl p-4 border border-gray-700/50 hover:border-cyan-500/30 transition-all">
-                            <div className="flex items-center gap-4 mb-3">
-                              <MinecraftHead username={member.username} size={56} />
-                              <div className="flex-1">
-                                <div className="font-bold text-lg text-white">{member.username}</div>
-                                <div className="flex items-center gap-3 text-sm text-gray-400">
-                                  <span className="bg-purple-500/20 px-2 py-1 rounded">{member.rank}</span>
-                                  {member.stats && (
-                                    <>
-                                      <span>⭐ {member.stats.star}</span>
-                                      <span className="text-yellow-400">FKDR: {member.stats.fkdr}</span>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                <div className="text-sm text-gray-400">Haftalık GEXP</div>
-                                <div className="text-xl font-bold text-green-400">{member.weeklyGexp?.toLocaleString() || '0'}</div>
-                              </div>
-                            </div>
-
-                            {member.stats && (
-                              <div className="grid grid-cols-4 gap-3 mt-3 p-3 bg-gray-900/50 rounded-lg">
-                                <div className="text-center">
-                                  <div className="text-xs text-gray-400">Wins</div>
-                                  <div className="font-bold text-green-400">{member.stats.wins}</div>
-                                </div>
-                                <div className="text-center">
-                                  <div className="text-xs text-gray-400">Kills</div>
-                                  <div className="font-bold text-red-400">{member.stats.kills}</div>
-                                </div>
-                                <div className="text-center">
-                                  <div className="text-xs text-gray-400">Finals</div>
-                                  <div className="font-bold text-purple-400">{member.stats.finals}</div>
-                                </div>
-                                <div className="text-center">
-                                  <div className="text-xs text-gray-400">Beds</div>
-                                  <div className="font-bold text-cyan-400">{member.stats.beds}</div>
-                                </div>
-                              </div>
-                            )}
-
-                            <div className="mt-3">
-                              <div className="text-xs text-gray-400 mb-2 font-semibold">Komut İzinleri:</div>
-                              <div className="flex flex-wrap gap-1">
-                                {availableCommands.map(cmd => {
-                                  const isBanned = bannedCmds.includes(cmd);
-                                  return (
-                                    <button
-                                      key={cmd}
-                                      onClick={() => toggleCommandBan(member.username, cmd)}
-                                      className={\`text-xs px-2 py-1 rounded font-mono transition-all \${
-                                        isBanned 
-                                          ? 'bg-red-600 hover:bg-red-700 text-white' 
-                                          : 'bg-gray-600 hover:bg-gray-500 text-gray-300'
-                                      }\`}
-                                    >
-                                      {cmd}
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                              {bannedCmds.length > 0 && (
-                                <div className="mt-2 text-xs text-red-400">
-                                  🚫 Yasaklı: {bannedCmds.length} komut
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
+                    ))}
                   </div>
                 </div>
               )}
 
-              {/* Flags Tab */}
               {tab === 'flags' && (
-                <div className="glass-effect rounded-2xl p-6">
-                  <h2 className="text-2xl font-bold mb-6 text-red-400">🚩 İşaretli Oyuncular</h2>
+                <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <h2 className="text-xl font-bold mb-4 text-red-400">
+                    FLAGGED PLAYERS
+                  </h2>
                   
-                  <form onSubmit={addFlag} className="bg-gradient-to-br from-red-500/10 to-orange-500/10 rounded-xl p-6 mb-6 border border-red-500/30">
-                    <h3 className="font-bold mb-4 text-red-400">Yeni Oyuncu İşaretle</h3>
+                  <form onSubmit={addFlag} className="bg-gray-700 rounded-lg p-4 mb-4 border border-gray-600">
+                    <h3 className="font-bold mb-3">Add New Flag</h3>
                     <div className="space-y-3">
                       <input
                         type="text"
-                        placeholder="Oyuncu İsmi (IGN)"
+                        placeholder="Player IGN"
                         value={flagIgn}
                         onChange={e => setFlagIgn(e.target.value)}
-                        className="w-full bg-gray-700/50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-600/50"
+                        className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-500"
                       />
                       <input
                         type="text"
-                        placeholder="Sebep"
+                        placeholder="Reason"
                         value={flagReason}
                         onChange={e => setFlagReason(e.target.value)}
-                        className="w-full bg-gray-700/50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-600/50"
+                        className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-500"
                       />
                       <input
                         type="text"
-                        placeholder="İşaretleyen (opsiyonel)"
+                        placeholder="Flagged By (optional)"
                         value={flaggedBy}
                         onChange={e => setFlaggedBy(e.target.value)}
-                        className="w-full bg-gray-700/50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-600/50"
+                        className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-500"
                       />
-                      <button type="submit" className="w-full bg-gradient-to-r from-red-600 to-orange-600 rounded-xl px-4 py-3 font-bold hover:from-red-700 hover:to-orange-700 shadow-lg glow-red transition-all">
-                        ➕ İşaretle
+                      <button type="submit" className="w-full bg-gradient-to-r from-red-600 to-orange-600 rounded px-4 py-2 font-bold hover:from-red-700 hover:to-orange-700 shadow-lg">
+                        Add Flag
                       </button>
                     </div>
                   </form>
@@ -1504,44 +1117,43 @@ app.get("/control", (req, res) => {
                   <div className="mb-4">
                     <input
                       type="text"
-                      placeholder="🔍 İşaretli oyuncu ara..."
+                      placeholder="🔍 Search flagged players..."
                       value={flagSearch}
                       onChange={e => setFlagSearch(e.target.value)}
-                      className="w-full bg-gray-700/50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-600/50"
+                      className="w-full search-input rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-600"
                     />
                   </div>
 
-                  <div className="space-y-3 max-h-[500px] overflow-y-auto custom-scrollbar">
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
                     {filteredFlags.length === 0 ? (
-                      <div className="text-center text-gray-400 py-12">
-                        <div className="text-4xl mb-4">✅</div>
-                        <div>{flagSearch ? 'Eşleşen oyuncu bulunamadı' : 'İşaretli oyuncu yok'}</div>
+                      <div className="text-center text-gray-400 py-8">
+                        {flagSearch ? 'No matching players found' : 'No flagged players'}
                       </div>
                     ) : (
                       filteredFlags.map((flag, i) => (
-                        <div key={i} className="bg-gray-800/50 rounded-xl p-4 border-l-4 border-red-500 shadow-lg hover:shadow-red-500/20 transition-all">
+                        <div key={i} className="bg-gray-700 rounded-lg p-4 border-l-4 border-red-500 shadow-lg">
                           <div className="flex items-start gap-4">
                             <MinecraftHead username={flag.ign} size={64} />
                             <div className="flex-1">
-                              <div className="flex justify-between items-start mb-3">
+                              <div className="flex justify-between items-start mb-2">
                                 <div>
-                                  <div className="font-bold text-xl text-white">{flag.ign}</div>
-                                  <div className="text-xs text-gray-500 font-mono mt-1">UUID: {flag.uuid}</div>
+                                  <div className="font-bold text-lg">{flag.ign}</div>
+                                  <div className="text-xs text-gray-400 font-mono">UUID: {flag.uuid}</div>
                                 </div>
                                 <button
                                   onClick={() => removeFlag(flag.uuid)}
-                                  className="px-4 py-2 bg-red-600 rounded-xl text-sm font-bold hover:bg-red-700 shadow-md transition-all"
+                                  className="px-3 py-1 bg-red-600 rounded text-sm font-bold hover:bg-red-700 shadow-md"
                                 >
-                                  🗑️ Kaldır
+                                  Remove
                                 </button>
                               </div>
-                              <div className="bg-gray-900/50 rounded-lg p-3 border border-red-500/20 mb-2">
-                                <span className="text-gray-400 text-sm">Sebep:</span> 
-                                <span className="ml-2 text-red-300 font-semibold">{flag.reason}</span>
+                              <div className="text-sm mb-1 bg-gray-800/50 rounded p-2 border border-gray-600">
+                                <span className="text-gray-400">Reason:</span> 
+                                <span className="ml-2 text-red-300">{flag.reason}</span>
                               </div>
                               <div className="text-xs text-gray-400">
-                                <span className="text-purple-400 font-semibold">{flag.flaggedBy}</span> tarafından işaretlendi
-                                <span className="ml-2">• {new Date(flag.timestamp).toLocaleString('tr-TR')}</span>
+                                Flagged by: <span className="text-purple-400">{flag.flaggedBy}</span> • 
+                                <span className="ml-1">{new Date(flag.timestamp).toLocaleString()}</span>
                               </div>
                             </div>
                           </div>
@@ -1552,146 +1164,87 @@ app.get("/control", (req, res) => {
                 </div>
               )}
 
-              {/* FKDR Tab */}
-              {tab === 'fkdr' && (
-                <div className="glass-effect rounded-2xl p-6">
-                  <h2 className="text-2xl font-bold mb-6 text-yellow-400">📈 FKDR Takip Sistemi</h2>
+              {tab === 'permissions' && (
+                <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <h2 className="text-xl font-bold mb-4 text-blue-400">
+                    COMMAND PERMISSIONS
+                  </h2>
                   
-                  <div className="bg-gradient-to-br from-yellow-500/10 to-amber-500/10 rounded-xl p-6 mb-6 border border-yellow-500/30">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="text-3xl">📊</div>
-                      <div>
-                        <div className="text-sm text-gray-300 font-semibold">Aktif Takip</div>
-                        <div className="text-2xl font-bold text-yellow-400">{fkdrTracking.length} oyuncu</div>
-                      </div>
+                  <div className="bg-gray-700 rounded-lg p-4 mb-4 border border-gray-600">
+                    <div className="text-sm text-gray-300 mb-2">
+                      👥 Guild Members: <span className="font-bold text-blue-400">{guildMembers.length}</span>
                     </div>
                     <div className="text-xs text-gray-400">
-                      Oyuncular <span className="font-mono bg-gray-700 px-2 py-1 rounded">!fkdr start</span> komutuyla takip başlatabilir.
-                      İstatistikler her 6 saatte bir otomatik güncellenir.
+                      Click on command buttons next to each player to ban/allow commands. Red = Banned, All others = Allowed by default.
                     </div>
                   </div>
 
                   <div className="mb-4">
                     <input
                       type="text"
-                      placeholder="🔍 Takip edilen oyuncu ara..."
-                      value={fkdrSearch}
-                      onChange={e => setFkdrSearch(e.target.value)}
-                      className="w-full bg-gray-700/50 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-yellow-600 border border-gray-600/50"
+                      placeholder="🔍 Search guild members..."
+                      value={permSearch}
+                      onChange={e => setPermSearch(e.target.value)}
+                      className="w-full bg-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 border border-gray-600"
                     />
                   </div>
 
-                  <div className="space-y-4 max-h-[500px] overflow-y-auto custom-scrollbar">
-                    {fkdrTracking
-                      .filter(track => track.username.toLowerCase().includes(fkdrSearch.toLowerCase()))
+                  <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                    {guildMembers
+                      .filter(member => member.username.toLowerCase().includes(permSearch.toLowerCase()))
                       .length === 0 ? (
-                      <div className="text-center text-gray-400 py-12">
-                        <div className="text-4xl mb-4">📊</div>
-                        <div>{fkdrSearch ? 'Eşleşen oyuncu bulunamadı' : 'Aktif FKDR takibi yok'}</div>
+                      <div className="text-center text-gray-400 py-8">
+                        {permSearch ? 'No matching players found' : 'Loading guild members...'}
                       </div>
                     ) : (
-                      fkdrTracking
-                        .filter(track => track.username.toLowerCase().includes(fkdrSearch.toLowerCase()))
-                        .map((track, i) => {
-                          const progress = track.progress;
-                          const hasData = progress && (progress.daily || progress.weekly || progress.monthly);
+                      guildMembers
+                        .filter(member => member.username.toLowerCase().includes(permSearch.toLowerCase()))
+                        .map((member, i) => {
+                          const userPerms = commandPermissions.get(member.username.toLowerCase()) || { bannedCommands: [] };
+                          const bannedCmds = userPerms.bannedCommands || [];
                           
                           return (
-                            <div key={i} className="bg-gray-800/50 rounded-xl p-5 border-l-4 border-yellow-500 shadow-lg hover:shadow-yellow-500/20 transition-all">
-                              <div className="flex items-start gap-4">
-                                <MinecraftHead username={track.username} size={64} />
+                            <div key={i} className="bg-gray-700 rounded-lg p-3 border border-gray-600">
+                              <div className="flex items-center gap-4">
+                                <MinecraftHead username={member.username} size={48} />
                                 <div className="flex-1">
-                                  <div className="flex justify-between items-start mb-4">
-                                    <div>
-                                      <div className="font-bold text-xl text-white">{track.username}</div>
-                                      <div className="text-xs text-gray-400 mt-1">
-                                        Başlangıç: {new Date(track.startDate).toLocaleDateString('tr-TR')}
-                                      </div>
-                                      {progress?.current && (
-                                        <div className="text-sm mt-2 bg-yellow-500/20 px-3 py-1 rounded-lg inline-block">
-                                          Güncel FKDR: <span className="font-bold text-yellow-400">{progress.current.fkdr}</span>
-                                        </div>
-                                      )}
-                                    </div>
-                                    <button
-                                      onClick={() => removeFkdrTracking(track.username)}
-                                      className="px-4 py-2 bg-red-600 rounded-xl text-sm font-bold hover:bg-red-700 shadow-md transition-all"
-                                    >
-                                      🗑️ Kaldır
-                                    </button>
+                                  <div className="font-bold text-base mb-2">{member.username}</div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {availableCommands.map(cmd => {
+                                      const isBanned = bannedCmds.includes(cmd);
+                                      return (
+                                        <button
+                                          key={cmd}
+                                          onClick={() => {
+                                            const newBanned = isBanned 
+                                              ? bannedCmds.filter(c => c !== cmd)
+                                              : [...bannedCmds, cmd];
+                                            
+                                            if (newBanned.length === 0) {
+                                              commandPermissions.delete(member.username.toLowerCase());
+                                            } else {
+                                              commandPermissions.set(member.username.toLowerCase(), {
+                                                bannedCommands: newBanned,
+                                                allowedCommands: []
+                                              });
+                                            }
+                                            saveCommandPermissions();
+                                            fetchPermissions();
+                                          }}
+                                          className={\`text-xs px-2 py-1 rounded font-mono transition-colors \${
+                                            isBanned 
+                                              ? 'bg-red-600 hover:bg-red-700 text-white' 
+                                              : 'bg-gray-600 hover:bg-gray-500 text-gray-300'
+                                          }\`}
+                                        >
+                                          {cmd}
+                                        </button>
+                                      );
+                                    })}
                                   </div>
-                                  
-                                  {hasData ? (
-                                    <div className="space-y-3">
-                                      {progress.daily && (
-                                        <div className="bg-blue-900/20 rounded-xl p-3 border border-blue-600/30">
-                                          <div className="text-xs font-semibold text-blue-400 mb-2">📈 Günlük İlerleme</div>
-                                          <div className="grid grid-cols-3 gap-3 text-sm">
-                                            <div className="bg-gray-900/50 rounded-lg p-2">
-                                              <div className="text-xs text-gray-400">FKDR Değişim</div>
-                                              <div className={\`font-bold text-lg \${progress.daily.fkdr >= 0 ? 'text-green-400' : 'text-red-400'}\`}>
-                                                {progress.daily.fkdr >= 0 ? '+' : ''}{progress.daily.fkdr}
-                                              </div>
-                                            </div>
-                                            <div className="bg-gray-900/50 rounded-lg p-2">
-                                              <div className="text-xs text-gray-400">Oturum FKDR</div>
-                                              <div className="font-bold text-lg text-cyan-400">{progress.daily.sessionFkdr}</div>
-                                            </div>
-                                            <div className="bg-gray-900/50 rounded-lg p-2">
-                                              <div className="text-xs text-gray-400">Finaller</div>
-                                              <div className="font-bold text-lg text-purple-400">+{progress.daily.finals}</div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-                                      
-                                      {progress.weekly && (
-                                        <div className="bg-green-900/20 rounded-xl p-3 border border-green-600/30">
-                                          <div className="text-xs font-semibold text-green-400 mb-2">📊 Haftalık İlerleme</div>
-                                          <div className="grid grid-cols-3 gap-3 text-sm">
-                                            <div className="bg-gray-900/50 rounded-lg p-2">
-                                              <div className="text-xs text-gray-400">FKDR Değişim</div>
-                                              <div className={\`font-bold text-lg \${progress.weekly.fkdr >= 0 ? 'text-green-400' : 'text-red-400'}\`}>
-                                                {progress.weekly.fkdr >= 0 ? '+' : ''}{progress.weekly.fkdr}
-                                              </div>
-                                            </div>
-                                            <div className="bg-gray-900/50 rounded-lg p-2">
-                                              <div className="text-xs text-gray-400">Oturum FKDR</div>
-                                              <div className="font-bold text-lg text-cyan-400">{progress.weekly.sessionFkdr}</div>
-                                            </div>
-                                            <div className="bg-gray-900/50 rounded-lg p-2">
-                                              <div className="text-xs text-gray-400">Finaller</div>
-                                              <div className="font-bold text-lg text-purple-400">+{progress.weekly.finals}</div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-                                      
-                                      {progress.monthly && (
-                                        <div className="bg-purple-900/20 rounded-xl p-3 border border-purple-600/30">
-                                          <div className="text-xs font-semibold text-purple-400 mb-2">📅 Aylık İlerleme</div>
-                                          <div className="grid grid-cols-3 gap-3 text-sm">
-                                            <div className="bg-gray-900/50 rounded-lg p-2">
-                                              <div className="text-xs text-gray-400">FKDR Değişim</div>
-                                              <div className={\`font-bold text-lg \${progress.monthly.fkdr >= 0 ? 'text-green-400' : 'text-red-400'}\`}>
-                                                {progress.monthly.fkdr >= 0 ? '+' : ''}{progress.monthly.fkdr}
-                                              </div>
-                                            </div>
-                                            <div className="bg-gray-900/50 rounded-lg p-2">
-                                              <div className="text-xs text-gray-400">Oturum FKDR</div>
-                                              <div className="font-bold text-lg text-cyan-400">{progress.monthly.sessionFkdr}</div>
-                                            </div>
-                                            <div className="bg-gray-900/50 rounded-lg p-2">
-                                              <div className="text-xs text-gray-400">Finaller</div>
-                                              <div className="font-bold text-lg text-purple-400">+{progress.monthly.finals}</div>
-                                            </div>
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  ) : (
-                                    <div className="text-sm text-gray-400 italic bg-gray-900/50 rounded-lg p-4 border border-gray-700/30">
-                                      📊 Henüz yeterli veri yok. Birkaç oyun oynadıktan sonra tekrar kontrol edin!
+                                  {bannedCmds.length > 0 && (
+                                    <div className="mt-2 text-xs text-red-400">
+                                      🚫 Banned: {bannedCmds.length} command(s)
                                     </div>
                                   )}
                                 </div>
@@ -1704,102 +1257,167 @@ app.get("/control", (req, res) => {
                 </div>
               )}
 
-              {/* Logs Tab */}
-              {tab === 'logs' && (
-                <div className="glass-effect rounded-2xl p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-2xl font-bold text-indigo-400">📋 Sistem Logları</h2>
-                    <button 
-                      onClick={downloadLogs}
-                      className="px-4 py-2 bg-indigo-600 rounded-xl text-sm font-semibold hover:bg-indigo-700 transition-all flex items-center gap-2"
-                    >
-                      <span>📥</span>
-                      <span>Logları İndir</span>
-                    </button>
+              {tab === 'fkdr' && (
+                <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <h2 className="text-xl font-bold mb-4 text-yellow-400">
+                    FKDR TRACKING
+                  </h2>
+                  
+                  <div className="bg-gray-700 rounded-lg p-4 mb-4 border border-gray-600">
+                    <div className="text-sm text-gray-300 mb-2">
+                      📊 Active Tracking: <span className="font-bold text-yellow-400">{fkdrTracking.length}</span> players
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Players can use <span className="font-mono bg-gray-600 px-2 py-1 rounded">!fkdr start</span> in game to begin tracking their FKDR progress.
+                      Stats are automatically updated every 6 hours.
+                    </div>
                   </div>
-                  <div className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar">
-                    {logs.length === 0 ? (
-                      <div className="text-center text-gray-400 py-12">
-                        <div className="text-4xl mb-4">📋</div>
-                        <div>Henüz log kaydı yok</div>
+
+                  <div className="mb-4">
+                    <input
+                      type="text"
+                      placeholder="🔍 Search tracked players..."
+                      value={fkdrSearch}
+                      onChange={e => setFkdrSearch(e.target.value)}
+                      className="w-full search-input rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-600 border border-gray-600"
+                    />
+                  </div>
+
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {fkdrTracking
+                      .filter(track => track.username.toLowerCase().includes(fkdrSearch.toLowerCase()))
+                      .length === 0 ? (
+                      <div className="text-center text-gray-400 py-8">
+                        {fkdrSearch ? 'No matching players found' : 'No active FKDR tracking'}
                       </div>
                     ) : (
-                      logs.map((log, i) => (
-                        <div key={i} className="bg-gray-800/50 rounded-xl p-4 text-sm border border-gray-700/50 hover:border-indigo-500/30 transition-all">
-                          <div className="flex items-center gap-3 mb-2">
-                            <div className="text-gray-400 font-mono text-xs">{log.time}</div>
-                            <span className={\`px-3 py-1 rounded-lg text-xs font-bold \${
-                              log.type === 'error' ? 'bg-red-600' :
-                              log.type === 'success' ? 'bg-green-600' :
-                              log.type === 'warning' ? 'bg-yellow-600' : 'bg-blue-600'
-                            }\`}>
-                              {log.type === 'error' ? '❌' : log.type === 'success' ? '✅' : log.type === 'warning' ? '⚠️' : 'ℹ️'}
-                              {' '}{log.type.toUpperCase()}
-                            </span>
-                          </div>
-                          <div className="text-gray-200 pl-2 border-l-2 border-gray-600">{log.msg}</div>
-                        </div>
-                      ))
+                      fkdrTracking
+                        .filter(track => track.username.toLowerCase().includes(fkdrSearch.toLowerCase()))
+                        .map((track, i) => {
+                          const progress = track.progress;
+                          const hasData = progress && (progress.daily || progress.weekly || progress.monthly);
+                          
+                          return (
+                            <div key={i} className="bg-gray-700 rounded-lg p-4 border-l-4 border-yellow-500 shadow-lg">
+                              <div className="flex items-start gap-4">
+                                <MinecraftHead username={track.username} size={64} />
+                                <div className="flex-1">
+                                  <div className="flex justify-between items-start mb-3">
+                                    <div>
+                                      <div className="font-bold text-lg">{track.username}</div>
+                                      <div className="text-xs text-gray-400">
+                                        Started: {new Date(track.startDate).toLocaleDateString()}
+                                      </div>
+                                      {progress?.current && (
+                                        <div className="text-sm mt-1">
+                                          Current FKDR: <span className="font-bold text-yellow-400">{progress.current.fkdr}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <button
+                                      onClick={() => removeFkdrTracking(track.username)}
+                                      className="px-3 py-1 bg-red-600 rounded text-sm font-bold hover:bg-red-700 shadow-md"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                  
+                                  {hasData ? (
+                                    <div className="space-y-2">
+                                      {progress.daily && (
+                                        <div className="bg-blue-900/20 rounded p-2 border border-blue-600/30">
+                                          <div className="text-xs font-semibold text-blue-400 mb-1">📈 Daily Progress</div>
+                                          <div className="grid grid-cols-3 gap-2 text-xs">
+                                            <div>
+                                              <span className="text-gray-400">FKDR:</span>
+                                              <span className={\`ml-1 font-bold \${progress.daily.fkdr >= 0 ? 'text-green-400' : 'text-red-400'}\`}>
+                                                {progress.daily.fkdr >= 0 ? '+' : ''}{progress.daily.fkdr}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-400">Session:</span>
+                                              <span className="ml-1 font-bold text-cyan-400">{progress.daily.sessionFkdr}</span>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-400">Finals:</span>
+                                              <span className="ml-1 font-bold text-purple-400">+{progress.daily.finals}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {progress.weekly && (
+                                        <div className="bg-green-900/20 rounded p-2 border border-green-600/30">
+                                          <div className="text-xs font-semibold text-green-400 mb-1">📊 Weekly Progress</div>
+                                          <div className="grid grid-cols-3 gap-2 text-xs">
+                                            <div>
+                                              <span className="text-gray-400">FKDR:</span>
+                                              <span className={\`ml-1 font-bold \${progress.weekly.fkdr >= 0 ? 'text-green-400' : 'text-red-400'}\`}>
+                                                {progress.weekly.fkdr >= 0 ? '+' : ''}{progress.weekly.fkdr}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-400">Session:</span>
+                                              <span className="ml-1 font-bold text-cyan-400">{progress.weekly.sessionFkdr}</span>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-400">Finals:</span>
+                                              <span className="ml-1 font-bold text-purple-400">+{progress.weekly.finals}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {progress.monthly && (
+                                        <div className="bg-purple-900/20 rounded p-2 border border-purple-600/30">
+                                          <div className="text-xs font-semibold text-purple-400 mb-1">📅 Monthly Progress</div>
+                                          <div className="grid grid-cols-3 gap-2 text-xs">
+                                            <div>
+                                              <span className="text-gray-400">FKDR:</span>
+                                              <span className={\`ml-1 font-bold \${progress.monthly.fkdr >= 0 ? 'text-green-400' : 'text-red-400'}\`}>
+                                                {progress.monthly.fkdr >= 0 ? '+' : ''}{progress.monthly.fkdr}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-400">Session:</span>
+                                              <span className="ml-1 font-bold text-cyan-400">{progress.monthly.sessionFkdr}</span>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-400">Finals:</span>
+                                              <span className="ml-1 font-bold text-purple-400">+{progress.monthly.finals}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="text-sm text-gray-400 italic bg-gray-800/50 rounded p-2">
+                                      Not enough data yet. Check back after playing some games!
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
                     )}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Right Sidebar */}
-            <div className="space-y-6">
-              <div className="glass-effect rounded-2xl p-6">
-                <h3 className="text-xl font-bold mb-4 text-cyan-400">🔔 Son Aktiviteler</h3>
-                <div className="space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
-                  {logs.slice(0, 10).map((log, i) => (
-                    <div key={i} className="bg-gray-800/50 rounded-lg p-3 text-xs border border-gray-700/30">
-                      <div className="text-gray-400 mb-1 font-mono">{log.time}</div>
-                      <div className="text-gray-300">{log.msg}</div>
-                    </div>
-                  ))}
-                </div>
+            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+              <h2 className="text-xl font-bold mb-4 text-cyan-400">
+                RECENT ACTIVITY
+              </h2>
+              <div className="space-y-2 max-h-screen overflow-y-auto">
+                {logs.slice(0, 20).map((log, i) => (
+                  <div key={i} className="bg-gray-700 rounded p-3 text-xs border border-gray-600">
+                    <div className="text-gray-400 mb-1">{log.time}</div>
+                    <div className="text-gray-200">{log.msg}</div>
+                  </div>
+                ))}
               </div>
-
-              <div className="glass-effect rounded-2xl p-6">
-                <h3 className="text-xl font-bold mb-4 text-purple-400">⚡ Hızlı Erişim</h3>
-                <div className="space-y-2">
-                  <button 
-                    onClick={() => setTab('chat')}
-                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 rounded-xl px-4 py-3 font-semibold hover:from-purple-700 hover:to-pink-700 transition-all text-left"
-                  >
-                    💬 Sohbete Git
-                  </button>
-                  <button 
-                    onClick={() => setTab('members')}
-                    className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 rounded-xl px-4 py-3 font-semibold hover:from-blue-700 hover:to-cyan-700 transition-all text-left"
-                  >
-                    👥 Üyeleri Gör
-                  </button>
-                  <button 
-                    onClick={refreshGuildMembers}
-                    className="w-full bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl px-4 py-3 font-semibold hover:from-green-700 hover:to-emerald-700 transition-all text-left"
-                  >
-                    🔄 Verileri Yenile
-                  </button>
-                  <button 
-                    onClick={downloadLogs}
-                    className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl px-4 py-3 font-semibold hover:from-indigo-700 hover:to-purple-700 transition-all text-left"
-                  >
-                    📥 Logları İndir
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="glass-effect rounded-2xl p-6 text-center">
-            <div className="text-gray-400 text-sm">
-              <span className="font-semibold text-purple-400">RumoniumGC</span> Control Panel v2.1 
-              <span className="mx-2">•</span>
-              Made by <span className="font-semibold text-pink-400">Relaquent</span>
-              <span className="mx-2">•</span>
-              <span className="text-green-400">🟢 System Online</span>
             </div>
           </div>
         </div>
@@ -1823,14 +1441,14 @@ setInterval(() => {
   const h = Math.floor(uptime / 3600000);
   const m = Math.floor((uptime % 3600000) / 60000);
   io.emit('stats-update', {
-    uptime: \`\${h}h \${m}m\`,
+    uptime: `${h}h ${m}m`,
     commands: commandCount,
     messages: messageCount
   });
 }, 5000);
 
 server.listen(PORT, () => {
-  console.log(\`🌐 Server running on port \${PORT}\`);
+  console.log(`🌐 Server running on port ${PORT}`);
   loadFlaggedPlayers();
   loadCommandPermissions();
   loadFkdrTracking();
@@ -1852,7 +1470,7 @@ function createBot() {
   }
   
   reconnectAttempts++;
-  addLog('info', \`Creating bot (attempt \${reconnectAttempts}/\${MAX_RECONNECT_ATTEMPTS})\`);
+  addLog('info', `Creating bot (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
   
   bot = mineflayer.createBot({
     host: HYPIXEL_HOST,
@@ -1904,8 +1522,8 @@ function createBot() {
       const [, requester, ign] = match;
       
       if (!hasCommandPermission(requester, 'gexp')) {
-        await safeChat(\`\${requester}, you don't have permission to use !gexp\`);
-        addLog('warning', \`\${requester} tried to use !gexp but was denied\`);
+        await safeChat(`${requester}, you don't have permission to use !gexp`);
+        addLog('warning', `${requester} tried to use !gexp but was denied`);
         return;
       }
       
@@ -1914,9 +1532,9 @@ function createBot() {
       
       try {
         const gexpData = await getGuildGEXP(ign);
-        await safeChat(\`\${ign} | Weekly GEXP: \${gexpData.weeklyGexp.toLocaleString()} | Rank: #\${gexpData.rank}/\${gexpData.totalMembers}\`);
+        await safeChat(`${ign} | Weekly GEXP: ${gexpData.weeklyGexp.toLocaleString()} | Rank: #${gexpData.rank}/${gexpData.totalMembers}`);
       } catch (err) {
-        await safeChat(\`Error - \${ign} | \${err.message}\`);
+        await safeChat(`Error - ${ign} | ${err.message}`);
       }
       return;
     }
@@ -1928,8 +1546,8 @@ function createBot() {
       const [, username, userMessage] = match;
       
       if (!hasCommandPermission(username, 'ask')) {
-        await safeChat(\`\${username}, you don't have permission to use !ask\`);
-        addLog('warning', \`\${username} tried to use !ask but was denied\`);
+        await safeChat(`${username}, you don't have permission to use !ask`);
+        addLog('warning', `${username} tried to use !ask but was denied`);
         return;
       }
       
@@ -1941,7 +1559,7 @@ function createBot() {
         const timePassed = now - lastUsed;
         if (timePassed < botSettings.commandCooldown * 1000) {
           const sec = Math.ceil((botSettings.commandCooldown * 1000 - timePassed) / 1000);
-          await safeChat(\`\${username}, wait \${sec}s\`);
+          await safeChat(`${username}, wait ${sec}s`);
           return;
         }
         askCooldowns[username] = now;
@@ -2242,6 +1860,7 @@ function createBot() {
       commandCount++;
       await sleep(botSettings.performance.messageDelay);
       
+      // !fkdr start
       if (matchStart) {
         try {
           if (fkdrTracking.has(requester.toLowerCase())) {
@@ -2261,6 +1880,7 @@ function createBot() {
         return;
       }
       
+      // !fkdr stop
       if (matchStop) {
         try {
           if (!fkdrTracking.has(requester.toLowerCase())) {
@@ -2277,6 +1897,7 @@ function createBot() {
         return;
       }
       
+      // !fkdr (status)
       if (matchStatus) {
         try {
           if (!fkdrTracking.has(requester.toLowerCase())) {
@@ -2284,6 +1905,7 @@ function createBot() {
             return;
           }
           
+          // Update snapshot before showing stats
           const tracking = await updateFkdrSnapshot(requester);
           if (!tracking) {
             await safeChat(`Error updating FKDR data`);
@@ -2348,8 +1970,14 @@ function createBot() {
         const currentFinals = stats.finals;
         const currentDeaths = stats.deaths;
         
+        // Calculate finals needed for next whole FKDR
         const nextWholeFkdr = Math.ceil(currentFkdr);
+        
+        // If already at whole number, calculate for next whole number
         const targetFkdr = currentFkdr % 1 === 0 ? currentFkdr + 1 : nextWholeFkdr;
+        
+        // Formula: (currentFinals + x) / currentDeaths = targetFkdr
+        // x = (targetFkdr * currentDeaths) - currentFinals
         const finalsNeeded = Math.ceil((targetFkdr * currentDeaths) - currentFinals);
         
         if (finalsNeeded <= 0) {
@@ -2402,6 +2030,7 @@ function createBot() {
   });
 }
 
+// Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('📴 SIGTERM received, saving data...');
   saveFlaggedPlayers();
@@ -2420,12 +2049,14 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
+// Auto-save interval
 setInterval(() => {
   saveFlaggedPlayers();
   saveCommandPermissions();
   saveFkdrTracking();
 }, 5 * 60 * 1000);
 
+// Auto-update FKDR snapshots every 6 hours
 setInterval(async () => {
   console.log('📊 Updating FKDR snapshots...');
   let updated = 0;
@@ -2434,7 +2065,7 @@ setInterval(async () => {
     try {
       await updateFkdrSnapshot(username);
       updated++;
-      await sleep(2000);
+      await sleep(2000); // Rate limiting
     } catch (err) {
       console.error(`Failed to update FKDR for ${username}:`, err.message);
     }
@@ -2442,6 +2073,6 @@ setInterval(async () => {
   
   console.log(`✅ Updated ${updated} FKDR snapshots`);
   addLog('info', `Updated ${updated} FKDR snapshots`);
-}, 6 * 60 * 60 * 1000);
+}, 6 * 60 * 60 * 1000); // Every 6 hours
 
 createBot();
