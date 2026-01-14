@@ -59,7 +59,7 @@ const PERMISSIONS_FILE = path.join(__dirname, "command_permissions.json");
 
 const AVAILABLE_COMMANDS = [
   'bw', 'gexp', 'stats', 'when', 'ask', 'about', 'help',
-  'flag_add', 'flag_remove', 'check', 'fkdr'
+  'flag_add', 'flag_remove', 'check', 'fkdr', 'nfkdr'
 ];
 
 function loadCommandPermissions() {
@@ -727,17 +727,6 @@ app.get("/control", (req, res) => {
       image-rendering: -moz-crisp-edges;
       image-rendering: crisp-edges;
     }
-    .player-card {
-      transition: all 0.2s ease;
-    }
-    .player-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 8px 16px rgba(0,0,0,0.3);
-    }
-    .search-input {
-      background: rgba(255,255,255,0.05);
-      backdrop-filter: blur(10px);
-    }
   </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-6">
@@ -998,39 +987,39 @@ app.get("/control", (req, res) => {
 
       return (
         <div className="max-w-7xl mx-auto">
-          <div className="bg-gradient-to-br from-purple-900 via-gray-800 to-gray-900 rounded-lg p-6 mb-6 border border-purple-500/30">
-            <h1 className="text-3xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+          <div className="bg-gray-800 rounded-lg p-6 mb-6 border border-gray-700">
+            <h1 className="text-3xl font-bold mb-4 text-purple-400">
               RumoniumGC Control Panel
             </h1>
             <div className="grid grid-cols-4 gap-4">
-              <div className="bg-gray-800/80 backdrop-blur rounded-lg p-4 border border-gray-700/50">
+              <div className="bg-gray-700 rounded-lg p-4">
                 <div className="text-2xl font-bold text-purple-400">{stats.uptime}</div>
                 <div className="text-sm text-gray-400">UPTIME</div>
               </div>
-              <div className="bg-gray-800/80 backdrop-blur rounded-lg p-4 border border-gray-700/50">
+              <div className="bg-gray-700 rounded-lg p-4">
                 <div className="text-2xl font-bold text-blue-400">{stats.commands}</div>
                 <div className="text-sm text-gray-400">COMMANDS</div>
               </div>
-              <div className="bg-gray-800/80 backdrop-blur rounded-lg p-4 border border-gray-700/50">
+              <div className="bg-gray-700 rounded-lg p-4">
                 <div className="text-2xl font-bold text-green-400">{stats.messages}</div>
                 <div className="text-sm text-gray-400">MESSAGES</div>
               </div>
-              <div className="bg-gray-800/80 backdrop-blur rounded-lg p-4 border border-gray-700/50">
+              <div className="bg-gray-700 rounded-lg p-4">
                 <div className="text-2xl font-bold text-red-400">{flags.length}</div>
                 <div className="text-sm text-gray-400">FLAGS</div>
               </div>
             </div>
           </div>
 
-          <div className="bg-gray-800/80 backdrop-blur rounded-lg p-2 mb-6 flex gap-2 border border-gray-700/50">
+          <div className="bg-gray-800 rounded-lg p-2 mb-6 flex gap-2 border border-gray-700">
             {['chat', 'logs', 'flags', 'permissions', 'fkdr'].map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={\`flex-1 px-4 py-2 rounded font-bold transition-all \${
+                className={\`flex-1 px-4 py-2 rounded font-bold \${
                   tab === t 
-                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 shadow-lg' 
-                    : 'bg-gray-700/50 hover:bg-gray-600/50'
+                    ? 'bg-purple-600' 
+                    : 'bg-gray-700 hover:bg-gray-600'
                 }\`}
               >
                 {t.toUpperCase()}
@@ -1041,13 +1030,13 @@ app.get("/control", (req, res) => {
           <div className="grid grid-cols-3 gap-6">
             <div className="col-span-2">
               {tab === 'chat' && (
-                <div className="bg-gray-800/80 backdrop-blur rounded-lg overflow-hidden border border-gray-700/50">
+                <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
                   <div className="p-4 border-b border-gray-700 bg-gradient-to-r from-purple-900/50 to-gray-800">
                     <h2 className="text-xl font-bold">LIVE CHAT</h2>
                   </div>
                   <div className="h-96 overflow-y-auto p-4 space-y-2 bg-gray-900/50">
                     {chat.map((m, i) => (
-                      <div key={i} className="bg-gray-800/80 backdrop-blur rounded px-3 py-2 text-sm border border-gray-700/30">
+                      <div key={i} className="bg-gray-800 rounded px-3 py-2 text-sm border border-gray-700">
                         <span className="text-gray-500">[{m.time}]</span> {m.message}
                       </div>
                     ))}
@@ -1060,7 +1049,7 @@ app.get("/control", (req, res) => {
                         onChange={e => setMsg(e.target.value)}
                         onKeyPress={e => e.key === 'Enter' && send()}
                         placeholder="Type message..."
-                        className="flex-1 bg-gray-700/80 backdrop-blur rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600 border border-gray-600"
+                        className="flex-1 bg-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600 border border-gray-600"
                       />
                       <button onClick={send} className="px-6 py-2 rounded bg-gradient-to-r from-purple-600 to-pink-600 font-bold hover:from-purple-700 hover:to-pink-700 shadow-lg">
                         SEND
@@ -1071,11 +1060,11 @@ app.get("/control", (req, res) => {
               )}
 
               {tab === 'logs' && (
-                <div className="bg-gray-800/80 backdrop-blur rounded-lg p-6 border border-gray-700/50">
-                  <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">LOGS</h2>
+                <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <h2 className="text-xl font-bold mb-4 text-blue-400">LOGS</h2>
                   <div className="space-y-2 max-h-96 overflow-y-auto">
                     {logs.map((log, i) => (
-                      <div key={i} className="bg-gray-700/80 backdrop-blur rounded p-3 text-sm border border-gray-600/30">
+                      <div key={i} className="bg-gray-700 rounded p-3 text-sm border border-gray-600">
                         <span className="text-gray-400">{log.time}</span> - 
                         <span className={\`ml-2 px-2 py-1 rounded text-xs font-semibold \${
                           log.type === 'error' ? 'bg-red-600' :
@@ -1090,12 +1079,12 @@ app.get("/control", (req, res) => {
               )}
 
               {tab === 'flags' && (
-                <div className="bg-gray-800/80 backdrop-blur rounded-lg p-6 border border-gray-700/50">
-                  <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">
+                <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <h2 className="text-xl font-bold mb-4 text-red-400">
                     FLAGGED PLAYERS
                   </h2>
                   
-                  <form onSubmit={addFlag} className="bg-gray-700/80 backdrop-blur rounded-lg p-4 mb-4 border border-gray-600/50">
+                  <form onSubmit={addFlag} className="bg-gray-700 rounded-lg p-4 mb-4 border border-gray-600">
                     <h3 className="font-bold mb-3">Add New Flag</h3>
                     <div className="space-y-3">
                       <input
@@ -1103,21 +1092,21 @@ app.get("/control", (req, res) => {
                         placeholder="Player IGN"
                         value={flagIgn}
                         onChange={e => setFlagIgn(e.target.value)}
-                        className="w-full bg-gray-600/80 backdrop-blur rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-500"
+                        className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-500"
                       />
                       <input
                         type="text"
                         placeholder="Reason"
                         value={flagReason}
                         onChange={e => setFlagReason(e.target.value)}
-                        className="w-full bg-gray-600/80 backdrop-blur rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-500"
+                        className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-500"
                       />
                       <input
                         type="text"
                         placeholder="Flagged By (optional)"
                         value={flaggedBy}
                         onChange={e => setFlaggedBy(e.target.value)}
-                        className="w-full bg-gray-600/80 backdrop-blur rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-500"
+                        className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-500"
                       />
                       <button type="submit" className="w-full bg-gradient-to-r from-red-600 to-orange-600 rounded px-4 py-2 font-bold hover:from-red-700 hover:to-orange-700 shadow-lg">
                         Add Flag
@@ -1142,7 +1131,7 @@ app.get("/control", (req, res) => {
                       </div>
                     ) : (
                       filteredFlags.map((flag, i) => (
-                        <div key={i} className="player-card bg-gray-700/80 backdrop-blur rounded-lg p-4 border-l-4 border-red-500 shadow-lg">
+                        <div key={i} className="bg-gray-700 rounded-lg p-4 border-l-4 border-red-500 shadow-lg">
                           <div className="flex items-start gap-4">
                             <MinecraftHead username={flag.ign} size={64} />
                             <div className="flex-1">
@@ -1158,7 +1147,7 @@ app.get("/control", (req, res) => {
                                   Remove
                                 </button>
                               </div>
-                              <div className="text-sm mb-1 bg-gray-800/50 rounded p-2 border border-gray-600/30">
+                              <div className="text-sm mb-1 bg-gray-800/50 rounded p-2 border border-gray-600">
                                 <span className="text-gray-400">Reason:</span> 
                                 <span className="ml-2 text-red-300">{flag.reason}</span>
                               </div>
@@ -1176,12 +1165,12 @@ app.get("/control", (req, res) => {
               )}
 
               {tab === 'permissions' && (
-                <div className="bg-gray-800/80 backdrop-blur rounded-lg p-6 border border-gray-700/50">
-                  <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <h2 className="text-xl font-bold mb-4 text-blue-400">
                     COMMAND PERMISSIONS
                   </h2>
                   
-                  <form onSubmit={setPermission} className="bg-gray-700/80 backdrop-blur rounded-lg p-4 mb-4 border border-gray-600/50">
+                  <form onSubmit={setPermission} className="bg-gray-700 rounded-lg p-4 mb-4 border border-gray-600">
                     <h3 className="font-bold mb-3">Set Player Permissions</h3>
                     <div className="space-y-3">
                       <div className="relative">
@@ -1194,7 +1183,7 @@ app.get("/control", (req, res) => {
                             setShowGuildMembers(e.target.value.length > 0);
                           }}
                           onFocus={() => permUsername && setShowGuildMembers(true)}
-                          className="w-full bg-gray-600/80 backdrop-blur rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 border border-gray-500"
+                          className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 border border-gray-500"
                         />
                         
                         {showGuildMembers && filteredMembers.length > 0 && (
@@ -1217,7 +1206,7 @@ app.get("/control", (req, res) => {
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <div className="text-sm font-bold mb-2 text-green-400">✓ Allowed Commands</div>
-                          <div className="bg-gray-600/80 backdrop-blur rounded p-3 space-y-1 max-h-48 overflow-y-auto border border-gray-500">
+                          <div className="bg-gray-600 rounded p-3 space-y-1 max-h-48 overflow-y-auto border border-gray-500">
                             {availableCommands.map(cmd => (
                               <label key={cmd} className="flex items-center gap-2 cursor-pointer hover:bg-gray-700 p-2 rounded transition-colors">
                                 <input
@@ -1237,7 +1226,7 @@ app.get("/control", (req, res) => {
                         
                         <div>
                           <div className="text-sm font-bold mb-2 text-red-400">✗ Banned Commands</div>
-                          <div className="bg-gray-600/80 backdrop-blur rounded p-3 space-y-1 max-h-48 overflow-y-auto border border-gray-500">
+                          <div className="bg-gray-600 rounded p-3 space-y-1 max-h-48 overflow-y-auto border border-gray-500">
                             {availableCommands.map(cmd => (
                               <label key={cmd} className="flex items-center gap-2 cursor-pointer hover:bg-gray-700 p-2 rounded transition-colors">
                                 <input
@@ -1284,7 +1273,7 @@ app.get("/control", (req, res) => {
                       </div>
                     ) : (
                       filteredPermissions.map((perm, i) => (
-                        <div key={i} className="player-card bg-gray-700/80 backdrop-blur rounded-lg p-4 border-l-4 border-blue-500 shadow-lg">
+                        <div key={i} className="bg-gray-700 rounded-lg p-4 border-l-4 border-blue-500 shadow-lg">
                           <div className="flex items-start gap-4">
                             <MinecraftHead username={perm.username} size={56} />
                             <div className="flex-1">
@@ -1338,12 +1327,12 @@ app.get("/control", (req, res) => {
               )}
 
               {tab === 'fkdr' && (
-                <div className="bg-gray-800/80 backdrop-blur rounded-lg p-6 border border-gray-700/50">
-                  <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
+                <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+                  <h2 className="text-xl font-bold mb-4 text-yellow-400">
                     FKDR TRACKING
                   </h2>
                   
-                  <div className="bg-gray-700/80 backdrop-blur rounded-lg p-4 mb-4 border border-gray-600/50">
+                  <div className="bg-gray-700 rounded-lg p-4 mb-4 border border-gray-600">
                     <div className="text-sm text-gray-300 mb-2">
                       📊 Active Tracking: <span className="font-bold text-yellow-400">{fkdrTracking.length}</span> players
                     </div>
@@ -1378,7 +1367,7 @@ app.get("/control", (req, res) => {
                           const hasData = progress && (progress.daily || progress.weekly || progress.monthly);
                           
                           return (
-                            <div key={i} className="player-card bg-gray-700/80 backdrop-blur rounded-lg p-4 border-l-4 border-yellow-500 shadow-lg">
+                            <div key={i} className="bg-gray-700 rounded-lg p-4 border-l-4 border-yellow-500 shadow-lg">
                               <div className="flex items-start gap-4">
                                 <MinecraftHead username={track.username} size={64} />
                                 <div className="flex-1">
@@ -1486,13 +1475,13 @@ app.get("/control", (req, res) => {
               )}
             </div>
 
-            <div className="bg-gray-800/80 backdrop-blur rounded-lg p-6 border border-gray-700/50">
-              <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+              <h2 className="text-xl font-bold mb-4 text-cyan-400">
                 RECENT ACTIVITY
               </h2>
               <div className="space-y-2 max-h-screen overflow-y-auto">
                 {logs.slice(0, 20).map((log, i) => (
-                  <div key={i} className="bg-gray-700/80 backdrop-blur rounded p-3 text-xs border border-gray-600/30">
+                  <div key={i} className="bg-gray-700 rounded p-3 text-xs border border-gray-600">
                     <div className="text-gray-400 mb-1">{log.time}</div>
                     <div className="text-gray-200">{log.msg}</div>
                   </div>
@@ -1804,6 +1793,7 @@ function createBot() {
         "fkdr start - Start tracking",
         "fkdr - View progress",
         "fkdr stop - Stop tracking",
+        "nfkdr [user] - Next FKDR calc",
         "flag add <user> <reason>",
         "flag remove <user>",
         "check <user>",
@@ -2025,6 +2015,54 @@ function createBot() {
         }
         return;
       }
+    }
+
+    // === !nfkdr ===
+    if (msg.toLowerCase().includes("!nfkdr")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!nfkdr(?:\s+([A-Za-z0-9_]{1,16}))?/i);
+      if (!match) return;
+      const [, requester, targetIgn] = match;
+      const ign = targetIgn || requester;
+      
+      if (!hasCommandPermission(requester, 'nfkdr')) {
+        await safeChat(`${requester}, you don't have permission to use !nfkdr`);
+        addLog('warning', `${requester} tried to use !nfkdr but was denied`);
+        return;
+      }
+      
+      commandCount++;
+      await sleep(botSettings.performance.messageDelay);
+      
+      try {
+        const stats = await getPlayerStats(ign);
+        const currentFkdr = parseFloat(stats.fkdr);
+        const currentFinals = stats.finals;
+        const currentDeaths = stats.deaths;
+        
+        // Calculate finals needed for next whole FKDR
+        const nextWholeFkdr = Math.ceil(currentFkdr);
+        
+        // If already at whole number, calculate for next whole number
+        const targetFkdr = currentFkdr % 1 === 0 ? currentFkdr + 1 : nextWholeFkdr;
+        
+        // Formula: (currentFinals + x) / currentDeaths = targetFkdr
+        // x = (targetFkdr * currentDeaths) - currentFinals
+        const finalsNeeded = Math.ceil((targetFkdr * currentDeaths) - currentFinals);
+        
+        if (finalsNeeded <= 0) {
+          await safeChat(`${ign} is already at ${currentFkdr} FKDR!`);
+        } else {
+          await safeChat(`${ign} | Current: ${currentFkdr} FKDR | Target: ${targetFkdr}.00`);
+          await sleep(500);
+          await safeChat(`Finals needed: ${finalsNeeded} (no deaths)`);
+        }
+        
+        addLog('info', `${requester} checked nfkdr for ${ign}`);
+      } catch (err) {
+        await safeChat(`Error: ${err.message}`);
+        addLog('error', `NFKDR error for ${ign}: ${err.message}`);
+      }
+      return;
     }
   });
 
