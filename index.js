@@ -59,7 +59,7 @@ const PERMISSIONS_FILE = path.join(__dirname, "command_permissions.json");
 
 const AVAILABLE_COMMANDS = [
   'bw', 'gexp', 'stats', 'when', 'ask', 'about', 'help',
-  'flag_add', 'flag_remove', 'check'
+  'flag_add', 'flag_remove', 'check', 'fkdr'
 ];
 
 function loadCommandPermissions() {
@@ -230,6 +230,152 @@ function saveFlaggedPlayers() {
   }
 }
 
+// === FKDR Tracking System ===
+const fkdrTracking = new Map();
+const FKDR_TRACKING_FILE = path.join(__dirname, "fkdr_tracking.json");
+
+function loadFkdrTracking() {
+  try {
+    if (fs.existsSync(FKDR_TRACKING_FILE)) {
+      const data = JSON.parse(fs.readFileSync(FKDR_TRACKING_FILE, 'utf8'));
+      Object.entries(data).forEach(([username, tracking]) => {
+        fkdrTracking.set(username.toLowerCase(), tracking);
+      });
+      console.log(`✅ Loaded FKDR tracking for ${fkdrTracking.size} players`);
+    }
+  } catch (err) {
+    console.error('❌ Failed to load FKDR tracking:', err.message);
+  }
+}
+
+function saveFkdrTracking() {
+  try {
+    const data = Object.fromEntries(fkdrTracking);
+    fs.writeFileSync(FKDR_TRACKING_FILE, JSON.stringify(data, null, 2));
+    console.log(`💾 Saved FKDR tracking for ${fkdrTracking.size} players`);
+  } catch (err) {
+    console.error('❌ Failed to save FKDR tracking:', err.message);
+  }
+}
+
+async function startFkdrTracking(username) {
+  try {
+    const playerData = await getPlayerUUID(username);
+    const stats = parseBWStats(playerData.fullData);
+    
+    const now = new Date();
+    const tracking = {
+      username: username,
+      uuid: playerData.uuid,
+      startDate: now.toISOString(),
+      snapshots: [
+        {
+          timestamp: now.toISOString(),
+          finals: stats.finals,
+          deaths: stats.deaths,
+          fkdr: parseFloat(stats.fkdr)
+        }
+      ]
+    };
+    
+    fkdrTracking.set(username.toLowerCase(), tracking);
+    saveFkdrTracking();
+    return true;
+  } catch (err) {
+    console.error('Failed to start FKDR tracking:', err);
+    throw err;
+  }
+}
+
+async function updateFkdrSnapshot(username) {
+  const tracking = fkdrTracking.get(username.toLowerCase());
+  if (!tracking) return null;
+  
+  try {
+    const playerData = await getPlayerUUID(username);
+    const stats = parseBWStats(playerData.fullData);
+    
+    const now = new Date();
+    tracking.snapshots.push({
+      timestamp: now.toISOString(),
+      finals: stats.finals,
+      deaths: stats.deaths,
+      fkdr: parseFloat(stats.fkdr)
+    });
+    
+    // Keep only last 90 days of snapshots
+    const ninetyDaysAgo = now.getTime() - (90 * 24 * 60 * 60 * 1000);
+    tracking.snapshots = tracking.snapshots.filter(s => 
+      new Date(s.timestamp).getTime() > ninetyDaysAgo
+    );
+    
+    fkdrTracking.set(username.toLowerCase(), tracking);
+    saveFkdrTracking();
+    return tracking;
+  } catch (err) {
+    console.error('Failed to update FKDR snapshot:', err);
+    return null;
+  }
+}
+
+function calculateFkdrProgress(tracking) {
+  if (!tracking || tracking.snapshots.length < 2) {
+    return null;
+  }
+  
+  const now = new Date();
+  const snapshots = tracking.snapshots;
+  const latest = snapshots[snapshots.length - 1];
+  
+  // Daily (24 hours ago)
+  const oneDayAgo = now.getTime() - (24 * 60 * 60 * 1000);
+  const dailySnapshot = snapshots.filter(s => 
+    new Date(s.timestamp).getTime() >= oneDayAgo
+  )[0];
+  
+  // Weekly (7 days ago)
+  const oneWeekAgo = now.getTime() - (7 * 24 * 60 * 60 * 1000);
+  const weeklySnapshot = snapshots.filter(s => 
+    new Date(s.timestamp).getTime() >= oneWeekAgo
+  )[0];
+  
+  // Monthly (30 days ago)
+  const oneMonthAgo = now.getTime() - (30 * 24 * 60 * 60 * 1000);
+  const monthlySnapshot = snapshots.filter(s => 
+    new Date(s.timestamp).getTime() >= oneMonthAgo
+  )[0];
+  
+  const calculateChange = (old, current) => {
+    if (!old) return null;
+    const finalsDiff = current.finals - old.finals;
+    const deathsDiff = current.deaths - old.deaths;
+    const fkdrChange = current.fkdr - old.fkdr;
+    
+    return {
+      finals: finalsDiff,
+      deaths: deathsDiff,
+      fkdr: fkdrChange.toFixed(2),
+      sessionFkdr: deathsDiff > 0 ? (finalsDiff / deathsDiff).toFixed(2) : finalsDiff > 0 ? 'inf' : '0.00'
+    };
+  };
+  
+  return {
+    current: latest,
+    daily: calculateChange(dailySnapshot, latest),
+    weekly: calculateChange(weeklySnapshot, latest),
+    monthly: calculateChange(monthlySnapshot, latest)
+  };
+}
+
+function stopFkdrTracking(username) {
+  if (fkdrTracking.has(username.toLowerCase())) {
+    fkdrTracking.delete(username.toLowerCase());
+    saveFkdrTracking();
+    return true;
+  }
+  return false;
+}
+
 // === Cache System ===
 class SmartCache {
   constructor() {
@@ -374,6 +520,37 @@ async function getGuildGEXP(playerIgn) {
   });
 }
 
+// === Get Guild Members ===
+async function getGuildMembers() {
+  try {
+    const guildUrl = `https://api.hypixel.net/v2/guild?key=${HYPIXEL_API_KEY}&name=Rumonium`;
+    const { data } = await axios.get(guildUrl, { timeout: 10000 });
+    
+    if (!data?.guild) return [];
+    
+    // Get member names from UUID
+    const members = await Promise.all(
+      data.guild.members.slice(0, 50).map(async (member) => {
+        try {
+          const playerUrl = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&uuid=${member.uuid}`;
+          const playerRes = await axios.get(playerUrl, { timeout: 5000 });
+          return {
+            uuid: member.uuid,
+            username: playerRes.data?.player?.displayname || 'Unknown'
+          };
+        } catch {
+          return { uuid: member.uuid, username: 'Unknown' };
+        }
+      })
+    );
+    
+    return members.filter(m => m.username !== 'Unknown');
+  } catch (err) {
+    console.error('Failed to fetch guild members:', err.message);
+    return [];
+  }
+}
+
 function sleep(ms) {
   return new Promise((res) => setTimeout(res, ms));
 }
@@ -399,6 +576,16 @@ app.get("/api/stats", (req, res) => {
     apiCallCount,
     cacheSize: cache.playerDataCache.size + cache.guildCache.size
   });
+});
+
+// === Guild Members API ===
+app.get("/api/guild-members", async (req, res) => {
+  try {
+    const members = await getGuildMembers();
+    res.json({ members, count: members.length });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
 // === Flags API ===
@@ -485,6 +672,27 @@ app.post("/api/permissions/remove", (req, res) => {
   }
 });
 
+// === FKDR Tracking API ===
+app.get("/api/fkdr-tracking", (req, res) => {
+  const tracking = Array.from(fkdrTracking.entries()).map(([username, data]) => ({
+    username,
+    ...data,
+    progress: calculateFkdrProgress(data)
+  }));
+  res.json({ tracking, count: tracking.length });
+});
+
+app.post("/api/fkdr-tracking/remove", (req, res) => {
+  const { username } = req.body;
+  
+  if (fkdrTracking.has(username.toLowerCase())) {
+    stopFkdrTracking(username);
+    res.json({ success: true, message: `FKDR tracking removed for ${username}` });
+  } else {
+    res.status(404).json({ success: false, message: 'User not found' });
+  }
+});
+
 app.post("/chat", (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).send("❌ Message required.");
@@ -513,12 +721,43 @@ app.get("/control", (req, res) => {
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .minecraft-head {
+      image-rendering: pixelated;
+      image-rendering: -moz-crisp-edges;
+      image-rendering: crisp-edges;
+    }
+    .player-card {
+      transition: all 0.2s ease;
+    }
+    .player-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+    }
+    .search-input {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(10px);
+    }
+  </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-6">
   <div id="root"></div>
   <script type="text/babel">
     const { useState, useEffect } = React;
     const socket = io();
+
+    // Minecraft Head Component
+    function MinecraftHead({ username, size = 48 }) {
+      return (
+        <img 
+          src={\`https://mc-heads.net/avatar/\${username}/\${size}\`}
+          alt={username}
+          className="minecraft-head rounded border-2 border-gray-600"
+          width={size}
+          height={size}
+        />
+      );
+    }
 
     function App() {
       const [tab, setTab] = useState('chat');
@@ -529,16 +768,24 @@ app.get("/control", (req, res) => {
       const [flags, setFlags] = useState([]);
       const [permissions, setPermissions] = useState([]);
       const [availableCommands, setAvailableCommands] = useState([]);
+      const [guildMembers, setGuildMembers] = useState([]);
+      const [fkdrTracking, setFkdrTracking] = useState([]);
       
       // Flag form
       const [flagIgn, setFlagIgn] = useState('');
       const [flagReason, setFlagReason] = useState('');
       const [flaggedBy, setFlaggedBy] = useState('Admin');
+      const [flagSearch, setFlagSearch] = useState('');
       
       // Permission form
       const [permUsername, setPermUsername] = useState('');
       const [selectedAllowed, setSelectedAllowed] = useState([]);
       const [selectedBanned, setSelectedBanned] = useState([]);
+      const [permSearch, setPermSearch] = useState('');
+      const [showGuildMembers, setShowGuildMembers] = useState(false);
+      
+      // FKDR tracking
+      const [fkdrSearch, setFkdrSearch] = useState('');
       
       useEffect(() => {
         socket.on('minecraft-chat', d => setChat(p => [...p, d].slice(-100)));
@@ -547,6 +794,8 @@ app.get("/control", (req, res) => {
         
         fetchFlags();
         fetchPermissions();
+        fetchGuildMembers();
+        fetchFkdrTracking();
         
         return () => {
           socket.off('minecraft-chat');
@@ -573,6 +822,41 @@ app.get("/control", (req, res) => {
           setAvailableCommands(data.availableCommands || []);
         } catch (err) {
           console.error('Failed to fetch permissions:', err);
+        }
+      };
+
+      const fetchGuildMembers = async () => {
+        try {
+          const res = await fetch('/api/guild-members');
+          const data = await res.json();
+          setGuildMembers(data.members || []);
+        } catch (err) {
+          console.error('Failed to fetch guild members:', err);
+        }
+      };
+
+      const fetchFkdrTracking = async () => {
+        try {
+          const res = await fetch('/api/fkdr-tracking');
+          const data = await res.json();
+          setFkdrTracking(data.tracking || []);
+        } catch (err) {
+          console.error('Failed to fetch FKDR tracking:', err);
+        }
+      };
+
+      const removeFkdrTracking = async (username) => {
+        if (!confirm(\`Remove FKDR tracking for \${username}?\`)) return;
+        
+        try {
+          await fetch('/api/fkdr-tracking/remove', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username })
+          });
+          fetchFkdrTracking();
+        } catch (err) {
+          alert('Error removing FKDR tracking');
         }
       };
 
@@ -652,6 +936,7 @@ app.get("/control", (req, res) => {
             setPermUsername('');
             setSelectedAllowed([]);
             setSelectedBanned([]);
+            setShowGuildMembers(false);
             fetchPermissions();
             alert('Permissions updated successfully!');
           } else {
@@ -693,36 +978,60 @@ app.get("/control", (req, res) => {
         }
       };
 
+      const selectMember = (username) => {
+        setPermUsername(username);
+        setShowGuildMembers(false);
+      };
+
+      const filteredFlags = flags.filter(flag => 
+        flag.ign.toLowerCase().includes(flagSearch.toLowerCase()) ||
+        flag.reason.toLowerCase().includes(flagSearch.toLowerCase())
+      );
+
+      const filteredPermissions = permissions.filter(perm =>
+        perm.username.toLowerCase().includes(permSearch.toLowerCase())
+      );
+
+      const filteredMembers = guildMembers.filter(member =>
+        member.username.toLowerCase().includes(permUsername.toLowerCase())
+      );
+
       return (
         <div className="max-w-7xl mx-auto">
-          <div className="bg-gray-800 rounded-lg p-6 mb-6">
-            <h1 className="text-3xl font-bold mb-4">RumoniumGC Control Panel</h1>
+          <div className="bg-gradient-to-br from-purple-900 via-gray-800 to-gray-900 rounded-lg p-6 mb-6 border border-purple-500/30">
+            <h1 className="text-3xl font-bold mb-4 bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
+              RumoniumGC Control Panel
+            </h1>
             <div className="grid grid-cols-4 gap-4">
-              <div className="bg-gray-700 rounded p-4">
-                <div className="text-2xl font-bold">{stats.uptime}</div>
+              <div className="bg-gray-800/80 backdrop-blur rounded-lg p-4 border border-gray-700/50">
+                <div className="text-2xl font-bold text-purple-400">{stats.uptime}</div>
                 <div className="text-sm text-gray-400">UPTIME</div>
               </div>
-              <div className="bg-gray-700 rounded p-4">
-                <div className="text-2xl font-bold">{stats.commands}</div>
+              <div className="bg-gray-800/80 backdrop-blur rounded-lg p-4 border border-gray-700/50">
+                <div className="text-2xl font-bold text-blue-400">{stats.commands}</div>
                 <div className="text-sm text-gray-400">COMMANDS</div>
               </div>
-              <div className="bg-gray-700 rounded p-4">
-                <div className="text-2xl font-bold">{stats.messages}</div>
+              <div className="bg-gray-800/80 backdrop-blur rounded-lg p-4 border border-gray-700/50">
+                <div className="text-2xl font-bold text-green-400">{stats.messages}</div>
                 <div className="text-sm text-gray-400">MESSAGES</div>
               </div>
-              <div className="bg-gray-700 rounded p-4">
-                <div className="text-2xl font-bold">{flags.length}</div>
+              <div className="bg-gray-800/80 backdrop-blur rounded-lg p-4 border border-gray-700/50">
+                <div className="text-2xl font-bold text-red-400">{flags.length}</div>
                 <div className="text-sm text-gray-400">FLAGS</div>
               </div>
             </div>
           </div>
 
-          <div className="bg-gray-800 rounded-lg p-2 mb-6 flex gap-2">
-            {['chat', 'logs', 'flags', 'permissions'].map(t => (
+          <div className="bg-gray-800/80 backdrop-blur rounded-lg p-2 mb-6 flex gap-2 border border-gray-700/50">
+            {['chat', 'logs', 'flags', 'permissions', 'fkdr'].map(t => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={\`flex-1 px-4 py-2 rounded font-bold transition-colors \${tab === t ? 'bg-purple-600' : 'bg-gray-700 hover:bg-gray-600'}\`}
+                className={\`flex-1 px-4 py-2 rounded font-bold transition-all \${
+                  tab === t 
+                    ? 'bg-gradient-to-r from-purple-600 to-pink-600 shadow-lg' 
+                    : 'bg-gray-700/50 hover:bg-gray-600/50'
+                }\`}
               >
                 {t.toUpperCase()}
               </button>
@@ -732,18 +1041,18 @@ app.get("/control", (req, res) => {
           <div className="grid grid-cols-3 gap-6">
             <div className="col-span-2">
               {tab === 'chat' && (
-                <div className="bg-gray-800 rounded-lg overflow-hidden">
-                  <div className="p-4 border-b border-gray-700">
+                <div className="bg-gray-800/80 backdrop-blur rounded-lg overflow-hidden border border-gray-700/50">
+                  <div className="p-4 border-b border-gray-700 bg-gradient-to-r from-purple-900/50 to-gray-800">
                     <h2 className="text-xl font-bold">LIVE CHAT</h2>
                   </div>
-                  <div className="h-96 overflow-y-auto p-4 space-y-2 bg-gray-900">
+                  <div className="h-96 overflow-y-auto p-4 space-y-2 bg-gray-900/50">
                     {chat.map((m, i) => (
-                      <div key={i} className="bg-gray-800 rounded px-3 py-2 text-sm">
+                      <div key={i} className="bg-gray-800/80 backdrop-blur rounded px-3 py-2 text-sm border border-gray-700/30">
                         <span className="text-gray-500">[{m.time}]</span> {m.message}
                       </div>
                     ))}
                   </div>
-                  <div className="p-4 border-t border-gray-700">
+                  <div className="p-4 border-t border-gray-700 bg-gray-800/50">
                     <div className="flex gap-2">
                       <input
                         type="text"
@@ -751,9 +1060,9 @@ app.get("/control", (req, res) => {
                         onChange={e => setMsg(e.target.value)}
                         onKeyPress={e => e.key === 'Enter' && send()}
                         placeholder="Type message..."
-                        className="flex-1 bg-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                        className="flex-1 bg-gray-700/80 backdrop-blur rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600 border border-gray-600"
                       />
-                      <button onClick={send} className="px-6 py-2 rounded bg-purple-600 font-bold hover:bg-purple-700">
+                      <button onClick={send} className="px-6 py-2 rounded bg-gradient-to-r from-purple-600 to-pink-600 font-bold hover:from-purple-700 hover:to-pink-700 shadow-lg">
                         SEND
                       </button>
                     </div>
@@ -762,13 +1071,13 @@ app.get("/control", (req, res) => {
               )}
 
               {tab === 'logs' && (
-                <div className="bg-gray-800 rounded-lg p-6">
-                  <h2 className="text-xl font-bold mb-4">LOGS</h2>
+                <div className="bg-gray-800/80 backdrop-blur rounded-lg p-6 border border-gray-700/50">
+                  <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">LOGS</h2>
                   <div className="space-y-2 max-h-96 overflow-y-auto">
                     {logs.map((log, i) => (
-                      <div key={i} className="bg-gray-700 rounded p-3 text-sm">
+                      <div key={i} className="bg-gray-700/80 backdrop-blur rounded p-3 text-sm border border-gray-600/30">
                         <span className="text-gray-400">{log.time}</span> - 
-                        <span className={\`ml-2 px-2 py-1 rounded text-xs \${
+                        <span className={\`ml-2 px-2 py-1 rounded text-xs font-semibold \${
                           log.type === 'error' ? 'bg-red-600' :
                           log.type === 'success' ? 'bg-green-600' :
                           log.type === 'warning' ? 'bg-yellow-600' : 'bg-blue-600'
@@ -781,10 +1090,12 @@ app.get("/control", (req, res) => {
               )}
 
               {tab === 'flags' && (
-                <div className="bg-gray-800 rounded-lg p-6">
-                  <h2 className="text-xl font-bold mb-4">FLAGGED PLAYERS</h2>
+                <div className="bg-gray-800/80 backdrop-blur rounded-lg p-6 border border-gray-700/50">
+                  <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">
+                    FLAGGED PLAYERS
+                  </h2>
                   
-                  <form onSubmit={addFlag} className="bg-gray-700 rounded-lg p-4 mb-4">
+                  <form onSubmit={addFlag} className="bg-gray-700/80 backdrop-blur rounded-lg p-4 mb-4 border border-gray-600/50">
                     <h3 className="font-bold mb-3">Add New Flag</h3>
                     <div className="space-y-3">
                       <input
@@ -792,51 +1103,70 @@ app.get("/control", (req, res) => {
                         placeholder="Player IGN"
                         value={flagIgn}
                         onChange={e => setFlagIgn(e.target.value)}
-                        className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                        className="w-full bg-gray-600/80 backdrop-blur rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-500"
                       />
                       <input
                         type="text"
                         placeholder="Reason"
                         value={flagReason}
                         onChange={e => setFlagReason(e.target.value)}
-                        className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                        className="w-full bg-gray-600/80 backdrop-blur rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-500"
                       />
                       <input
                         type="text"
                         placeholder="Flagged By (optional)"
                         value={flaggedBy}
                         onChange={e => setFlaggedBy(e.target.value)}
-                        className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600"
+                        className="w-full bg-gray-600/80 backdrop-blur rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-500"
                       />
-                      <button type="submit" className="w-full bg-purple-600 rounded px-4 py-2 font-bold hover:bg-purple-700">
+                      <button type="submit" className="w-full bg-gradient-to-r from-red-600 to-orange-600 rounded px-4 py-2 font-bold hover:from-red-700 hover:to-orange-700 shadow-lg">
                         Add Flag
                       </button>
                     </div>
                   </form>
 
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {flags.length === 0 ? (
-                      <div className="text-center text-gray-400 py-8">No flagged players</div>
+                  <div className="mb-4">
+                    <input
+                      type="text"
+                      placeholder="🔍 Search flagged players..."
+                      value={flagSearch}
+                      onChange={e => setFlagSearch(e.target.value)}
+                      className="w-full search-input rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-600"
+                    />
+                  </div>
+
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {filteredFlags.length === 0 ? (
+                      <div className="text-center text-gray-400 py-8">
+                        {flagSearch ? 'No matching players found' : 'No flagged players'}
+                      </div>
                     ) : (
-                      flags.map((flag, i) => (
-                        <div key={i} className="bg-gray-700 rounded-lg p-4 border-l-4 border-red-500">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <div className="font-bold text-lg">{flag.ign}</div>
-                              <div className="text-xs text-gray-400">UUID: {flag.uuid}</div>
+                      filteredFlags.map((flag, i) => (
+                        <div key={i} className="player-card bg-gray-700/80 backdrop-blur rounded-lg p-4 border-l-4 border-red-500 shadow-lg">
+                          <div className="flex items-start gap-4">
+                            <MinecraftHead username={flag.ign} size={64} />
+                            <div className="flex-1">
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <div className="font-bold text-lg">{flag.ign}</div>
+                                  <div className="text-xs text-gray-400 font-mono">UUID: {flag.uuid}</div>
+                                </div>
+                                <button
+                                  onClick={() => removeFlag(flag.uuid)}
+                                  className="px-3 py-1 bg-red-600 rounded text-sm font-bold hover:bg-red-700 shadow-md"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                              <div className="text-sm mb-1 bg-gray-800/50 rounded p-2 border border-gray-600/30">
+                                <span className="text-gray-400">Reason:</span> 
+                                <span className="ml-2 text-red-300">{flag.reason}</span>
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                Flagged by: <span className="text-purple-400">{flag.flaggedBy}</span> • 
+                                <span className="ml-1">{new Date(flag.timestamp).toLocaleString()}</span>
+                              </div>
                             </div>
-                            <button
-                              onClick={() => removeFlag(flag.uuid)}
-                              className="px-3 py-1 bg-red-600 rounded text-sm font-bold hover:bg-red-700"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                          <div className="text-sm mb-1">
-                            <span className="text-gray-400">Reason:</span> {flag.reason}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            Flagged by: {flag.flaggedBy} • {new Date(flag.timestamp).toLocaleString()}
                           </div>
                         </div>
                       ))
@@ -846,130 +1176,323 @@ app.get("/control", (req, res) => {
               )}
 
               {tab === 'permissions' && (
-                <div className="bg-gray-800 rounded-lg p-6">
-                  <h2 className="text-xl font-bold mb-4">COMMAND PERMISSIONS</h2>
+                <div className="bg-gray-800/80 backdrop-blur rounded-lg p-6 border border-gray-700/50">
+                  <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                    COMMAND PERMISSIONS
+                  </h2>
                   
-                  <form onSubmit={setPermission} className="bg-gray-700 rounded-lg p-4 mb-4">
+                  <form onSubmit={setPermission} className="bg-gray-700/80 backdrop-blur rounded-lg p-4 mb-4 border border-gray-600/50">
                     <h3 className="font-bold mb-3">Set Player Permissions</h3>
                     <div className="space-y-3">
-                      <input
-                        type="text"
-                        placeholder="Player Username"
-                        value={permUsername}
-                        onChange={e => setPermUsername(e.target.value)}
-                        className="w-full bg-gray-600 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600"
-                      />
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Player Username (type to search guild members)"
+                          value={permUsername}
+                          onChange={e => {
+                            setPermUsername(e.target.value);
+                            setShowGuildMembers(e.target.value.length > 0);
+                          }}
+                          onFocus={() => permUsername && setShowGuildMembers(true)}
+                          className="w-full bg-gray-600/80 backdrop-blur rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 border border-gray-500"
+                        />
+                        
+                        {showGuildMembers && filteredMembers.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-gray-700 rounded-lg border border-gray-600 shadow-xl max-h-60 overflow-y-auto">
+                            {filteredMembers.slice(0, 10).map(member => (
+                              <button
+                                key={member.uuid}
+                                type="button"
+                                onClick={() => selectMember(member.username)}
+                                className="w-full flex items-center gap-3 p-3 hover:bg-gray-600 transition-colors text-left"
+                              >
+                                <MinecraftHead username={member.username} size={32} />
+                                <span className="font-semibold">{member.username}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <div className="text-sm font-bold mb-2 text-green-400">✓ Allowed Commands</div>
-                          <div className="bg-gray-600 rounded p-3 space-y-1 max-h-48 overflow-y-auto">
+                          <div className="bg-gray-600/80 backdrop-blur rounded p-3 space-y-1 max-h-48 overflow-y-auto border border-gray-500">
                             {availableCommands.map(cmd => (
-                              <label key={cmd} className="flex items-center gap-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
+                              <label key={cmd} className="flex items-center gap-2 cursor-pointer hover:bg-gray-700 p-2 rounded transition-colors">
                                 <input
                                   type="checkbox"
                                   checked={selectedAllowed.includes(cmd)}
                                   onChange={() => toggleCommand(cmd, 'allowed')}
                                   className="w-4 h-4 accent-green-500"
                                 />
-                                <span className="text-sm">{cmd}</span>
+                                <span className="text-sm font-mono">{cmd}</span>
                               </label>
                             ))}
                           </div>
                           <div className="text-xs text-gray-400 mt-2">
-                            If any command is selected here, ONLY these commands will be allowed for this user
+                            If any command is selected, ONLY these will be allowed
                           </div>
                         </div>
                         
                         <div>
                           <div className="text-sm font-bold mb-2 text-red-400">✗ Banned Commands</div>
-                          <div className="bg-gray-600 rounded p-3 space-y-1 max-h-48 overflow-y-auto">
+                          <div className="bg-gray-600/80 backdrop-blur rounded p-3 space-y-1 max-h-48 overflow-y-auto border border-gray-500">
                             {availableCommands.map(cmd => (
-                              <label key={cmd} className="flex items-center gap-2 cursor-pointer hover:bg-gray-700 p-2 rounded">
+                              <label key={cmd} className="flex items-center gap-2 cursor-pointer hover:bg-gray-700 p-2 rounded transition-colors">
                                 <input
                                   type="checkbox"
                                   checked={selectedBanned.includes(cmd)}
                                   onChange={() => toggleCommand(cmd, 'banned')}
                                   className="w-4 h-4 accent-red-500"
                                 />
-                                <span className="text-sm">{cmd}</span>
+                                <span className="text-sm font-mono">{cmd}</span>
                               </label>
                             ))}
                           </div>
                           <div className="text-xs text-gray-400 mt-2">
-                            Selected commands will be blocked for this user
+                            Selected commands will be blocked
                           </div>
                         </div>
                       </div>
                       
-                      <button type="submit" className="w-full bg-blue-600 rounded px-4 py-2 font-bold hover:bg-blue-700">
+                      <button type="submit" className="w-full bg-gradient-to-r from-blue-600 to-purple-600 rounded px-4 py-2 font-bold hover:from-blue-700 hover:to-purple-700 shadow-lg">
                         Save Permissions
                       </button>
                     </div>
                   </form>
 
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {permissions.length === 0 ? (
+                  <div className="mb-4">
+                    <input
+                      type="text"
+                      placeholder="🔍 Search permissions..."
+                      value={permSearch}
+                      onChange={e => setPermSearch(e.target.value)}
+                      className="w-full search-input rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-600 border border-gray-600"
+                    />
+                  </div>
+
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {filteredPermissions.length === 0 ? (
                       <div className="text-center text-gray-400 py-8">
-                        No custom permissions set
-                        <div className="text-sm mt-2">All players can use all commands by default</div>
+                        {permSearch ? 'No matching players found' : 
+                          <div>
+                            <div>No custom permissions set</div>
+                            <div className="text-sm mt-2">All players can use all commands by default</div>
+                          </div>
+                        }
                       </div>
                     ) : (
-                      permissions.map((perm, i) => (
-                        <div key={i} className="bg-gray-700 rounded-lg p-4 border-l-4 border-blue-500">
-                          <div className="flex justify-between items-start mb-3">
-                            <div className="font-bold text-lg">{perm.username}</div>
-                            <button
-                              onClick={() => removePermission(perm.username)}
-                              className="px-3 py-1 bg-red-600 rounded text-sm font-bold hover:bg-red-700"
-                            >
-                              Remove
-                            </button>
+                      filteredPermissions.map((perm, i) => (
+                        <div key={i} className="player-card bg-gray-700/80 backdrop-blur rounded-lg p-4 border-l-4 border-blue-500 shadow-lg">
+                          <div className="flex items-start gap-4">
+                            <MinecraftHead username={perm.username} size={56} />
+                            <div className="flex-1">
+                              <div className="flex justify-between items-start mb-3">
+                                <div className="font-bold text-lg">{perm.username}</div>
+                                <button
+                                  onClick={() => removePermission(perm.username)}
+                                  className="px-3 py-1 bg-red-600 rounded text-sm font-bold hover:bg-red-700 shadow-md"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                              
+                              {perm.allowedCommands && perm.allowedCommands.length > 0 && (
+                                <div className="mb-2 bg-green-900/20 rounded p-2 border border-green-600/30">
+                                  <div className="text-xs text-green-400 mb-1 font-semibold">✓ Allowed Commands:</div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {perm.allowedCommands.map(cmd => (
+                                      <span key={cmd} className="text-xs px-2 py-1 bg-green-600/30 border border-green-500 rounded font-mono">
+                                        {cmd}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {perm.bannedCommands && perm.bannedCommands.length > 0 && (
+                                <div className="bg-red-900/20 rounded p-2 border border-red-600/30">
+                                  <div className="text-xs text-red-400 mb-1 font-semibold">✗ Banned Commands:</div>
+                                  <div className="flex flex-wrap gap-1">
+                                    {perm.bannedCommands.map(cmd => (
+                                      <span key={cmd} className="text-xs px-2 py-1 bg-red-600/30 border border-red-500 rounded font-mono">
+                                        {cmd}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {(!perm.allowedCommands || perm.allowedCommands.length === 0) && 
+                               (!perm.bannedCommands || perm.bannedCommands.length === 0) && (
+                                <div className="text-sm text-gray-400 italic">No restrictions set</div>
+                              )}
+                            </div>
                           </div>
-                          
-                          {perm.allowedCommands && perm.allowedCommands.length > 0 && (
-                            <div className="mb-2">
-                              <div className="text-xs text-green-400 mb-1 font-semibold">✓ Allowed Commands:</div>
-                              <div className="flex flex-wrap gap-1">
-                                {perm.allowedCommands.map(cmd => (
-                                  <span key={cmd} className="text-xs px-2 py-1 bg-green-600 bg-opacity-30 border border-green-500 rounded">
-                                    {cmd}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {perm.bannedCommands && perm.bannedCommands.length > 0 && (
-                            <div>
-                              <div className="text-xs text-red-400 mb-1 font-semibold">✗ Banned Commands:</div>
-                              <div className="flex flex-wrap gap-1">
-                                {perm.bannedCommands.map(cmd => (
-                                  <span key={cmd} className="text-xs px-2 py-1 bg-red-600 bg-opacity-30 border border-red-500 rounded">
-                                    {cmd}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {(!perm.allowedCommands || perm.allowedCommands.length === 0) && 
-                           (!perm.bannedCommands || perm.bannedCommands.length === 0) && (
-                            <div className="text-sm text-gray-400">No restrictions set</div>
-                          )}
                         </div>
                       ))
                     )}
                   </div>
                 </div>
               )}
+
+              {tab === 'fkdr' && (
+                <div className="bg-gray-800/80 backdrop-blur rounded-lg p-6 border border-gray-700/50">
+                  <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">
+                    FKDR TRACKING
+                  </h2>
+                  
+                  <div className="bg-gray-700/80 backdrop-blur rounded-lg p-4 mb-4 border border-gray-600/50">
+                    <div className="text-sm text-gray-300 mb-2">
+                      📊 Active Tracking: <span className="font-bold text-yellow-400">{fkdrTracking.length}</span> players
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      Players can use <span className="font-mono bg-gray-600 px-2 py-1 rounded">!fkdr start</span> in game to begin tracking their FKDR progress.
+                      Stats are automatically updated every 6 hours.
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <input
+                      type="text"
+                      placeholder="🔍 Search tracked players..."
+                      value={fkdrSearch}
+                      onChange={e => setFkdrSearch(e.target.value)}
+                      className="w-full search-input rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-yellow-600 border border-gray-600"
+                    />
+                  </div>
+
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {fkdrTracking
+                      .filter(track => track.username.toLowerCase().includes(fkdrSearch.toLowerCase()))
+                      .length === 0 ? (
+                      <div className="text-center text-gray-400 py-8">
+                        {fkdrSearch ? 'No matching players found' : 'No active FKDR tracking'}
+                      </div>
+                    ) : (
+                      fkdrTracking
+                        .filter(track => track.username.toLowerCase().includes(fkdrSearch.toLowerCase()))
+                        .map((track, i) => {
+                          const progress = track.progress;
+                          const hasData = progress && (progress.daily || progress.weekly || progress.monthly);
+                          
+                          return (
+                            <div key={i} className="player-card bg-gray-700/80 backdrop-blur rounded-lg p-4 border-l-4 border-yellow-500 shadow-lg">
+                              <div className="flex items-start gap-4">
+                                <MinecraftHead username={track.username} size={64} />
+                                <div className="flex-1">
+                                  <div className="flex justify-between items-start mb-3">
+                                    <div>
+                                      <div className="font-bold text-lg">{track.username}</div>
+                                      <div className="text-xs text-gray-400">
+                                        Started: {new Date(track.startDate).toLocaleDateString()}
+                                      </div>
+                                      {progress?.current && (
+                                        <div className="text-sm mt-1">
+                                          Current FKDR: <span className="font-bold text-yellow-400">{progress.current.fkdr}</span>
+                                        </div>
+                                      )}
+                                    </div>
+                                    <button
+                                      onClick={() => removeFkdrTracking(track.username)}
+                                      className="px-3 py-1 bg-red-600 rounded text-sm font-bold hover:bg-red-700 shadow-md"
+                                    >
+                                      Remove
+                                    </button>
+                                  </div>
+                                  
+                                  {hasData ? (
+                                    <div className="space-y-2">
+                                      {progress.daily && (
+                                        <div className="bg-blue-900/20 rounded p-2 border border-blue-600/30">
+                                          <div className="text-xs font-semibold text-blue-400 mb-1">📈 Daily Progress</div>
+                                          <div className="grid grid-cols-3 gap-2 text-xs">
+                                            <div>
+                                              <span className="text-gray-400">FKDR:</span>
+                                              <span className={\`ml-1 font-bold \${progress.daily.fkdr >= 0 ? 'text-green-400' : 'text-red-400'}\`}>
+                                                {progress.daily.fkdr >= 0 ? '+' : ''}{progress.daily.fkdr}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-400">Session:</span>
+                                              <span className="ml-1 font-bold text-cyan-400">{progress.daily.sessionFkdr}</span>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-400">Finals:</span>
+                                              <span className="ml-1 font-bold text-purple-400">+{progress.daily.finals}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {progress.weekly && (
+                                        <div className="bg-green-900/20 rounded p-2 border border-green-600/30">
+                                          <div className="text-xs font-semibold text-green-400 mb-1">📊 Weekly Progress</div>
+                                          <div className="grid grid-cols-3 gap-2 text-xs">
+                                            <div>
+                                              <span className="text-gray-400">FKDR:</span>
+                                              <span className={\`ml-1 font-bold \${progress.weekly.fkdr >= 0 ? 'text-green-400' : 'text-red-400'}\`}>
+                                                {progress.weekly.fkdr >= 0 ? '+' : ''}{progress.weekly.fkdr}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-400">Session:</span>
+                                              <span className="ml-1 font-bold text-cyan-400">{progress.weekly.sessionFkdr}</span>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-400">Finals:</span>
+                                              <span className="ml-1 font-bold text-purple-400">+{progress.weekly.finals}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                      
+                                      {progress.monthly && (
+                                        <div className="bg-purple-900/20 rounded p-2 border border-purple-600/30">
+                                          <div className="text-xs font-semibold text-purple-400 mb-1">📅 Monthly Progress</div>
+                                          <div className="grid grid-cols-3 gap-2 text-xs">
+                                            <div>
+                                              <span className="text-gray-400">FKDR:</span>
+                                              <span className={\`ml-1 font-bold \${progress.monthly.fkdr >= 0 ? 'text-green-400' : 'text-red-400'}\`}>
+                                                {progress.monthly.fkdr >= 0 ? '+' : ''}{progress.monthly.fkdr}
+                                              </span>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-400">Session:</span>
+                                              <span className="ml-1 font-bold text-cyan-400">{progress.monthly.sessionFkdr}</span>
+                                            </div>
+                                            <div>
+                                              <span className="text-gray-400">Finals:</span>
+                                              <span className="ml-1 font-bold text-purple-400">+{progress.monthly.finals}</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <div className="text-sm text-gray-400 italic bg-gray-800/50 rounded p-2">
+                                      Not enough data yet. Check back after playing some games!
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h2 className="text-xl font-bold mb-4">RECENT ACTIVITY</h2>
+            <div className="bg-gray-800/80 backdrop-blur rounded-lg p-6 border border-gray-700/50">
+              <h2 className="text-xl font-bold mb-4 bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                RECENT ACTIVITY
+              </h2>
               <div className="space-y-2 max-h-screen overflow-y-auto">
                 {logs.slice(0, 20).map((log, i) => (
-                  <div key={i} className="bg-gray-700 rounded p-3 text-xs">
+                  <div key={i} className="bg-gray-700/80 backdrop-blur rounded p-3 text-xs border border-gray-600/30">
                     <div className="text-gray-400 mb-1">{log.time}</div>
                     <div className="text-gray-200">{log.msg}</div>
                   </div>
@@ -1008,6 +1531,7 @@ server.listen(PORT, () => {
   console.log(`🌐 Server running on port ${PORT}`);
   loadFlaggedPlayers();
   loadCommandPermissions();
+  loadFkdrTracking();
 });
 
 // === Bot Implementation ===
@@ -1277,6 +1801,9 @@ function createBot() {
         "stats <user> - Detailed stats",
         "when - Next Castle",
         "ask <msg> - Ask AI",
+        "fkdr start - Start tracking",
+        "fkdr - View progress",
+        "fkdr stop - Stop tracking",
         "flag add <user> <reason>",
         "flag remove <user>",
         "check <user>",
@@ -1392,6 +1919,113 @@ function createBot() {
       }
       return;
     }
+
+    // === !fkdr ===
+    if (msg.toLowerCase().includes("!fkdr")) {
+      const matchStart = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!fkdr\s+start/i);
+      const matchStop = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!fkdr\s+stop/i);
+      const matchStatus = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!fkdr(?:\s+)?$/i);
+      
+      if (!matchStart && !matchStop && !matchStatus) return;
+      
+      const requester = (matchStart || matchStop || matchStatus)[1];
+      
+      if (!hasCommandPermission(requester, 'fkdr')) {
+        await safeChat(`${requester}, you don't have permission to use !fkdr`);
+        addLog('warning', `${requester} tried to use !fkdr but was denied`);
+        return;
+      }
+      
+      commandCount++;
+      await sleep(botSettings.performance.messageDelay);
+      
+      // !fkdr start
+      if (matchStart) {
+        try {
+          if (fkdrTracking.has(requester.toLowerCase())) {
+            await safeChat(`${requester}, your FKDR is already being tracked!`);
+            return;
+          }
+          
+          await startFkdrTracking(requester);
+          await safeChat(`✓ Started tracking FKDR for ${requester}!`);
+          await sleep(500);
+          await safeChat(`Use !fkdr to view your progress anytime`);
+          addLog('success', `Started FKDR tracking for ${requester}`);
+        } catch (err) {
+          await safeChat(`Error starting tracking: ${err.message}`);
+          addLog('error', `Failed to start FKDR tracking for ${requester}: ${err.message}`);
+        }
+        return;
+      }
+      
+      // !fkdr stop
+      if (matchStop) {
+        try {
+          if (!fkdrTracking.has(requester.toLowerCase())) {
+            await safeChat(`${requester}, you don't have active FKDR tracking!`);
+            return;
+          }
+          
+          stopFkdrTracking(requester);
+          await safeChat(`✓ Stopped FKDR tracking for ${requester}`);
+          addLog('info', `Stopped FKDR tracking for ${requester}`);
+        } catch (err) {
+          await safeChat(`Error stopping tracking: ${err.message}`);
+        }
+        return;
+      }
+      
+      // !fkdr (status)
+      if (matchStatus) {
+        try {
+          if (!fkdrTracking.has(requester.toLowerCase())) {
+            await safeChat(`${requester}, use !fkdr start to begin tracking`);
+            return;
+          }
+          
+          // Update snapshot before showing stats
+          const tracking = await updateFkdrSnapshot(requester);
+          if (!tracking) {
+            await safeChat(`Error updating FKDR data`);
+            return;
+          }
+          
+          const progress = calculateFkdrProgress(tracking);
+          
+          if (!progress) {
+            await safeChat(`${requester}, not enough data yet. Try again later!`);
+            return;
+          }
+          
+          await safeChat(`${requester} | Current FKDR: ${progress.current.fkdr}`);
+          await sleep(500);
+          
+          if (progress.daily) {
+            const dailySign = progress.daily.fkdr >= 0 ? '+' : '';
+            await safeChat(`📊 Daily: ${dailySign}${progress.daily.fkdr} FKDR | Session: ${progress.daily.sessionFkdr} | Finals: ${progress.daily.finals}`);
+            await sleep(500);
+          }
+          
+          if (progress.weekly) {
+            const weeklySign = progress.weekly.fkdr >= 0 ? '+' : '';
+            await safeChat(`📊 Weekly: ${weeklySign}${progress.weekly.fkdr} FKDR | Session: ${progress.weekly.sessionFkdr} | Finals: ${progress.weekly.finals}`);
+            await sleep(500);
+          }
+          
+          if (progress.monthly) {
+            const monthlySign = progress.monthly.fkdr >= 0 ? '+' : '';
+            await safeChat(`📊 Monthly: ${monthlySign}${progress.monthly.fkdr} FKDR | Session: ${progress.monthly.sessionFkdr} | Finals: ${progress.monthly.finals}`);
+          }
+          
+          addLog('info', `${requester} checked their FKDR progress`);
+        } catch (err) {
+          await safeChat(`Error: ${err.message}`);
+          addLog('error', `FKDR status error for ${requester}: ${err.message}`);
+        }
+        return;
+      }
+    }
   });
 
   bot.on("kicked", (reason) => {
@@ -1432,6 +2066,7 @@ process.on('SIGTERM', () => {
   console.log('📴 SIGTERM received, saving data...');
   saveFlaggedPlayers();
   saveCommandPermissions();
+  saveFkdrTracking();
   if (bot) bot.quit();
   process.exit(0);
 });
@@ -1440,6 +2075,7 @@ process.on('SIGINT', () => {
   console.log('📴 SIGINT received, saving data...');
   saveFlaggedPlayers();
   saveCommandPermissions();
+  saveFkdrTracking();
   if (bot) bot.quit();
   process.exit(0);
 });
@@ -1448,7 +2084,26 @@ process.on('SIGINT', () => {
 setInterval(() => {
   saveFlaggedPlayers();
   saveCommandPermissions();
+  saveFkdrTracking();
 }, 5 * 60 * 1000);
 
-createBot();
+// Auto-update FKDR snapshots every 6 hours
+setInterval(async () => {
+  console.log('📊 Updating FKDR snapshots...');
+  let updated = 0;
+  
+  for (const [username, tracking] of fkdrTracking.entries()) {
+    try {
+      await updateFkdrSnapshot(username);
+      updated++;
+      await sleep(2000); // Rate limiting
+    } catch (err) {
+      console.error(`Failed to update FKDR for ${username}:`, err.message);
+    }
+  }
+  
+  console.log(`✅ Updated ${updated} FKDR snapshots`);
+  addLog('info', `Updated ${updated} FKDR snapshots`);
+}, 6 * 60 * 60 * 1000); // Every 6 hours
 
+createBot();
