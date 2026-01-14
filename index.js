@@ -31,7 +31,7 @@ if (!fs.existsSync(LOGS_DIR)) {
 
 // === Global State ===
 let chatHistory = [];
-let gptSystemPrompt = `You are a Turkish nationalist uncle who answers in the user's language. You are knowledgeable, witty, ironic, and sincere. If someone is hostile towards Turks, you give them a piece of your mind.
+let gptSystemPrompt = `You are an uncle who answers in the user's language. You are knowledgeable, witty, ironic, and sincere. If someone is hostile towards Turks, you give them a piece of your mind.
 
 Current date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
 
@@ -1271,7 +1271,7 @@ function createBot() {
       await sleep(botSettings.performance.messageDelay);
       
       const help = [
-        "--- RumoniumGC ---",
+        "--- Rumonium ---",
         "bw <user> - Bedwars stats",
         "gexp <user> - Weekly GEXP",
         "stats <user> - Detailed stats",
@@ -1280,7 +1280,8 @@ function createBot() {
         "flag add <user> <reason>",
         "flag remove <user>",
         "check <user>",
-        "about - Bot info"
+        "about - Bot info",
+        "----------------"
       ];
       for (const h of help) {
         await safeChat(h);
@@ -1382,7 +1383,7 @@ function createBot() {
         if (flag) {
           await safeChat(`${ign} | ⭐${stats.star} | FKDR: ${stats.fkdr}`);
           await sleep(500);
-          await safeChat(`🚩 FLAGGED: ${flag.reason} (by ${flag.flaggedBy})`);
+          await safeChat(`⚠️ FLAGGED: ${flag.reason} (by ${flag.flaggedBy})`);
         } else {
           await safeChat(`${ign} | ⭐${stats.star} | FKDR: ${stats.fkdr} | ✓ Clean`);
         }
@@ -1450,3 +1451,4 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 createBot();
+
