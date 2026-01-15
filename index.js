@@ -485,28 +485,28 @@ async function checkUrchinBlacklist(username) {
     if (response.data && response.data.uuid) {
       const player = response.data;
       const shortUuid = player.uuid.substring(0, 8);
-      let result = `${username} - ${shortUuid}...`;
       
       // Tags are objects with type, reason, added_on, etc.
       if (player.tags && Array.isArray(player.tags) && player.tags.length > 0) {
-        // Extract tag types
-        const tagTypes = player.tags.map(tag => {
-          if (typeof tag === 'string') return tag;
-          if (tag.type) return tag.type;
-          return 'Unknown';
+        // Build detailed tag information
+        const tagDetails = player.tags.slice(0, 3).map(tag => {
+          const tagType = tag.type || 'Unknown';
+          const addedBy = tag.hide_username ? 'Hidden' : (tag.added_by ? `User ${tag.added_by}` : 'Unknown');
+          return `${tagType} (by ${addedBy})`;
         });
         
-        result += `\n⚠️ ${tagTypes.length} Tag${tagTypes.length > 1 ? 's' : ''}: ${tagTypes.slice(0, 5).join(', ')}`;
+        const tagCount = player.tags.length;
+        const tagWord = tagCount === 1 ? 'Tag' : 'Tags';
+        const moreText = player.tags.length > 3 ? ` +${player.tags.length - 3} more` : '';
         
-        if (tagTypes.length > 5) {
-          result += ` +${tagTypes.length - 5} more`;
-        }
+        // Format: username - uuid... then ⚠️ username X Tags: tag1 (by user), tag2 (by user)
+        return `${username} - ${shortUuid}...\n⚠️ ${username} ${tagCount} ${tagWord}: ${tagDetails.join(', ')}${moreText}`;
       } else {
-        result += `\n✓ Clean (No tags)`;
+        // Format: username - uuid... then ✓ username Clean (No tags)
+        return `${username} - ${shortUuid}...\n✓ ${username} Clean (No tags)`;
       }
       
       console.log(`[Urchin] ✓ ${username}: ${player.tags?.length || 0} tags found`);
-      return result;
     } else {
       return `${username} - Invalid response format`;
     }
