@@ -1329,10 +1329,40 @@ app.get("/control", (req, res) => {
         <!-- Blacklist Tab -->
     <div id="content-blacklist" class="tab-content hidden">
       <div class="grid grid-cols-2 gap-6">
-        <!-- Sol panel: Ekle -->
         <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
           <h2 class="text-xl font-bold mb-4">ADD TO BLACKLIST</h2>
-          ... (tüm blacklist HTML'i)
+          <div class="space-y-4">
+            <input type="text" id="blacklistUser" placeholder="Username" 
+              class="w-full bg-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-600">
+            
+            <textarea id="blacklistReason" placeholder="Reason for blacklist..." 
+              class="w-full bg-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-600 h-24 resize-none"></textarea>
+            
+            <input type="text" id="blacklistAddedBy" placeholder="Your name (Added By)" 
+              class="w-full bg-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-red-600 border border-gray-600">
+
+            <button onclick="addToBlacklistUI()" class="w-full px-4 py-2 rounded bg-red-600 font-bold hover:bg-red-700">
+              ⚠️ ADD TO BLACKLIST
+            </button>
+          </div>
+
+          <div class="mt-6 bg-yellow-900/30 border border-yellow-700 rounded p-4">
+            <div class="font-bold text-yellow-300 mb-2">⚠️ Important</div>
+            <div class="text-sm text-gray-300">
+              Blacklisted users will be flagged when checked with !blacklist check command in-game.
+              Use this responsibly.
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <div class="flex justify-between items-center mb-4">
+            <h2 class="text-xl font-bold">BLACKLIST (<span id="blacklistCount">0</span>)</h2>
+            <button onclick="loadBlacklistUI()" class="text-sm px-3 py-1 rounded bg-gray-700 hover:bg-gray-600">
+              🔄 Refresh
+            </button>
+          </div>
+          <div id="blacklistList" class="space-y-2 max-h-[600px] overflow-y-auto"></div>
         </div>
       </div>
     </div>
