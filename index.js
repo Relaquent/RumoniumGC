@@ -18,8 +18,8 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const URCHIN_ENABLED = !!process.env.URCHIN_API_KEY;
 const URCHIN_API_KEY = process.env.URCHIN_API_KEY || null;
 
-// Urchin API base URL (official)
-const URCHIN_API_BASE = "https://urchin.antisniper.net/api/player";
+// Urchin API - Official endpoint
+const URCHIN_API_BASE = "https://urchin.ws";
 
 let WORKING_URCHIN_URL = null;
 
@@ -347,7 +347,7 @@ function stopFkdrTracking(username) {
   return false;
 }
 
-// === Urchin API (COMPLETELY FIXED) ===
+// === Urchin API (OFFICIAL - https://urchin.ws) ===
 async function testUrchinConnection() {
   if (!URCHIN_ENABLED) {
     console.log('⚠️ Urchin API disabled - no API key provided');
@@ -363,12 +363,12 @@ async function testUrchinConnection() {
       sources: 'GAME,PARTY,PARTY_INVITES,CHAT,CHAT_MENTIONS,MANUAL,ME'
     });
     
-    const testUrl = `${URCHIN_API_BASE}/Technoblade?${params.toString()}`;
+    const testUrl = `${URCHIN_API_BASE}/player/Technoblade?${params.toString()}`;
     
     console.log(`Testing: ${URCHIN_API_BASE}`);
     
     const response = await axios.get(testUrl, {
-      timeout: 15000,
+      timeout: 10000,
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'RumoniumGC-Bot/2.2'
@@ -376,34 +376,39 @@ async function testUrchinConnection() {
       validateStatus: (status) => status < 500
     });
     
-    console.log(`[Urchin] Test response: ${response.status}`);
+    console.log(`[Urchin] Response: ${response.status}`);
     
+    // Success cases (200 = found, 404 = not found but API works)
     if (response.status === 200 || response.status === 404) {
       WORKING_URCHIN_URL = URCHIN_API_BASE;
       console.log(`✅ Urchin API connected successfully`);
-      addLog('success', `Urchin API connected`);
+      addLog('success', `Urchin API connected to ${URCHIN_API_BASE}`);
       
-      // Log rate limit info if available
-      if (response.headers['x-ratelimit-limit']) {
-        console.log(`📊 Rate Limit: ${response.headers['x-ratelimit-remaining']}/${response.headers['x-ratelimit-limit']} remaining`);
+      // Log rate limit info
+      const limit = response.headers['x-ratelimit-limit'];
+      const remaining = response.headers['x-ratelimit-remaining'];
+      if (limit && remaining) {
+        console.log(`📊 Rate Limit: ${remaining}/${limit} requests remaining`);
       }
       
       return true;
     }
     
+    // Error cases
     if (response.status === 401) {
       console.error('❌ Invalid Urchin API key');
-      addLog('error', 'Invalid Urchin API key');
+      addLog('error', 'Invalid Urchin API key - check your URCHIN_API_KEY');
       return false;
     }
     
     if (response.status === 403) {
-      console.error('❌ Urchin API key required or forbidden');
-      addLog('error', 'Urchin API access forbidden');
+      console.error('❌ Urchin API key locked or forbidden');
+      addLog('error', 'Urchin API key locked - contact Urchin support');
       return false;
     }
     
     console.error(`❌ Unexpected response: ${response.status}`);
+    addLog('error', `Urchin API returned unexpected status: ${response.status}`);
     return false;
     
   } catch (err) {
@@ -431,12 +436,12 @@ async function checkUrchinBlacklist(username) {
       sources: 'GAME,PARTY,PARTY_INVITES,CHAT,CHAT_MENTIONS,MANUAL,ME'
     });
     
-    const url = `${WORKING_URCHIN_URL}/${encodeURIComponent(username)}?${params.toString()}`;
+    const url = `${WORKING_URCHIN_URL}/player/${encodeURIComponent(username)}?${params.toString()}`;
     
     console.log(`[Urchin] Checking: ${username}`);
     
     const response = await axios.get(url, {
-      timeout: 15000,
+      timeout: 10000,
       headers: {
         'Accept': 'application/json',
         'User-Agent': 'RumoniumGC-Bot/2.2'
@@ -447,10 +452,13 @@ async function checkUrchinBlacklist(username) {
     console.log(`[Urchin] Status: ${response.status}`);
     
     // Log rate limit info
-    if (response.headers['x-ratelimit-remaining']) {
-      console.log(`[Urchin] Rate limit: ${response.headers['x-ratelimit-remaining']}/${response.headers['x-ratelimit-limit']} remaining`);
+    const limit = response.headers['x-ratelimit-limit'];
+    const remaining = response.headers['x-ratelimit-remaining'];
+    if (limit && remaining) {
+      console.log(`[Urchin] Rate: ${remaining}/${limit} requests remaining`);
     }
 
+    // Handle responses based on official API spec
     if (response.status === 404) {
       return `${username} - Not in database (Clean)`;
     }
@@ -461,35 +469,43 @@ async function checkUrchinBlacklist(username) {
     }
     
     if (response.status === 403) {
-      throw new Error('Access forbidden - check API key');
+      WORKING_URCHIN_URL = null;
+      throw new Error('API key locked - contact support');
     }
     
     if (response.status === 429) {
-      const remaining = response.headers['x-ratelimit-remaining'] || '0';
-      throw new Error(`Rate limited - ${remaining} requests remaining`);
+      throw new Error(`Rate limited - ${remaining || 0}/${limit || 600} remaining`);
     }
     
     if (response.status !== 200) {
       throw new Error(`API error: ${response.status}`);
     }
 
+    // Parse successful response (200 OK)
     if (response.data && response.data.uuid) {
       const player = response.data;
-      let result = `${username} - UUID: ${player.uuid.substring(0, 8)}...`;
+      const shortUuid = player.uuid.substring(0, 8);
+      let result = `${username} - ${shortUuid}...`;
       
-      if (player.tags && player.tags.length > 0) {
-        const tagNames = player.tags.map(tag => {
+      // Tags are objects with type, reason, added_on, etc.
+      if (player.tags && Array.isArray(player.tags) && player.tags.length > 0) {
+        // Extract tag types
+        const tagTypes = player.tags.map(tag => {
           if (typeof tag === 'string') return tag;
-          if (tag.name) return tag.name;
-          if (tag.tag) return tag.tag;
+          if (tag.type) return tag.type;
           return 'Unknown';
         });
-        result += `\n⚠️ Tags (${tagNames.length}): ${tagNames.join(', ')}`;
+        
+        result += `\n⚠️ ${tagTypes.length} Tag${tagTypes.length > 1 ? 's' : ''}: ${tagTypes.slice(0, 5).join(', ')}`;
+        
+        if (tagTypes.length > 5) {
+          result += ` +${tagTypes.length - 5} more`;
+        }
       } else {
         result += `\n✓ Clean (No tags)`;
       }
       
-      console.log(`[Urchin] ✓ ${username}: ${player.tags?.length || 0} tags`);
+      console.log(`[Urchin] ✓ ${username}: ${player.tags?.length || 0} tags found`);
       return result;
     } else {
       return `${username} - Invalid response format`;
@@ -497,15 +513,17 @@ async function checkUrchinBlacklist(username) {
   } catch (err) {
     console.error('[Urchin] Error:', err.message);
     
+    // Connection errors - reset working URL
     if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
       WORKING_URCHIN_URL = null;
       throw new Error('Connection failed - API down');
     }
     
     if (err.code === 'ETIMEDOUT' || err.code === 'ECONNABORTED') {
-      throw new Error('Request timeout - try again');
+      throw new Error('Timeout - try again');
     }
     
+    // Re-throw with original message
     throw err;
   }
 }
