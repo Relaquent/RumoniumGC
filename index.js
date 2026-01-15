@@ -15,19 +15,11 @@ if (!process.env.OPENAI_API_KEY) {
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // === Urchin API Setup (FIXED) ===
-if (!process.env.URCHIN_API_KEY) {
-  console.error("❌ URCHIN_API_KEY not found.");
-  process.exit(1);
-}
-const URCHIN_API_KEY = process.env.URCHIN_API_KEY;
+const URCHIN_ENABLED = !!process.env.URCHIN_API_KEY;
+const URCHIN_API_KEY = process.env.URCHIN_API_KEY || null;
 
-// DÜZELTME: Birden fazla olası URL deneyeceğiz
-const URCHIN_API_URLS = [
-  "https://urchin-app-mnc2x.ondigitalocean.app/api/player",
-  "https://urchin.antisniper.net/api/player",
-  "https://api.urchin.cc/api/player",
-  "https://urchin-app.ondigitalocean.app/api/player"
-];
+// Urchin API base URL (official)
+const URCHIN_API_BASE = "https://urchin.antisniper.net/api/player";
 
 let WORKING_URCHIN_URL = null;
 
@@ -355,51 +347,81 @@ function stopFkdrTracking(username) {
   return false;
 }
 
-// === Urchin API (TAMAMEN DÜZELTİLMİŞ) ===
+// === Urchin API (COMPLETELY FIXED) ===
 async function testUrchinConnection() {
-  console.log('🔍 Testing Urchin API URLs...');
-  
-  for (const url of URCHIN_API_URLS) {
-    try {
-      console.log(`Testing: ${url}`);
-      
-      const params = new URLSearchParams({
-        key: URCHIN_API_KEY,
-        sources: 'GAME,PARTY,PARTY_INVITES,CHAT,CHAT_MENTIONS,MANUAL,ME'
-      });
-      
-      const testUrl = `${url}/Technoblade?${params.toString()}`;
-      
-      const response = await axios.get(testUrl, {
-        timeout: 10000,
-        headers: {
-          'Accept': 'application/json',
-          'User-Agent': 'RumoniumGC-Bot/2.2'
-        },
-        validateStatus: (status) => status < 500
-      });
-      
-      if (response.status === 200 || response.status === 404) {
-        WORKING_URCHIN_URL = url;
-        console.log(`✅ Working Urchin URL found: ${url}`);
-        addLog('success', `Urchin API connected: ${url}`);
-        return true;
-      }
-    } catch (err) {
-      console.log(`❌ ${url} failed: ${err.message}`);
-    }
+  if (!URCHIN_ENABLED) {
+    console.log('⚠️ Urchin API disabled - no API key provided');
+    addLog('warning', 'Urchin API disabled - !view command unavailable');
+    return false;
   }
+
+  console.log('🔍 Testing Urchin API connection...');
   
-  console.error('❌ No working Urchin URL found!');
-  addLog('error', 'Could not connect to any Urchin API URL');
-  return false;
+  try {
+    const params = new URLSearchParams({
+      key: URCHIN_API_KEY,
+      sources: 'GAME,PARTY,PARTY_INVITES,CHAT,CHAT_MENTIONS,MANUAL,ME'
+    });
+    
+    const testUrl = `${URCHIN_API_BASE}/Technoblade?${params.toString()}`;
+    
+    console.log(`Testing: ${URCHIN_API_BASE}`);
+    
+    const response = await axios.get(testUrl, {
+      timeout: 15000,
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'RumoniumGC-Bot/2.2'
+      },
+      validateStatus: (status) => status < 500
+    });
+    
+    console.log(`[Urchin] Test response: ${response.status}`);
+    
+    if (response.status === 200 || response.status === 404) {
+      WORKING_URCHIN_URL = URCHIN_API_BASE;
+      console.log(`✅ Urchin API connected successfully`);
+      addLog('success', `Urchin API connected`);
+      
+      // Log rate limit info if available
+      if (response.headers['x-ratelimit-limit']) {
+        console.log(`📊 Rate Limit: ${response.headers['x-ratelimit-remaining']}/${response.headers['x-ratelimit-limit']} remaining`);
+      }
+      
+      return true;
+    }
+    
+    if (response.status === 401) {
+      console.error('❌ Invalid Urchin API key');
+      addLog('error', 'Invalid Urchin API key');
+      return false;
+    }
+    
+    if (response.status === 403) {
+      console.error('❌ Urchin API key required or forbidden');
+      addLog('error', 'Urchin API access forbidden');
+      return false;
+    }
+    
+    console.error(`❌ Unexpected response: ${response.status}`);
+    return false;
+    
+  } catch (err) {
+    console.error('❌ Urchin API connection failed:', err.message);
+    addLog('error', `Urchin connection failed: ${err.message}`);
+    return false;
+  }
 }
 
 async function checkUrchinBlacklist(username) {
+  if (!URCHIN_ENABLED) {
+    throw new Error('Urchin API not configured');
+  }
+
   if (!WORKING_URCHIN_URL) {
     const connected = await testUrchinConnection();
     if (!connected) {
-      throw new Error('Urchin API not available');
+      throw new Error('Urchin API unavailable');
     }
   }
   
@@ -423,6 +445,11 @@ async function checkUrchinBlacklist(username) {
     });
 
     console.log(`[Urchin] Status: ${response.status}`);
+    
+    // Log rate limit info
+    if (response.headers['x-ratelimit-remaining']) {
+      console.log(`[Urchin] Rate limit: ${response.headers['x-ratelimit-remaining']}/${response.headers['x-ratelimit-limit']} remaining`);
+    }
 
     if (response.status === 404) {
       return `${username} - Not in database (Clean)`;
@@ -434,11 +461,12 @@ async function checkUrchinBlacklist(username) {
     }
     
     if (response.status === 403) {
-      throw new Error('Access forbidden');
+      throw new Error('Access forbidden - check API key');
     }
     
     if (response.status === 429) {
-      throw new Error('Rate limited');
+      const remaining = response.headers['x-ratelimit-remaining'] || '0';
+      throw new Error(`Rate limited - ${remaining} requests remaining`);
     }
     
     if (response.status !== 200) {
@@ -450,7 +478,13 @@ async function checkUrchinBlacklist(username) {
       let result = `${username} - UUID: ${player.uuid.substring(0, 8)}...`;
       
       if (player.tags && player.tags.length > 0) {
-        result += `\n⚠️ Tags: ${player.tags.join(', ')}`;
+        const tagNames = player.tags.map(tag => {
+          if (typeof tag === 'string') return tag;
+          if (tag.name) return tag.name;
+          if (tag.tag) return tag.tag;
+          return 'Unknown';
+        });
+        result += `\n⚠️ Tags (${tagNames.length}): ${tagNames.join(', ')}`;
       } else {
         result += `\n✓ Clean (No tags)`;
       }
@@ -458,18 +492,18 @@ async function checkUrchinBlacklist(username) {
       console.log(`[Urchin] ✓ ${username}: ${player.tags?.length || 0} tags`);
       return result;
     } else {
-      return `${username} - Invalid response`;
+      return `${username} - Invalid response format`;
     }
   } catch (err) {
     console.error('[Urchin] Error:', err.message);
     
     if (err.code === 'ENOTFOUND' || err.code === 'ECONNREFUSED') {
       WORKING_URCHIN_URL = null;
-      throw new Error('Connection failed - trying backup URLs...');
+      throw new Error('Connection failed - API down');
     }
     
     if (err.code === 'ETIMEDOUT' || err.code === 'ECONNABORTED') {
-      throw new Error('Request timeout');
+      throw new Error('Request timeout - try again');
     }
     
     throw err;
@@ -659,7 +693,8 @@ app.get("/api/stats", (req, res) => {
     queueLength: API_QUEUE.length,
     apiCallCount,
     cacheSize: cache.playerDataCache.size + cache.guildCache.size,
-    urchinUrl: WORKING_URCHIN_URL || 'Not connected'
+    urchinUrl: WORKING_URCHIN_URL || 'Not connected',
+    urchinEnabled: URCHIN_ENABLED
   });
 });
 
@@ -701,30 +736,30 @@ app.post("/chat", (req, res) => {
 // === Web Panel ===
 app.get("/control", (req, res) => {
   res.send(`<!DOCTYPE html>
-<html lang="tr">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RumoniumGC Kontrol</title>
+  <title>RumoniumGC Control</title>
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-6">
   <div class="max-w-6xl mx-auto">
     <div class="bg-gray-800 rounded-lg p-6 mb-6 border border-gray-700">
-      <h1 class="text-3xl font-bold mb-4 text-purple-400">RumoniumGC Kontrol Paneli v2.2</h1>
+      <h1 class="text-3xl font-bold mb-4 text-purple-400">RumoniumGC Control Panel v2.2</h1>
       <div class="grid grid-cols-3 gap-4">
         <div class="bg-gray-700 rounded-lg p-4">
           <div class="text-2xl font-bold text-purple-400" id="uptime">0h 0m</div>
-          <div class="text-sm text-gray-400">ÇALIŞMA SÜRESİ</div>
+          <div class="text-sm text-gray-400">UPTIME</div>
         </div>
         <div class="bg-gray-700 rounded-lg p-4">
           <div class="text-2xl font-bold text-blue-400" id="commands">0</div>
-          <div class="text-sm text-gray-400">KOMUTLAR</div>
+          <div class="text-sm text-gray-400">COMMANDS</div>
         </div>
         <div class="bg-gray-700 rounded-lg p-4">
           <div class="text-2xl font-bold text-green-400" id="messages">0</div>
-          <div class="text-sm text-gray-400">MESAJLAR</div>
+          <div class="text-sm text-gray-400">MESSAGES</div>
         </div>
       </div>
     </div>
@@ -733,21 +768,21 @@ app.get("/control", (req, res) => {
       <div class="col-span-2">
         <div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
           <div class="p-4 border-b border-gray-700">
-            <h2 class="text-xl font-bold">CANLI SOHBET</h2>
+            <h2 class="text-xl font-bold">LIVE CHAT</h2>
           </div>
           <div id="chat" class="h-96 overflow-y-auto p-4 space-y-2 bg-gray-900/50"></div>
           <div class="p-4 border-t border-gray-700">
             <div class="flex gap-2">
-              <input type="text" id="msgInput" placeholder="Mesaj yaz..." 
+              <input type="text" id="msgInput" placeholder="Type message..." 
                 class="flex-1 bg-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600 border border-gray-600">
-              <button onclick="sendMsg()" class="px-6 py-2 rounded bg-purple-600 font-bold hover:bg-purple-700">GÖNDER</button>
+              <button onclick="sendMsg()" class="px-6 py-2 rounded bg-purple-600 font-bold hover:bg-purple-700">SEND</button>
             </div>
           </div>
         </div>
       </div>
 
       <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
-        <h2 class="text-xl font-bold mb-4">LOGLAR</h2>
+        <h2 class="text-xl font-bold mb-4">LOGS</h2>
         <div id="logs" class="space-y-2 max-h-screen overflow-y-auto"></div>
       </div>
     </div>
@@ -808,8 +843,8 @@ app.get("/control", (req, res) => {
 });
 
 io.on('connection', (socket) => {
-  console.log('👤 İstemci bağlandı');
-  socket.on('disconnect', () => console.log('👤 İstemci ayrıldı'));
+  console.log('👤 Client connected');
+  socket.on('disconnect', () => console.log('👤 Client disconnected'));
 });
 
 setInterval(() => {
@@ -817,39 +852,45 @@ setInterval(() => {
   const h = Math.floor(uptime / 3600000);
   const m = Math.floor((uptime % 3600000) / 60000);
   io.emit('stats-update', {
-    uptime: `${h}s ${m}d`,
+    uptime: `${h}h ${m}m`,
     commands: commandCount,
     messages: messageCount
   });
 }, 5000);
 
 server.listen(PORT, async () => {
-  console.log(`🌐 Sunucu ${PORT} portunda çalışıyor`);
-  console.log(`🔑 Urchin API Key: ${URCHIN_API_KEY.substring(0, 10)}...`);
+  console.log(`🌐 Server running on port ${PORT}`);
+  if (URCHIN_ENABLED) {
+    console.log(`🔑 Urchin API Key: ${URCHIN_API_KEY.substring(0, 10)}...`);
+  } else {
+    console.log('⚠️ Urchin API disabled - set URCHIN_API_KEY to enable !view command');
+  }
   loadCommandPermissions();
   loadFkdrTracking();
   
-  // Urchin bağlantısını test et
-  await testUrchinConnection();
+  // Test Urchin connection
+  if (URCHIN_ENABLED) {
+    await testUrchinConnection();
+  }
 });
 
 // === Bot Implementation ===
 const askCooldowns = {};
 const welcomeMessages = [
-  "Merhaba! Tekrar hoş geldin {username}!",
-  "Hoş geldin, {username}! Efsane geri döndü!",
-  "{username} katıldı, selam!"
+  "Hello! Welcome back {username}!",
+  "Welcome, {username}! The legend returns!",
+  "{username} joined, hey there!"
 ];
 
 function createBot() {
   if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-    console.error('❌ Maksimum yeniden bağlanma denemesi aşıldı. Durduruluyor.');
-    addLog('error', 'Maksimum yeniden bağlanma denemesi aşıldı');
+    console.error('❌ Max reconnection attempts reached. Stopping.');
+    addLog('error', 'Max reconnection attempts exceeded');
     return;
   }
   
   reconnectAttempts++;
-  addLog('info', `Bot oluşturuluyor (deneme ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+  addLog('info', `Creating bot (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
   
   bot = mineflayer.createBot({
     host: HYPIXEL_HOST,
@@ -860,19 +901,19 @@ function createBot() {
   });
 
   bot.once("spawn", () => {
-    console.log("✅ Hypixel'e bağlanıldı");
-    addLog('success', 'Bot Hypixel\'de spawn oldu');
+    console.log("✅ Connected to Hypixel");
+    addLog('success', 'Bot spawned on Hypixel');
     reconnectAttempts = 0;
     io.emit('bot-status', 'connecting');
     
     setTimeout(() => {
       if (bot?.chat) {
         bot.chat("/chat g");
-        addLog('info', 'Lonca sohbetine katıldı');
+        addLog('info', 'Joined guild chat');
         setTimeout(() => {
           botReady = true;
           io.emit('bot-status', 'online');
-          addLog('success', 'Bot hazır');
+          addLog('success', 'Bot ready');
         }, 2000);
       }
     }, 1500);
@@ -880,7 +921,7 @@ function createBot() {
 
   bot.on("message", async (jsonMsg) => {
     const msg = jsonMsg.toString();
-    io.emit('minecraft-chat', { time: new Date().toLocaleTimeString('tr-TR'), message: msg });
+    io.emit('minecraft-chat', { time: new Date().toLocaleTimeString('en-US'), message: msg });
     messageCount++;
 
     if (!msg.startsWith("Guild >") || !botReady) return;
@@ -891,7 +932,7 @@ function createBot() {
         bot.chat(m);
         await sleep(botSettings.performance.messageDelay);
       } catch (e) { 
-        console.error('Sohbet hatası:', e.message);
+        console.error('Chat error:', e.message);
       }
     };
 
@@ -902,8 +943,8 @@ function createBot() {
       const [, requester, ign] = match;
       
       if (!hasCommandPermission(requester, 'gexp')) {
-        await safeChat(`${requester}, !gexp komutunu kullanma izniniz yok`);
-        addLog('warning', `${requester} !gexp kullanmaya çalıştı ama engellendi`);
+        await safeChat(`${requester}, you don't have permission to use !gexp`);
+        addLog('warning', `${requester} tried to use !gexp but was blocked`);
         return;
       }
       
@@ -911,9 +952,9 @@ function createBot() {
       
       try {
         const gexpData = await getGuildGEXP(ign);
-        await safeChat(`${ign} | Haftalık GEXP: ${gexpData.weeklyGexp.toLocaleString()} | Sıra: #${gexpData.rank}/${gexpData.totalMembers}`);
+        await safeChat(`${ign} | Weekly GEXP: ${gexpData.weeklyGexp.toLocaleString()} | Rank: #${gexpData.rank}/${gexpData.totalMembers}`);
       } catch (err) {
-        await safeChat(`Hata - ${ign} | ${err.message}`);
+        await safeChat(`Error - ${ign} | ${err.message}`);
       }
       return;
     }
@@ -925,8 +966,8 @@ function createBot() {
       const [, username, userMessage] = match;
       
       if (!hasCommandPermission(username, 'ask')) {
-        await safeChat(`${username}, !ask komutunu kullanma izniniz yok`);
-        addLog('warning', `${username} !ask kullanmaya çalıştı ama engellendi`);
+        await safeChat(`${username}, you don't have permission to use !ask`);
+        addLog('warning', `${username} tried to use !ask but was blocked`);
         return;
       }
       
@@ -938,13 +979,13 @@ function createBot() {
         const timePassed = now - lastUsed;
         if (timePassed < botSettings.commandCooldown * 1000) {
           const sec = Math.ceil((botSettings.commandCooldown * 1000 - timePassed) / 1000);
-          await safeChat(`${username}, ${sec} saniye bekle`);
+          await safeChat(`${username}, wait ${sec} seconds`);
           return;
         }
         askCooldowns[username] = now;
       }
 
-      await safeChat("Düşünüyor...");
+      await safeChat("Thinking...");
       try {
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
@@ -966,7 +1007,7 @@ function createBot() {
           }
         }
       } catch (err) {
-        await safeChat("GPT hatası - tekrar dene");
+        await safeChat("GPT error - try again");
       }
       return;
     }
@@ -978,7 +1019,7 @@ function createBot() {
         const username = match[1];
         await sleep(2000);
         if (username.toLowerCase() === "caillou16") {
-          await safeChat("Hoş geldin Caillou16 kel.");
+          await safeChat("Welcome Caillou16, baldy.");
         } else {
           const m = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
           await safeChat(m.replace("{username}", username));
@@ -994,8 +1035,8 @@ function createBot() {
       const [, requester, ign] = match;
       
       if (!hasCommandPermission(requester, 'bw')) {
-        await safeChat(`${requester}, !bw komutunu kullanma izniniz yok`);
-        addLog('warning', `${requester} !bw kullanmaya çalıştı ama engellendi`);
+        await safeChat(`${requester}, you don't have permission to use !bw`);
+        addLog('warning', `${requester} tried to use !bw but was blocked`);
         return;
       }
       
@@ -1005,7 +1046,7 @@ function createBot() {
         const stats = await getPlayerStats(ign);
         await safeChat(`${ign} | Star: ${stats.star} | FKDR: ${stats.fkdr} | KD: ${stats.kd} | WL: ${stats.wl}`);
       } catch (err) {
-        await safeChat(`Hata - ${ign}`);
+        await safeChat(`Error - ${ign}`);
       }
       return;
     }
@@ -1017,8 +1058,8 @@ function createBot() {
       const [, requester, ign] = match;
       
       if (!hasCommandPermission(requester, 'stats')) {
-        await safeChat(`${requester}, !stats komutunu kullanma izniniz yok`);
-        addLog('warning', `${requester} !stats kullanmaya çalıştı ama engellendi`);
+        await safeChat(`${requester}, you don't have permission to use !stats`);
+        addLog('warning', `${requester} tried to use !stats but was blocked`);
         return;
       }
       
@@ -1028,7 +1069,7 @@ function createBot() {
         const stats = await getPlayerStats(ign);
         await safeChat(`${ign} | Star: ${stats.star} | Finals: ${stats.finals} | Wins: ${stats.wins} | Beds: ${stats.beds}`);
       } catch (err) {
-        await safeChat(`Hata - ${ign}`);
+        await safeChat(`Error - ${ign}`);
       }
       return;
     }
@@ -1039,8 +1080,8 @@ function createBot() {
       const requester = match ? match[1] : 'unknown';
       
       if (!hasCommandPermission(requester, 'when')) {
-        await safeChat(`${requester}, !when komutunu kullanma izniniz yok`);
-        addLog('warning', `${requester} !when kullanmaya çalıştı ama engellendi`);
+        await safeChat(`${requester}, you don't have permission to use !when`);
+        addLog('warning', `${requester} tried to use !when but was blocked`);
         return;
       }
       
@@ -1054,7 +1095,7 @@ function createBot() {
       const next = new Date(first.getTime() + (cycles + 1) * 56 * 86400000);
       const days = Math.ceil((next - now) / 86400000);
       
-      await safeChat(days > 0 ? `Castle ${days} gün sonra (${next.toLocaleDateString('tr-TR')})` : "Castle bugün!");
+      await safeChat(days > 0 ? `Castle in ${days} days (${next.toLocaleDateString('en-US')})` : "Castle today!");
       return;
     }
 
@@ -1064,13 +1105,13 @@ function createBot() {
       const requester = match ? match[1] : 'unknown';
       
       if (!hasCommandPermission(requester, 'about')) {
-        await safeChat(`${requester}, !about komutunu kullanma izniniz yok`);
-        addLog('warning', `${requester} !about kullanmaya çalıştı ama engellendi`);
+        await safeChat(`${requester}, you don't have permission to use !about`);
+        addLog('warning', `${requester} tried to use !about but was blocked`);
         return;
       }
       
       commandCount++;
-      await safeChat("RumoniumGC by Relaquent, v2.2 - Urchin Entegrasyonu");
+      await safeChat("RumoniumGC by Relaquent, v2.2 - Urchin Integration");
       return;
     }
 
@@ -1080,8 +1121,8 @@ function createBot() {
       const requester = match ? match[1] : 'unknown';
       
       if (!hasCommandPermission(requester, 'help')) {
-        await safeChat(`${requester}, !help komutunu kullanma izniniz yok`);
-        addLog('warning', `${requester} !help kullanmaya çalıştı ama engellendi`);
+        await safeChat(`${requester}, you don't have permission to use !help`);
+        addLog('warning', `${requester} tried to use !help but was blocked`);
         return;
       }
       
@@ -1089,19 +1130,20 @@ function createBot() {
       
       const help = [
         "--- Rumonium ---",
-        "bw <kullanici> - Bedwars istatistikleri",
-        "gexp <kullanici> - Haftalık GEXP",
-        "stats <kullanici> - Detaylı istatistikler",
-        "when - Sonraki Castle",
-        "ask <mesaj> - AI'ya sor",
-        "view <kullanici> - Urchin kontrolü",
-        "fkdr start - Takibi başlat",
-        "fkdr - İlerlemeyi gör",
-        "fkdr stop - Takibi durdur",
-        "nfkdr [kullanici] - Sonraki FKDR hesapla",
-        "about - Bot bilgisi",
-        "----------------"
-      ];
+        "bw <user> - Bedwars stats",
+        "gexp <user> - Weekly GEXP",
+        "stats <user> - Detailed stats",
+        "when - Next Castle",
+        "ask <message> - Ask AI",
+        URCHIN_ENABLED ? "view <user> - Urchin check" : null,
+        "fkdr start - Start tracking",
+        "fkdr - View progress",
+        "fkdr stop - Stop tracking",
+        "nfkdr <user> - Calculate next FKDR",
+        "about - Bot info",
+        "--------------"
+      ].filter(Boolean);
+      
       for (const h of help) {
         await safeChat(h);
         await sleep(500);
@@ -1115,16 +1157,21 @@ function createBot() {
       if (!match) return;
       const [, requester, ign] = match;
       
+      if (!URCHIN_ENABLED) {
+        await safeChat(`${requester}, Urchin API is disabled`);
+        return;
+      }
+      
       if (!hasCommandPermission(requester, 'view')) {
-        await safeChat(`${requester}, !view komutunu kullanma izniniz yok`);
-        addLog('warning', `${requester} !view kullanmaya çalıştı ama engellendi`);
+        await safeChat(`${requester}, you don't have permission to use !view`);
+        addLog('warning', `${requester} tried to use !view but was blocked`);
         return;
       }
       
       commandCount++;
       
       try {
-        await safeChat(`${ign} kontrol ediliyor...`);
+        await safeChat(`Checking ${ign}...`);
         const result = await checkUrchinBlacklist(ign);
         const lines = result.split('\n');
         
@@ -1134,10 +1181,10 @@ function createBot() {
           }
         }
         
-        addLog('info', `${requester} Urchin'de ${ign}'i kontrol etti`);
+        addLog('info', `${requester} checked ${ign} on Urchin`);
       } catch (err) {
-        await safeChat(`Urchin hatası: ${err.message}`);
-        addLog('error', `${ign} için Urchin kontrolü başarısız: ${err.message}`);
+        await safeChat(`Urchin error: ${err.message}`);
+        addLog('error', `Urchin check failed for ${ign}: ${err.message}`);
       }
       return;
     }
@@ -1153,8 +1200,8 @@ function createBot() {
       const requester = (matchStart || matchStop || matchStatus)[1];
       
       if (!hasCommandPermission(requester, 'fkdr')) {
-        await safeChat(`${requester}, !fkdr komutunu kullanma izniniz yok`);
-        addLog('warning', `${requester} !fkdr kullanmaya çalıştı ama engellendi`);
+        await safeChat(`${requester}, you don't have permission to use !fkdr`);
+        addLog('warning', `${requester} tried to use !fkdr but was blocked`);
         return;
       }
       
@@ -1163,18 +1210,18 @@ function createBot() {
       if (matchStart) {
         try {
           if (fkdrTracking.has(requester.toLowerCase())) {
-            await safeChat(`${requester}, FKDR'n zaten takip ediliyor!`);
+            await safeChat(`${requester}, your FKDR is already being tracked!`);
             return;
           }
           
           await startFkdrTracking(requester);
-          await safeChat(`✓ ${requester} için FKDR takibi başlatıldı!`);
+          await safeChat(`✓ FKDR tracking started for ${requester}!`);
           await sleep(500);
-          await safeChat(`İlerlemeyi görmek için !fkdr kullan`);
-          addLog('success', `${requester} için FKDR takibi başlatıldı`);
+          await safeChat(`Use !fkdr to view progress`);
+          addLog('success', `FKDR tracking started for ${requester}`);
         } catch (err) {
-          await safeChat(`Takip başlatma hatası: ${err.message}`);
-          addLog('error', `${requester} için FKDR takibi başlatılamadı: ${err.message}`);
+          await safeChat(`Tracking start error: ${err.message}`);
+          addLog('error', `Failed to start FKDR tracking for ${requester}: ${err.message}`);
         }
         return;
       }
@@ -1182,15 +1229,15 @@ function createBot() {
       if (matchStop) {
         try {
           if (!fkdrTracking.has(requester.toLowerCase())) {
-            await safeChat(`${requester}, aktif FKDR takibin yok!`);
+            await safeChat(`${requester}, you don't have active FKDR tracking!`);
             return;
           }
           
           stopFkdrTracking(requester);
-          await safeChat(`✓ ${requester} için FKDR takibi durduruldu`);
-          addLog('info', `${requester} için FKDR takibi durduruldu`);
+          await safeChat(`✓ FKDR tracking stopped for ${requester}`);
+          addLog('info', `FKDR tracking stopped for ${requester}`);
         } catch (err) {
-          await safeChat(`Takip durdurma hatası: ${err.message}`);
+          await safeChat(`Tracking stop error: ${err.message}`);
         }
         return;
       }
@@ -1198,44 +1245,44 @@ function createBot() {
       if (matchStatus) {
         try {
           if (!fkdrTracking.has(requester.toLowerCase())) {
-            await safeChat(`${requester}, başlatmak için !fkdr start kullan`);
+            await safeChat(`${requester}, use !fkdr start to begin`);
             return;
           }
           
           const tracking = await updateFkdrSnapshot(requester);
           if (!tracking) {
-            await safeChat(`FKDR verisi güncellenirken hata`);
+            await safeChat(`Error updating FKDR data`);
             return;
           }
           
           const progress = calculateFkdrProgress(tracking);
           
           if (!progress) {
-            await safeChat(`${requester}, henüz yeterli veri yok. Daha sonra dene!`);
+            await safeChat(`${requester}, not enough data yet. Try later!`);
             return;
           }
           
-          await safeChat(`${requester} | Güncel FKDR: ${progress.current.fkdr}`);
+          await safeChat(`${requester} | Current FKDR: ${progress.current.fkdr}`);
           
           if (progress.daily) {
             const dailySign = progress.daily.fkdr >= 0 ? '+' : '';
-            await safeChat(`📊 Günlük: ${dailySign}${progress.daily.fkdr} FKDR | Oturum: ${progress.daily.sessionFkdr} | Finals: ${progress.daily.finals}`);
+            await safeChat(`📊 Daily: ${dailySign}${progress.daily.fkdr} FKDR | Session: ${progress.daily.sessionFkdr} | Finals: ${progress.daily.finals}`);
           }
           
           if (progress.weekly) {
             const weeklySign = progress.weekly.fkdr >= 0 ? '+' : '';
-            await safeChat(`📊 Haftalık: ${weeklySign}${progress.weekly.fkdr} FKDR | Oturum: ${progress.weekly.sessionFkdr} | Finals: ${progress.weekly.finals}`);
+            await safeChat(`📊 Weekly: ${weeklySign}${progress.weekly.fkdr} FKDR | Session: ${progress.weekly.sessionFkdr} | Finals: ${progress.weekly.finals}`);
           }
           
           if (progress.monthly) {
             const monthlySign = progress.monthly.fkdr >= 0 ? '+' : '';
-            await safeChat(`📊 Aylık: ${monthlySign}${progress.monthly.fkdr} FKDR | Oturum: ${progress.monthly.sessionFkdr} | Finals: ${progress.monthly.finals}`);
+            await safeChat(`📊 Monthly: ${monthlySign}${progress.monthly.fkdr} FKDR | Session: ${progress.monthly.sessionFkdr} | Finals: ${progress.monthly.finals}`);
           }
           
-          addLog('info', `${requester} FKDR ilerlemesini kontrol etti`);
+          addLog('info', `${requester} checked FKDR progress`);
         } catch (err) {
-          await safeChat(`Hata: ${err.message}`);
-          addLog('error', `${requester} için FKDR durum hatası: ${err.message}`);
+          await safeChat(`Error: ${err.message}`);
+          addLog('error', `FKDR status error for ${requester}: ${err.message}`);
         }
         return;
       }
@@ -1249,8 +1296,8 @@ function createBot() {
       const ign = targetIgn || requester;
       
       if (!hasCommandPermission(requester, 'nfkdr')) {
-        await safeChat(`${requester}, !nfkdr komutunu kullanma izniniz yok`);
-        addLog('warning', `${requester} !nfkdr kullanmaya çalıştı ama engellendi`);
+        await safeChat(`${requester}, you don't have permission to use !nfkdr`);
+        addLog('warning', `${requester} tried to use !nfkdr but was blocked`);
         return;
       }
       
@@ -1267,44 +1314,44 @@ function createBot() {
         const finalsNeeded = Math.ceil((targetFkdr * currentDeaths) - currentFinals);
         
         if (finalsNeeded <= 0) {
-          await safeChat(`${ign} zaten ${currentFkdr} FKDR'de!`);
+          await safeChat(`${ign} already at ${currentFkdr} FKDR!`);
         } else {
-          await safeChat(`${ign} | Güncel: ${currentFkdr} FKDR | Hedef: ${targetFkdr}.00`);
+          await safeChat(`${ign} | Current: ${currentFkdr} FKDR | Target: ${targetFkdr}.00`);
           await sleep(500);
-          await safeChat(`Gerekli finals: ${finalsNeeded} (ölüm yok)`);
+          await safeChat(`Finals needed: ${finalsNeeded} (no deaths)`);
         }
         
-        addLog('info', `${requester} ${ign} için nfkdr kontrol etti`);
+        addLog('info', `${requester} checked nfkdr for ${ign}`);
       } catch (err) {
-        await safeChat(`Hata: ${err.message}`);
-        addLog('error', `${ign} için NFKDR hatası: ${err.message}`);
+        await safeChat(`Error: ${err.message}`);
+        addLog('error', `NFKDR error for ${ign}: ${err.message}`);
       }
       return;
     }
   });
 
   bot.on("kicked", (reason) => {
-    console.log("❌ Atıldı:", reason);
+    console.log("❌ Kicked:", reason);
     botReady = false;
     io.emit('bot-status', 'offline');
-    addLog('error', `Atıldı: ${reason}`);
+    addLog('error', `Kicked: ${reason}`);
     
     if (botSettings.autoReconnect) {
       const delay = botSettings.performance.autoReconnectDelay;
-      console.log(`⏳ ${delay/1000} saniye sonra yeniden bağlanılıyor...`);
+      console.log(`⏳ Reconnecting in ${delay/1000} seconds...`);
       setTimeout(createBot, delay);
     }
   });
 
   bot.on("end", () => {
-    console.log("🔌 Bağlantı kesildi");
+    console.log("🔌 Disconnected");
     botReady = false;
     io.emit('bot-status', 'offline');
-    addLog('warning', 'Bot bağlantısı kesildi');
+    addLog('warning', 'Bot disconnected');
     
     if (botSettings.autoReconnect) {
       const delay = botSettings.performance.autoReconnectDelay;
-      console.log(`⏳ ${delay/1000} saniye sonra yeniden bağlanılıyor...`);
+      console.log(`⏳ Reconnecting in ${delay/1000} seconds...`);
       setTimeout(createBot, delay);
     }
   });
@@ -1312,13 +1359,13 @@ function createBot() {
   bot.on("error", (err) => {
     console.error("❌", err.message);
     botReady = false;
-    addLog('error', `Bot hatası: ${err.message}`);
+    addLog('error', `Bot error: ${err.message}`);
   });
 }
 
 // Graceful shutdown
 process.on('SIGTERM', () => {
-  console.log('📴 SIGTERM alındı, veriler kaydediliyor...');
+  console.log('📴 SIGTERM received, saving data...');
   saveCommandPermissions();
   saveFkdrTracking();
   if (bot) bot.quit();
@@ -1326,22 +1373,22 @@ process.on('SIGTERM', () => {
 });
 
 process.on('SIGINT', () => {
-  console.log('📴 SIGINT alındı, veriler kaydediliyor...');
+  console.log('📴 SIGINT received, saving data...');
   saveCommandPermissions();
   saveFkdrTracking();
   if (bot) bot.quit();
   process.exit(0);
 });
 
-// Otomatik kaydetme
+// Auto-save
 setInterval(() => {
   saveCommandPermissions();
   saveFkdrTracking();
 }, 5 * 60 * 1000);
 
-// FKDR snapshotlarını her 6 saatte bir güncelle
+// Update FKDR snapshots every 6 hours
 setInterval(async () => {
-  console.log('📊 FKDR snapshotları güncelleniyor...');
+  console.log('📊 Updating FKDR snapshots...');
   let updated = 0;
   
   for (const [username, tracking] of fkdrTracking.entries()) {
@@ -1350,12 +1397,12 @@ setInterval(async () => {
       updated++;
       await sleep(2000);
     } catch (err) {
-      console.error(`${username} için FKDR güncellenemedi:`, err.message);
+      console.error(`Failed to update FKDR for ${username}:`, err.message);
     }
   }
   
-  console.log(`✅ ${updated} FKDR snapshot güncellendi`);
-  addLog('info', `${updated} FKDR snapshot güncellendi`);
+  console.log(`✅ Updated ${updated} FKDR snapshots`);
+  addLog('info', `Updated ${updated} FKDR snapshots`);
 }, 6 * 60 * 60 * 1000);
 
 createBot();
