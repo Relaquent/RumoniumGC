@@ -355,45 +355,85 @@ async function checkUrchinBlacklist(username) {
       sources: 'GAME,PARTY,PARTY_INVITES,CHAT,CHAT_MENTIONS,MANUAL,ME'
     });
     
-    const response = await axios.get(`${URCHIN_API_URL}/${username}?${params.toString()}`, {
-      timeout: 10000
+    const url = `${URCHIN_API_URL}/${encodeURIComponent(username)}?${params.toString()}`;
+    
+    console.log(`[Urchin] Fetching: ${username}`);
+    
+    const response = await axios.get(url, {
+      timeout: 15000,
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'RumoniumGC-Bot/2.2'
+      },
+      validateStatus: function (status) {
+        return status < 500; // Accept all status codes < 500
+      }
     });
 
-    if (response.data && response.data.tags && response.data.tags.length > 0) {
+    console.log(`[Urchin] Status: ${response.status}`);
+
+    // Handle different status codes
+    if (response.status === 404) {
+      return `${username} is not in the database.`;
+    }
+    
+    if (response.status === 401) {
+      throw new Error('Invalid API key');
+    }
+    
+    if (response.status === 403) {
+      throw new Error('Access forbidden - check API key permissions');
+    }
+    
+    if (response.status === 429) {
+      throw new Error('Rate limit exceeded - try again later');
+    }
+    
+    if (response.status !== 200) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    // Process successful response
+    if (response.data && response.data.uuid) {
       const player = response.data;
-      
-      // Format the response
-      let result = `${username} - UUID: ${player.uuid || 'N/A'}`;
+      let result = `${username} - UUID: ${player.uuid}`;
       
       if (player.tags && player.tags.length > 0) {
         result += `\nTags: ${player.tags.join(', ')}`;
+      } else {
+        result += `\nNo tags (Clean)`;
       }
       
       if (player.rate_limit !== undefined) {
         result += `\nRate Limit: ${player.rate_limit}`;
       }
       
+      console.log(`[Urchin] Success: ${username}`);
       return result;
-    } else if (response.data && response.data.uuid) {
-      return `${username} - No tags found (Clean)`;
     } else {
-      return `${username} is not in the database.`;
+      return `${username} - Invalid response from API`;
     }
   } catch (err) {
-    if (err.response) {
-      if (err.response.status === 404) {
-        return `${username} is not in the database.`;
-      } else if (err.response.status === 401) {
-        throw new Error('Invalid API key');
-      } else if (err.response.status === 403) {
-        throw new Error('Access forbidden');
-      } else if (err.response.status === 429) {
-        throw new Error('Rate limit exceeded');
-      } else {
-        throw new Error(`API error: ${err.response.status}`);
-      }
+    console.error('[Urchin] Error:', err.message);
+    
+    // Network or connection errors
+    if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+      throw new Error('Cannot connect to Urchin API');
     }
-    throw new Error('Connection error');
+    
+    if (err.code === 'ETIMEDOUT' || err.code === 'ECONNABORTED') {
+      throw new Error('Request timeout - API slow to respond');
+    }
+    
+    // If it's already a custom error, throw it
+    if (err.message.includes('API error') || 
+        err.message.includes('Invalid API key') || 
+        err.message.includes('Rate limit')) {
+      throw err;
+    }
+    
+    // Generic error
+    throw new Error('Connection error - check API key and network');
   }
 }
 
@@ -745,6 +785,7 @@ setInterval(() => {
 
 server.listen(PORT, () => {
   console.log(`🌐 Server running on port ${PORT}`);
+  console.log(`🔑 Urchin API Key: ${URCHIN_API_KEY.substring(0, 10)}...`);
   loadCommandPermissions();
   loadFkdrTracking();
 });
