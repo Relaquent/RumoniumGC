@@ -346,43 +346,54 @@ function stopFkdrTracking(username) {
   return false;
 }
 
-// === Urchin API ===
+// === Urchin API (FIXED) ===
 async function checkUrchinBlacklist(username) {
   try {
-    const response = await axios.get(`${URCHIN_API_URL}/${username}`, {
-      headers: {
-        'Authorization': `Bearer ${URCHIN_API_KEY}`
-      },
+    // Build the URL with required query parameters
+    const params = new URLSearchParams({
+      key: URCHIN_API_KEY,
+      sources: 'GAME,PARTY,PARTY_INVITES,CHAT,CHAT_MENTIONS,MANUAL,ME'
+    });
+    
+    const response = await axios.get(`${URCHIN_API_URL}/${username}?${params.toString()}`, {
       timeout: 10000
     });
 
-    if (response.data && response.data.player) {
-      const player = response.data.player;
+    if (response.data && response.data.tags && response.data.tags.length > 0) {
+      const player = response.data;
       
-      if (player.blacklisted) {
-        let result = `${username} - ${player.status || 'Blacklisted'}`;
-        
-        if (player.reason) {
-          result += `\n"${player.reason}"`;
-        }
-        
-        if (player.addedBy) {
-          const timeAgo = player.addedAt ? getTimeAgo(player.addedAt) : '';
-          result += `\n* Added by ${player.addedBy}${timeAgo ? ' ' + timeAgo : ''}`;
-        }
-        
-        return result;
-      } else {
-        return `${username} is not in the blacklist.`;
+      // Format the response
+      let result = `${username} - UUID: ${player.uuid || 'N/A'}`;
+      
+      if (player.tags && player.tags.length > 0) {
+        result += `\nTags: ${player.tags.join(', ')}`;
       }
+      
+      if (player.rate_limit !== undefined) {
+        result += `\nRate Limit: ${player.rate_limit}`;
+      }
+      
+      return result;
+    } else if (response.data && response.data.uuid) {
+      return `${username} - No tags found (Clean)`;
     } else {
-      return `${username} is not in the blacklist.`;
+      return `${username} is not in the database.`;
     }
   } catch (err) {
-    if (err.response && err.response.status === 404) {
-      return `${username} is not in the blacklist.`;
+    if (err.response) {
+      if (err.response.status === 404) {
+        return `${username} is not in the database.`;
+      } else if (err.response.status === 401) {
+        throw new Error('Invalid API key');
+      } else if (err.response.status === 403) {
+        throw new Error('Access forbidden');
+      } else if (err.response.status === 429) {
+        throw new Error('Rate limit exceeded');
+      } else {
+        throw new Error(`API error: ${err.response.status}`);
+      }
     }
-    throw new Error('Urchin API error');
+    throw new Error('Connection error');
   }
 }
 
@@ -1276,4 +1287,3 @@ setInterval(async () => {
 }, 6 * 60 * 60 * 1000);
 
 createBot();
-
