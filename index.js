@@ -347,7 +347,7 @@ function stopFkdrTracking(username) {
 }
 
 // === Urchin API ===
-async function checkUrchინBlacklist(username) {
+async function checkUrchinBlacklist(username) {
   try {
     const response = await axios.get(`${URCHIN_API_URL}/${username}`, {
       headers: {
@@ -1276,3 +1276,4 @@ setInterval(async () => {
 }, 6 * 60 * 60 * 1000);
 
 createBot();
+
