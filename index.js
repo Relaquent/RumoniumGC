@@ -1647,6 +1647,12 @@ app.get("/control", (req, res) => {
         
         document.getElementById('blacklistCount').textContent = data.total;
         
+        // Update statistics tab counter too
+        const blacklistCount2 = document.getElementById('blacklistCount2');
+        if (blacklistCount2) {
+          blacklistCount2.textContent = data.total;
+        }
+        
         const list = document.getElementById('blacklistList');
         
         if (data.total === 0) {
