@@ -811,6 +811,266 @@ app.post("/api/blacklist/remove", (req, res) => {
   }
 });
 
+app.get("/api/blacklist", (req, res) => {
+  const stats = getBlacklistStats();
+  res.json(stats);
+});
+
+app.post("/api/blacklist/add", (req, res) => {
+  const { username, reason, addedBy } = req.body;
+  
+  if (!username || !reason || !addedBy) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+  
+  try {
+    const entry = addToBlacklist(username, reason, addedBy);
+    res.json({ success: true, entry });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/blacklist/remove", (req, res) => {
+  const { username } = req.body;
+  
+  if (!username) {
+    return res.status(400).json({ success: false, message: 'Username required' });
+  }
+  
+  const removed = removeFromBlacklist(username);
+  if (removed) {
+    res.json({ success: true, message: `${username} removed from blacklist` });
+  } else {
+    res.status(404).json({ success: false, message: 'User not found in blacklist' });
+  }
+});
+
+// Permission management endpoints
+app.get("/api/permissions", (req, res) => {
+  const permissions = Array.from(commandPermissions.entries()).map(([username, perms]) => ({
+    username,
+    ...perms
+  }));
+  res.json({ permissions, availableCommands: AVAILABLE_COMMANDS });
+});
+
+app.post("/api/permissions/set", (req, res) => {
+  const { username, allowedCommands, bannedCommands } = req.body;
+  
+  if (!username) {
+    return res.status(400).json({ success: false, message: 'Username required' });
+  }
+  
+  try {
+    const perms = {};
+    if (allowedCommands && Array.isArray(allowedCommands)) {
+      perms.allowedCommands = allowedCommands;
+    }
+    if (bannedCommands && Array.isArray(bannedCommands)) {
+      perms.bannedCommands = bannedCommands;
+    }
+    
+    commandPermissions.set(username.toLowerCase(), perms);
+    saveCommandPermissions();
+    
+    res.json({ success: true, username, permissions: perms });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/permissions/remove", (req, res) => {
+  const { username } = req.body;
+  
+  if (!username) {
+    return res.status(400).json({ success: false, message: 'Username required' });
+  }
+  
+  if (commandPermissions.has(username.toLowerCase())) {
+    commandPermissions.delete(username.toLowerCase());
+    saveCommandPermissions();
+    res.json({ success: true, message: `Permissions reset for ${username}` });
+  } else {
+    res.status(404).json({ success: false, message: 'User not found' });
+  }
+});
+
+// Data export endpoints
+app.get("/api/export/all", (req, res) => {
+  try {
+    const exportData = {
+      exportDate: new Date().toISOString(),
+      botVersion: '2.2',
+      data: {
+        permissions: Object.fromEntries(commandPermissions),
+        fkdrTracking: Object.fromEntries(fkdrTracking),
+        blacklist: Object.fromEntries(localBlacklist),
+        settings: botSettings,
+        gptPrompt: gptSystemPrompt
+      }
+    };
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename=rumonium-backup-${Date.now()}.json`);
+    res.json(exportData);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get("/api/export/permissions", (req, res) => {
+  try {
+    const data = Object.fromEntries(commandPermissions);
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename=permissions-${Date.now()}.json`);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get("/api/export/fkdr", (req, res) => {
+  try {
+    const data = Object.fromEntries(fkdrTracking);
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename=fkdr-tracking-${Date.now()}.json`);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.get("/api/export/blacklist", (req, res) => {
+  try {
+    const data = Object.fromEntries(localBlacklist);
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename=blacklist-${Date.now()}.json`);
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Data import endpoints
+app.post("/api/import/all", (req, res) => {
+  try {
+    const { data } = req.body;
+    
+    if (!data) {
+      return res.status(400).json({ success: false, message: 'No data provided' });
+    }
+    
+    let imported = 0;
+    
+    // Import permissions
+    if (data.permissions) {
+      commandPermissions.clear();
+      Object.entries(data.permissions).forEach(([username, perms]) => {
+        commandPermissions.set(username.toLowerCase(), perms);
+      });
+      saveCommandPermissions();
+      imported++;
+    }
+    
+    // Import FKDR tracking
+    if (data.fkdrTracking) {
+      fkdrTracking.clear();
+      Object.entries(data.fkdrTracking).forEach(([username, tracking]) => {
+        fkdrTracking.set(username.toLowerCase(), tracking);
+      });
+      saveFkdrTracking();
+      imported++;
+    }
+    
+    // Import blacklist
+    if (data.blacklist) {
+      localBlacklist.clear();
+      Object.entries(data.blacklist).forEach(([username, entry]) => {
+        localBlacklist.set(username.toLowerCase(), entry);
+      });
+      saveBlacklist();
+      imported++;
+    }
+    
+    // Import settings
+    if (data.settings) {
+      botSettings = { ...botSettings, ...data.settings };
+      imported++;
+    }
+    
+    // Import GPT prompt
+    if (data.gptPrompt) {
+      gptSystemPrompt = data.gptPrompt;
+      imported++;
+    }
+    
+    res.json({ success: true, message: `Imported ${imported} data categories` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/import/permissions", (req, res) => {
+  try {
+    const { data } = req.body;
+    
+    if (!data) {
+      return res.status(400).json({ success: false, message: 'No data provided' });
+    }
+    
+    commandPermissions.clear();
+    Object.entries(data).forEach(([username, perms]) => {
+      commandPermissions.set(username.toLowerCase(), perms);
+    });
+    saveCommandPermissions();
+    
+    res.json({ success: true, message: `Imported permissions for ${commandPermissions.size} users` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/import/fkdr", (req, res) => {
+  try {
+    const { data } = req.body;
+    
+    if (!data) {
+      return res.status(400).json({ success: false, message: 'No data provided' });
+    }
+    
+    fkdrTracking.clear();
+    Object.entries(data).forEach(([username, tracking]) => {
+      fkdrTracking.set(username.toLowerCase(), tracking);
+    });
+    saveFkdrTracking();
+    
+    res.json({ success: true, message: `Imported FKDR tracking for ${fkdrTracking.size} users` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/import/blacklist", (req, res) => {
+  try {
+    const { data } = req.body;
+    
+    if (!data) {
+      return res.status(400).json({ success: false, message: 'No data provided' });
+    }
+    
+    localBlacklist.clear();
+    Object.entries(data).forEach(([username, entry]) => {
+      localBlacklist.set(username.toLowerCase(), entry);
+    });
+    saveBlacklist();
+    
+    res.json({ success: true, message: `Imported ${localBlacklist.size} blacklist entries` });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 app.get("/api/fkdr-tracking", (req, res) => {
   const tracking = Array.from(fkdrTracking.entries()).map(([username, data]) => ({
     username,
@@ -858,7 +1118,8 @@ app.get("/control", (req, res) => {
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-900 text-white min-h-screen p-6">
-  <div class="max-w-6xl mx-auto">
+  <div class="max-w-7xl mx-auto">
+    <!-- Header -->
     <div class="bg-gray-800 rounded-lg p-6 mb-6 border border-gray-700">
       <h1 class="text-3xl font-bold mb-4 text-purple-400">RumoniumGC Control Panel v2.2</h1>
       <div class="grid grid-cols-3 gap-4">
@@ -877,25 +1138,129 @@ app.get("/control", (req, res) => {
       </div>
     </div>
 
-    <div class="grid grid-cols-3 gap-6">
-      <div class="col-span-2">
-        <div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
-          <div class="p-4 border-b border-gray-700">
-            <h2 class="text-xl font-bold">LIVE CHAT</h2>
-          </div>
-          <div id="chat" class="h-96 overflow-y-auto p-4 space-y-2 bg-gray-900/50"></div>
-          <div class="p-4 border-t border-gray-700">
-            <div class="flex gap-2">
-              <input type="text" id="msgInput" placeholder="Type message..." 
-                class="flex-1 bg-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600 border border-gray-600">
-              <button onclick="sendMsg()" class="px-6 py-2 rounded bg-purple-600 font-bold hover:bg-purple-700">SEND</button>
-            </div>
+    <!-- Tabs -->
+    <div class="mb-6">
+      <div class="flex gap-2 border-b border-gray-700">
+        <button onclick="showTab('chat')" id="tab-chat" class="px-4 py-2 font-bold text-purple-400 border-b-2 border-purple-400">CHAT</button>
+        <button onclick="showTab('permissions')" id="tab-permissions" class="px-4 py-2 font-bold text-gray-400 hover:text-white">PERMISSIONS</button>
+        <button onclick="showTab('data')" id="tab-data" class="px-4 py-2 font-bold text-gray-400 hover:text-white">DATA MANAGEMENT</button>
+        <button onclick="showTab('logs')" id="tab-logs" class="px-4 py-2 font-bold text-gray-400 hover:text-white">LOGS</button>
+      </div>
+    </div>
+
+    <!-- Chat Tab -->
+    <div id="content-chat" class="tab-content">
+      <div class="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+        <div class="p-4 border-b border-gray-700">
+          <h2 class="text-xl font-bold">LIVE CHAT</h2>
+        </div>
+        <div id="chat" class="h-96 overflow-y-auto p-4 space-y-2 bg-gray-900/50"></div>
+        <div class="p-4 border-t border-gray-700">
+          <div class="flex gap-2">
+            <input type="text" id="msgInput" placeholder="Type message..." 
+              class="flex-1 bg-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600 border border-gray-600">
+            <button onclick="sendMsg()" class="px-6 py-2 rounded bg-purple-600 font-bold hover:bg-purple-700">SEND</button>
           </div>
         </div>
       </div>
+    </div>
 
+    <!-- Permissions Tab -->
+    <div id="content-permissions" class="tab-content hidden">
+      <div class="grid grid-cols-2 gap-6">
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <h2 class="text-xl font-bold mb-4">SET USER PERMISSIONS</h2>
+          <div class="space-y-4">
+            <input type="text" id="permUser" placeholder="Username" 
+              class="w-full bg-gray-700 rounded px-4 py-2 focus:outline-none focus:ring-2 focus:ring-purple-600 border border-gray-600">
+            
+            <div>
+              <label class="block text-sm text-gray-400 mb-2">Mode</label>
+              <select id="permMode" class="w-full bg-gray-700 rounded px-4 py-2 border border-gray-600" onchange="togglePermMode()">
+                <option value="allow">Allow Only (Whitelist)</option>
+                <option value="ban">Ban Specific (Blacklist)</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm text-gray-400 mb-2">Select Commands</label>
+              <div id="commandsList" class="space-y-2 max-h-64 overflow-y-auto bg-gray-700 p-3 rounded"></div>
+            </div>
+
+            <div class="flex gap-2">
+              <button onclick="savePermissions()" class="flex-1 px-4 py-2 rounded bg-green-600 font-bold hover:bg-green-700">SAVE</button>
+              <button onclick="resetPermissions()" class="flex-1 px-4 py-2 rounded bg-red-600 font-bold hover:bg-red-700">RESET</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <h2 class="text-xl font-bold mb-4">CURRENT PERMISSIONS</h2>
+          <div id="permissionsList" class="space-y-2 max-h-96 overflow-y-auto"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Management Tab -->
+    <div id="content-data" class="tab-content hidden">
+      <div class="grid grid-cols-2 gap-6">
+        <!-- Export -->
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <h2 class="text-xl font-bold mb-4">📥 EXPORT DATA</h2>
+          <div class="space-y-3">
+            <button onclick="exportData('all')" class="w-full px-4 py-3 rounded bg-blue-600 font-bold hover:bg-blue-700 text-left">
+              ⬇️ Export All Data (Full Backup)
+            </button>
+            <button onclick="exportData('permissions')" class="w-full px-4 py-3 rounded bg-gray-700 font-bold hover:bg-gray-600 text-left">
+              ⬇️ Export Permissions Only
+            </button>
+            <button onclick="exportData('fkdr')" class="w-full px-4 py-3 rounded bg-gray-700 font-bold hover:bg-gray-600 text-left">
+              ⬇️ Export FKDR Tracking Only
+            </button>
+            <button onclick="exportData('blacklist')" class="w-full px-4 py-3 rounded bg-gray-700 font-bold hover:bg-gray-600 text-left">
+              ⬇️ Export Blacklist Only
+            </button>
+          </div>
+        </div>
+
+        <!-- Import -->
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <h2 class="text-xl font-bold mb-4">📤 IMPORT DATA</h2>
+          <div class="space-y-3">
+            <div class="bg-yellow-900/30 border border-yellow-700 rounded p-3 text-sm">
+              ⚠️ Importing will overwrite existing data. Make a backup first!
+            </div>
+            
+            <div>
+              <label class="block text-sm text-gray-400 mb-2">Import Type</label>
+              <select id="importType" class="w-full bg-gray-700 rounded px-4 py-2 border border-gray-600">
+                <option value="all">Full Backup (All Data)</option>
+                <option value="permissions">Permissions Only</option>
+                <option value="fkdr">FKDR Tracking Only</option>
+                <option value="blacklist">Blacklist Only</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-sm text-gray-400 mb-2">Select File</label>
+              <input type="file" id="importFile" accept=".json" 
+                class="w-full bg-gray-700 rounded px-4 py-2 border border-gray-600 text-sm">
+            </div>
+
+            <button onclick="importData()" class="w-full px-4 py-3 rounded bg-green-600 font-bold hover:bg-green-700">
+              📤 IMPORT DATA
+            </button>
+
+            <div id="importStatus" class="text-sm"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Logs Tab -->
+    <div id="content-logs" class="tab-content hidden">
       <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
-        <h2 class="text-xl font-bold mb-4">LOGS</h2>
+        <h2 class="text-xl font-bold mb-4">SYSTEM LOGS</h2>
         <div id="logs" class="space-y-2 max-h-screen overflow-y-auto"></div>
       </div>
     </div>
@@ -903,7 +1268,24 @@ app.get("/control", (req, res) => {
 
   <script>
     const socket = io();
-    
+    let availableCommands = [];
+
+    // Tab management
+    function showTab(tab) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.querySelectorAll('[id^="tab-"]').forEach(el => {
+        el.classList.remove('text-purple-400', 'border-b-2', 'border-purple-400');
+        el.classList.add('text-gray-400');
+      });
+      
+      document.getElementById('content-' + tab).classList.remove('hidden');
+      document.getElementById('tab-' + tab).classList.add('text-purple-400', 'border-b-2', 'border-purple-400');
+      document.getElementById('tab-' + tab).classList.remove('text-gray-400');
+
+      if (tab === 'permissions') loadPermissions();
+    }
+
+    // Chat functionality
     socket.on('minecraft-chat', d => {
       const chat = document.getElementById('chat');
       const div = document.createElement('div');
@@ -950,9 +1332,178 @@ app.get("/control", (req, res) => {
     document.getElementById('msgInput').addEventListener('keypress', e => {
       if (e.key === 'Enter') sendMsg();
     });
+
+    // Permissions management
+    async function loadPermissions() {
+      const res = await fetch('/api/permissions');
+      const data = await res.json();
+      
+      availableCommands = data.availableCommands;
+      renderCommandsList();
+      renderPermissionsList(data.permissions);
+    }
+
+    function renderCommandsList() {
+      const list = document.getElementById('commandsList');
+      list.innerHTML = availableCommands.map(cmd => \`
+        <label class="flex items-center gap-2 p-2 hover:bg-gray-600 rounded cursor-pointer">
+          <input type="checkbox" value="\${cmd}" class="perm-checkbox">
+          <span>\${cmd}</span>
+        </label>
+      \`).join('');
+    }
+
+    function togglePermMode() {
+      // Just visual feedback, actual logic handled in save
+    }
+
+    function renderPermissionsList(permissions) {
+      const list = document.getElementById('permissionsList');
+      if (permissions.length === 0) {
+        list.innerHTML = '<div class="text-gray-500">No custom permissions set. All users can use all commands.</div>';
+        return;
+      }
+
+      list.innerHTML = permissions.map(p => {
+        const mode = p.allowedCommands ? 'Whitelist' : 'Blacklist';
+        const commands = p.allowedCommands || p.bannedCommands || [];
+        return \`
+          <div class="bg-gray-700 rounded p-3 border border-gray-600">
+            <div class="flex justify-between items-center mb-2">
+              <span class="font-bold">\${p.username}</span>
+              <button onclick="removePermission('\${p.username}')" class="text-red-400 hover:text-red-300 text-sm">Remove</button>
+            </div>
+            <div class="text-sm text-gray-400">
+              <span class="px-2 py-1 rounded bg-gray-600">\${mode}</span>
+              <span class="ml-2">\${commands.join(', ')}</span>
+            </div>
+          </div>
+        \`;
+      }).join('');
+    }
+
+    async function savePermissions() {
+      const username = document.getElementById('permUser').value.trim();
+      if (!username) {
+        alert('Please enter a username');
+        return;
+      }
+
+      const mode = document.getElementById('permMode').value;
+      const checkboxes = document.querySelectorAll('.perm-checkbox:checked');
+      const commands = Array.from(checkboxes).map(cb => cb.value);
+
+      if (commands.length === 0) {
+        alert('Please select at least one command');
+        return;
+      }
+
+      const payload = { username };
+      if (mode === 'allow') {
+        payload.allowedCommands = commands;
+      } else {
+        payload.bannedCommands = commands;
+      }
+
+      const res = await fetch('/api/permissions/set', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        alert('Permissions saved!');
+        loadPermissions();
+        document.getElementById('permUser').value = '';
+        document.querySelectorAll('.perm-checkbox').forEach(cb => cb.checked = false);
+      } else {
+        alert('Error: ' + data.message);
+      }
+    }
+
+    async function resetPermissions() {
+      const username = document.getElementById('permUser').value.trim();
+      if (!username) {
+        alert('Please enter a username');
+        return;
+      }
+
+      if (!confirm(\`Reset permissions for \${username}?\`)) return;
+
+      const res = await fetch('/api/permissions/remove', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username})
+      });
+
+      const data = await res.json();
+      alert(data.message);
+      loadPermissions();
+      document.getElementById('permUser').value = '';
+    }
+
+    async function removePermission(username) {
+      if (!confirm(\`Remove permissions for \${username}?\`)) return;
+
+      const res = await fetch('/api/permissions/remove', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({username})
+      });
+
+      const data = await res.json();
+      alert(data.message);
+      loadPermissions();
+    }
+
+    // Data management
+    async function exportData(type) {
+      const url = \`/api/export/\${type}\`;
+      window.location.href = url;
+    }
+
+    async function importData() {
+      const type = document.getElementById('importType').value;
+      const fileInput = document.getElementById('importFile');
+      const file = fileInput.files[0];
+
+      if (!file) {
+        alert('Please select a file');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const data = JSON.parse(e.target.result);
+          
+          const res = await fetch(\`/api/import/\${type}\`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({data: type === 'all' ? data.data : data})
+          });
+
+          const result = await res.json();
+          const status = document.getElementById('importStatus');
+          
+          if (result.success) {
+            status.innerHTML = '<div class="bg-green-900/30 border border-green-700 rounded p-3 text-green-300">✓ ' + result.message + '</div>';
+            setTimeout(() => status.innerHTML = '', 5000);
+          } else {
+            status.innerHTML = '<div class="bg-red-900/30 border border-red-700 rounded p-3 text-red-300">✗ ' + result.message + '</div>';
+          }
+        } catch (err) {
+          alert('Invalid file format: ' + err.message);
+        }
+      };
+
+      reader.readAsText(file);
+    }
   </script>
 </body>
 </html>`);
+});
 });
 
 io.on('connection', (socket) => {
@@ -1201,7 +1752,7 @@ function createBot() {
       
       commandCount++;
       
-      const first = new Date("2026-01-16T00:08:00Z");
+      const first = new Date("2025-11-22T00:00:00Z");
       const now = new Date();
       let diff = now - first;
       let cycles = Math.floor(diff / (56 * 86400000));
@@ -1249,11 +1800,14 @@ function createBot() {
         "stats <player> - Detailed stats",
         "when - Next Castle",
         "ask <message> - Ask AI",
-        URCHIN_ENABLED ? "view <player> - Status check" : null,
+        URCHIN_ENABLED ? "view <player> - Urchin check" : null,
+        "blacklist add <player> <reason> - Add to blacklist",
+        "blacklist remove <player> - Remove from blacklist",
+        "blacklist check <player> - Check blacklist",
         "fkdr start - Start tracking",
         "fkdr - View progress",
         "fkdr stop - Stop tracking",
-        "nfkdr <player> - Calculate next FKDR",
+        "nfkdr [player] - Calculate next FKDR",
         "about - Bot info",
         "----------------"
       ].filter(Boolean);
