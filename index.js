@@ -1504,7 +1504,6 @@ app.get("/control", (req, res) => {
 </body>
 </html>`);
 });
-});
 
 io.on('connection', (socket) => {
   console.log('👤 Client connected');
