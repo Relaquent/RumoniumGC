@@ -1130,18 +1130,18 @@ function createBot() {
       
       const help = [
         "--- Rumonium ---",
-        "bw <user> - Bedwars stats",
-        "gexp <user> - Weekly GEXP",
-        "stats <user> - Detailed stats",
+        "bw <player> - Bedwars stats",
+        "gexp <player> - Weekly GEXP",
+        "stats <player> - Detailed stats",
         "when - Next Castle",
         "ask <message> - Ask AI",
-        URCHIN_ENABLED ? "view <user> - Urchin check" : null,
+        URCHIN_ENABLED ? "view <player> - Urchin check" : null,
         "fkdr start - Start tracking",
         "fkdr - View progress",
         "fkdr stop - Stop tracking",
-        "nfkdr <user> - Calculate next FKDR",
+        "nfkdr [player] - Calculate next FKDR",
         "about - Bot info",
-        "--------------"
+        "----------------"
       ].filter(Boolean);
       
       for (const h of help) {
