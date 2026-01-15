@@ -172,6 +172,34 @@ let messageCount = 0;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 10;
 
+// === Statistics Tracking ===
+const commandStats = new Map(); // command -> count
+const userStats = new Map(); // username -> count
+const recentActivity = [];
+const MAX_ACTIVITY = 100;
+
+function addActivity(type, description, username = null) {
+  const activity = {
+    timestamp: new Date().toISOString(),
+    type,
+    description,
+    username
+  };
+  
+  recentActivity.unshift(activity);
+  if (recentActivity.length > MAX_ACTIVITY) {
+    recentActivity.pop();
+  }
+}
+
+function incrementCommandStat(command) {
+  commandStats.set(command, (commandStats.get(command) || 0) + 1);
+}
+
+function incrementUserStat(username) {
+  userStats.set(username, (userStats.get(username) || 0) + 1);
+}
+
 // === API Rate Limiting ===
 const API_QUEUE = [];
 let isProcessingQueue = false;
@@ -767,12 +795,36 @@ app.post("/api/gpt-prompt", (req, res) => {
 });
 
 app.get("/api/stats", (req, res) => {
+  const uptime = Date.now() - startTime;
+  
+  // Get top commands
+  const topCommands = Array.from(commandStats.entries())
+    .map(([command, count]) => ({ command, count }))
+    .sort((a, b) => b.count - a.count);
+  
+  // Get top users
+  const topUsers = Array.from(userStats.entries())
+    .map(([username, count]) => ({ username, count }))
+    .sort((a, b) => b.count - a.count);
+  
   res.json({
     queueLength: API_QUEUE.length,
     apiCallCount,
     cacheSize: cache.playerDataCache.size + cache.guildCache.size,
     urchinUrl: WORKING_URCHIN_URL || 'Not connected',
-    urchinEnabled: URCHIN_ENABLED
+    urchinEnabled: URCHIN_ENABLED,
+    commandCount,
+    messageCount,
+    uptimeMs: uptime,
+    topCommands,
+    topUsers
+  });
+});
+
+app.get("/api/activity", (req, res) => {
+  res.json({
+    recent: recentActivity.slice(0, 50),
+    total: recentActivity.length
   });
 });
 
@@ -1142,6 +1194,7 @@ app.get("/control", (req, res) => {
     <div class="mb-6">
       <div class="flex gap-2 border-b border-gray-700">
         <button onclick="showTab('chat')" id="tab-chat" class="px-4 py-2 font-bold text-purple-400 border-b-2 border-purple-400">CHAT</button>
+        <button onclick="showTab('statistics')" id="tab-statistics" class="px-4 py-2 font-bold text-gray-400 hover:text-white">STATISTICS</button>
         <button onclick="showTab('permissions')" id="tab-permissions" class="px-4 py-2 font-bold text-gray-400 hover:text-white">PERMISSIONS</button>
         <button onclick="showTab('data')" id="tab-data" class="px-4 py-2 font-bold text-gray-400 hover:text-white">DATA MANAGEMENT</button>
         <button onclick="showTab('logs')" id="tab-logs" class="px-4 py-2 font-bold text-gray-400 hover:text-white">LOGS</button>
@@ -1163,6 +1216,77 @@ app.get("/control", (req, res) => {
             <button onclick="sendMsg()" class="px-6 py-2 rounded bg-purple-600 font-bold hover:bg-purple-700">SEND</button>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- Statistics Tab -->
+    <div id="content-statistics" class="tab-content hidden">
+      <!-- Command Stats -->
+      <div class="grid grid-cols-3 gap-6 mb-6">
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <div class="text-4xl font-bold text-blue-400 mb-2" id="totalCommands">0</div>
+          <div class="text-sm text-gray-400 mb-4">TOTAL COMMANDS</div>
+          <div class="text-xs text-gray-500" id="commandsPerHour">0 per hour</div>
+        </div>
+        
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <div class="text-4xl font-bold text-green-400 mb-2" id="totalMessages">0</div>
+          <div class="text-sm text-gray-400 mb-4">TOTAL MESSAGES</div>
+          <div class="text-xs text-gray-500" id="messagesPerHour">0 per hour</div>
+        </div>
+        
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <div class="text-4xl font-bold text-purple-400 mb-2" id="apiCalls">0</div>
+          <div class="text-sm text-gray-400 mb-4">API CALLS</div>
+          <div class="text-xs text-gray-500" id="apiQueue">Queue: 0</div>
+        </div>
+      </div>
+
+      <!-- Command Usage Chart -->
+      <div class="grid grid-cols-2 gap-6 mb-6">
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <h2 class="text-xl font-bold mb-4">TOP COMMANDS</h2>
+          <div id="commandChart" class="space-y-3"></div>
+        </div>
+
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <h2 class="text-xl font-bold mb-4">TOP USERS</h2>
+          <div id="userChart" class="space-y-3"></div>
+        </div>
+      </div>
+
+      <!-- System Stats -->
+      <div class="grid grid-cols-4 gap-4 mb-6">
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+          <div class="text-sm text-gray-400 mb-2">CACHE SIZE</div>
+          <div class="text-2xl font-bold text-cyan-400" id="cacheSize">0</div>
+        </div>
+
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+          <div class="text-sm text-gray-400 mb-2">FKDR TRACKING</div>
+          <div class="text-2xl font-bold text-yellow-400" id="fkdrTracking">0</div>
+        </div>
+
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+          <div class="text-sm text-gray-400 mb-2">BLACKLISTED</div>
+          <div class="text-2xl font-bold text-red-400" id="blacklistCount2">0</div>
+        </div>
+
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+          <div class="text-sm text-gray-400 mb-2">PERMISSIONS SET</div>
+          <div class="text-2xl font-bold text-orange-400" id="permissionsCount">0</div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold">RECENT ACTIVITY</h2>
+          <button onclick="loadStatistics()" class="text-sm px-3 py-1 rounded bg-gray-700 hover:bg-gray-600">
+            🔄 Refresh
+          </button>
+        </div>
+        <div id="recentActivity" class="space-y-2 max-h-96 overflow-y-auto"></div>
       </div>
     </div>
 
@@ -1294,6 +1418,7 @@ app.get("/control", (req, res) => {
       document.getElementById('tab-' + tab).classList.add('text-purple-400', 'border-b-2', 'border-purple-400');
       document.getElementById('tab-' + tab).classList.remove('text-gray-400');
 
+      if (tab === 'statistics') loadStatistics();
       if (tab === 'permissions') loadPermissions();
       if (tab === 'blacklist') loadBlacklistUI();
     }
@@ -1655,6 +1780,150 @@ app.get("/control", (req, res) => {
       return 'just now';
     }
 
+        // Statistics management
+    async function loadStatistics() {
+      try {
+        const [statsRes, blacklistRes, permissionsRes, fkdrRes, activityRes] = await Promise.all([
+          fetch('/api/stats'),
+          fetch('/api/blacklist'),
+          fetch('/api/permissions'),
+          fetch('/api/fkdr-tracking'),
+          fetch('/api/activity')
+        ]);
+
+        const stats = await statsRes.json();
+        const blacklist = await blacklistRes.json();
+        const permissions = await permissionsRes.json();
+        const fkdr = await fkdrRes.json();
+        const activity = await activityRes.json();
+
+        document.getElementById('totalCommands').textContent = stats.commandCount || 0;
+        document.getElementById('totalMessages').textContent = stats.messageCount || 0;
+        document.getElementById('apiCalls').textContent = stats.apiCallCount || 0;
+        document.getElementById('apiQueue').textContent = \`Queue: \${stats.queueLength || 0}\`;
+
+        const uptimeHours = stats.uptimeMs ? stats.uptimeMs / (1000 * 60 * 60) : 0;
+        const commandsPerHour = uptimeHours > 0 ? Math.round((stats.commandCount || 0) / uptimeHours) : 0;
+        const messagesPerHour = uptimeHours > 0 ? Math.round((stats.messageCount || 0) / uptimeHours) : 0;
+        
+        document.getElementById('commandsPerHour').textContent = \`\${commandsPerHour} per hour\`;
+        document.getElementById('messagesPerHour').textContent = \`\${messagesPerHour} per hour\`;
+
+        document.getElementById('cacheSize').textContent = stats.cacheSize || 0;
+        document.getElementById('fkdrTracking').textContent = fkdr.count || 0;
+        document.getElementById('blacklistCount2').textContent = blacklist.total || 0;
+        document.getElementById('permissionsCount').textContent = permissions.permissions?.length || 0;
+
+        renderCommandChart(stats.topCommands || []);
+        renderUserChart(stats.topUsers || []);
+        renderRecentActivity(activity.recent || []);
+
+      } catch (err) {
+        console.error('Failed to load statistics:', err);
+      }
+    }
+
+    function renderCommandChart(topCommands) {
+      const chart = document.getElementById('commandChart');
+      
+      if (!topCommands || topCommands.length === 0) {
+        chart.innerHTML = '<div class="text-gray-500 text-center py-4">No command data yet</div>';
+        return;
+      }
+
+      const maxCount = Math.max(...topCommands.map(c => c.count));
+      
+      chart.innerHTML = topCommands.slice(0, 10).map(cmd => {
+        const percentage = maxCount > 0 ? (cmd.count / maxCount) * 100 : 0;
+        return \`
+          <div class="flex items-center gap-3">
+            <div class="w-20 text-sm font-mono text-gray-400">!\${cmd.command}</div>
+            <div class="flex-1 bg-gray-700 rounded-full h-6 overflow-hidden">
+              <div class="bg-gradient-to-r from-purple-500 to-blue-500 h-full flex items-center px-3" 
+                style="width: \${percentage}%">
+                <span class="text-xs font-bold text-white">\${cmd.count}</span>
+              </div>
+            </div>
+          </div>
+        \`;
+      }).join('');
+    }
+
+    function renderUserChart(topUsers) {
+      const chart = document.getElementById('userChart');
+      
+      if (!topUsers || topUsers.length === 0) {
+        chart.innerHTML = '<div class="text-gray-500 text-center py-4">No user data yet</div>';
+        return;
+      }
+
+      const maxCount = Math.max(...topUsers.map(u => u.count));
+      
+      chart.innerHTML = topUsers.slice(0, 10).map(user => {
+        const percentage = maxCount > 0 ? (user.count / maxCount) * 100 : 0;
+        return \`
+          <div class="flex items-center gap-3">
+            <div class="w-24 text-sm font-medium text-gray-300 truncate">\${user.username}</div>
+            <div class="flex-1 bg-gray-700 rounded-full h-6 overflow-hidden">
+              <div class="bg-gradient-to-r from-green-500 to-cyan-500 h-full flex items-center px-3" 
+                style="width: \${percentage}%">
+                <span class="text-xs font-bold text-white">\${user.count}</span>
+              </div>
+            </div>
+          </div>
+        \`;
+      }).join('');
+    }
+
+    function renderRecentActivity(activity) {
+      const list = document.getElementById('recentActivity');
+      
+      if (!activity || activity.length === 0) {
+        list.innerHTML = '<div class="text-gray-500 text-center py-4">No recent activity</div>';
+        return;
+      }
+
+      list.innerHTML = activity.slice(0, 20).map(act => {
+        const time = new Date(act.timestamp).toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        });
+        
+        const typeColors = {
+          command: 'bg-blue-600',
+          blacklist: 'bg-red-600',
+          fkdr: 'bg-yellow-600',
+          permission: 'bg-purple-600',
+          system: 'bg-gray-600'
+        };
+        
+        const icon = {
+          command: '⚡',
+          blacklist: '⚠️',
+          fkdr: '📊',
+          permission: '🔒',
+          system: '⚙️'
+        };
+
+        return \`
+          <div class="flex items-center gap-3 bg-gray-700 rounded p-3 border border-gray-600">
+            <span class="text-xs text-gray-400 w-14">\${time}</span>
+            <span class="px-2 py-1 rounded text-xs font-semibold \${typeColors[act.type] || 'bg-gray-600'}">
+              \${icon[act.type] || '•'} \${act.type.toUpperCase()}
+            </span>
+            <span class="flex-1 text-sm text-gray-300">\${act.description}</span>
+          </div>
+        \`;
+      }).join('');
+    }
+
+    setInterval(() => {
+      const statsTab = document.getElementById('content-statistics');
+      if (!statsTab.classList.contains('hidden')) {
+        loadStatistics();
+      }
+    }, 10000);
+
   </script>
 </body>
 </html>`);
@@ -1755,7 +2024,7 @@ function createBot() {
       }
     };
 
-    // === !gexp ===
+// === !gexp ===
     if (msg.toLowerCase().includes("!gexp")) {
       const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!gexp\s+([A-Za-z0-9_]{1,16})/i);
       if (!match) return;
@@ -1768,6 +2037,9 @@ function createBot() {
       }
       
       commandCount++;
+      incrementCommandStat('gexp');
+      incrementUserStat(requester);
+      addActivity('command', `${requester} used !gexp for ${ign}`, requester);
       
       try {
         const gexpData = await getGuildGEXP(ign);
@@ -1791,6 +2063,9 @@ function createBot() {
       }
       
       commandCount++;
+      incrementCommandStat('ask');
+      incrementUserStat(username);
+      addActivity('command', `${username} asked: ${userMessage.substring(0, 50)}...`, username);
 
       if (username.toLowerCase() !== "relaquent") {
         const now = Date.now();
@@ -1859,7 +2134,10 @@ function createBot() {
         return;
       }
       
-      commandCount++;
+commandCount++;
+      incrementCommandStat('bw');
+      incrementUserStat(requester);
+      addActivity('command', `${requester} checked BW stats for ${ign}`, requester);
       
       try {
         const stats = await getPlayerStats(ign);
@@ -1883,6 +2161,9 @@ function createBot() {
       }
       
       commandCount++;
+      incrementCommandStat('stats');
+      incrementUserStat(requester);
+      addActivity('command', `${requester} checked detailed stats for ${ign}`, requester);
       
       try {
         const stats = await getPlayerStats(ign);
@@ -1905,8 +2186,11 @@ function createBot() {
       }
       
       commandCount++;
+      incrementCommandStat('when');
+      incrementUserStat(requester);
+      addActivity('command', `${requester} checked castle timer`, requester);
       
-      const first = new Date("2025-11-22T00:00:00Z");
+      const first = new Date("2026-01-16T00:08:00Z");
       const now = new Date();
       let diff = now - first;
       let cycles = Math.floor(diff / (56 * 86400000));
@@ -1930,7 +2214,10 @@ function createBot() {
       }
       
       commandCount++;
-      await safeChat("RumoniumGC by Relaquent, v2.2 - Urchin Integration");
+      incrementCommandStat('about');
+      incrementUserStat(requester);
+      addActivity('command', `${requester} checked bot info`, requester);
+      await safeChat("RumoniumGC by Relaquent, v2.3 - Stellar Lumen Edition");
       return;
     }
 
@@ -1946,6 +2233,9 @@ function createBot() {
       }
       
       commandCount++;
+      incrementCommandStat('help');
+      incrementUserStat(requester);
+      addActivity('command', `${requester} requested help`, requester);
       
       const help = [
         "--- Rumonium ---",
@@ -1954,14 +2244,11 @@ function createBot() {
         "stats <player> - Detailed stats",
         "when - Next Castle",
         "ask <message> - Ask AI",
-        URCHIN_ENABLED ? "view <player> - Urchin check" : null,
-        "blacklist add <player> <reason> - Add to blacklist",
-        "blacklist remove <player> - Remove from blacklist",
-        "blacklist check <player> - Check blacklist",
+        URCHIN_ENABLED ? "view <player> - Status check" : null,
         "fkdr start - Start tracking",
         "fkdr - View progress",
         "fkdr stop - Stop tracking",
-        "nfkdr [player] - Calculate next FKDR",
+        "nfkdr <player> - Calculate next FKDR",
         "about - Bot info",
         "----------------"
       ].filter(Boolean);
@@ -1991,6 +2278,9 @@ function createBot() {
       }
       
       commandCount++;
+      incrementCommandStat('view');
+      incrementUserStat(requester);
+      addActivity('command', `${requester} checked Urchin for ${ign}`, requester);
       
       try {
         await safeChat(`Checking ${ign}...`);
@@ -2138,6 +2428,9 @@ function createBot() {
           await sleep(500);
           await safeChat(`Reason: ${reason.substring(0, 80)}`);
           addLog('info', `${requester} added ${targetUser} to blacklist: ${reason}`);
+          addActivity('blacklist', `${requester} added ${targetUser} to blacklist`, requester);
+          incrementCommandStat('blacklist');
+          incrementUserStat(requester);
         } catch (err) {
           await safeChat(`Error adding to blacklist: ${err.message}`);
           addLog('error', `Blacklist add failed: ${err.message}`);
@@ -2167,6 +2460,11 @@ function createBot() {
       // Check blacklist
       if (matchCheck) {
         const [, , targetUser] = matchCheck;
+        
+        commandCount++;
+        incrementCommandStat('blacklist');
+        incrementUserStat(requester);
+        addActivity('command', `${requester} checked blacklist for ${targetUser}`, requester);
         
         try {
           const entry = checkBlacklist(targetUser);
@@ -2205,6 +2503,9 @@ function createBot() {
       }
       
       commandCount++;
+      incrementCommandStat('nfkdr');
+      incrementUserStat(requester);
+      addActivity('command', `${requester} checked nfkdr for ${ign}`, requester);
       
       try {
         const stats = await getPlayerStats(ign);
