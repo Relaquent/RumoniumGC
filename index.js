@@ -56,13 +56,73 @@ let botSettings = {
   performance: { messageDelay: 300, autoReconnectDelay: 15000 }
 };
 
-// === Command Permissions System ===
+// === Local Blacklist System ===
+const localBlacklist = new Map();
+const BLACKLIST_FILE = path.join(__dirname, "blacklist.json");
+
+function loadBlacklist() {
+  try {
+    if (fs.existsSync(BLACKLIST_FILE)) {
+      const data = JSON.parse(fs.readFileSync(BLACKLIST_FILE, 'utf8'));
+      Object.entries(data).forEach(([username, entry]) => {
+        localBlacklist.set(username.toLowerCase(), entry);
+      });
+      console.log(`✅ Loaded ${localBlacklist.size} blacklist entries`);
+    }
+  } catch (err) {
+    console.error('❌ Failed to load blacklist:', err.message);
+  }
+}
+
+function saveBlacklist() {
+  try {
+    const data = Object.fromEntries(localBlacklist);
+    fs.writeFileSync(BLACKLIST_FILE, JSON.stringify(data, null, 2));
+    console.log(`💾 Saved ${localBlacklist.size} blacklist entries`);
+  } catch (err) {
+    console.error('❌ Failed to save blacklist:', err.message);
+  }
+}
+
+function addToBlacklist(username, reason, addedBy) {
+  const entry = {
+    username: username,
+    reason: reason,
+    addedBy: addedBy,
+    addedOn: new Date().toISOString(),
+    timestamp: Date.now()
+  };
+  
+  localBlacklist.set(username.toLowerCase(), entry);
+  saveBlacklist();
+  return entry;
+}
+
+function removeFromBlacklist(username) {
+  if (localBlacklist.has(username.toLowerCase())) {
+    localBlacklist.delete(username.toLowerCase());
+    saveBlacklist();
+    return true;
+  }
+  return false;
+}
+
+function checkBlacklist(username) {
+  return localBlacklist.get(username.toLowerCase());
+}
+
+function getBlacklistStats() {
+  return {
+    total: localBlacklist.size,
+    entries: Array.from(localBlacklist.values())
+  };
+}
 const commandPermissions = new Map();
 const PERMISSIONS_FILE = path.join(__dirname, "command_permissions.json");
 
 const AVAILABLE_COMMANDS = [
   'bw', 'gexp', 'stats', 'when', 'ask', 'about', 'help',
-  'fkdr', 'nfkdr', 'view'
+  'fkdr', 'nfkdr', 'view', 'blacklist'
 ];
 
 function loadCommandPermissions() {
@@ -716,6 +776,41 @@ app.get("/api/stats", (req, res) => {
   });
 });
 
+app.get("/api/blacklist", (req, res) => {
+  const stats = getBlacklistStats();
+  res.json(stats);
+});
+
+app.post("/api/blacklist/add", (req, res) => {
+  const { username, reason, addedBy } = req.body;
+  
+  if (!username || !reason || !addedBy) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+  
+  try {
+    const entry = addToBlacklist(username, reason, addedBy);
+    res.json({ success: true, entry });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/blacklist/remove", (req, res) => {
+  const { username } = req.body;
+  
+  if (!username) {
+    return res.status(400).json({ success: false, message: 'Username required' });
+  }
+  
+  const removed = removeFromBlacklist(username);
+  if (removed) {
+    res.json({ success: true, message: `${username} removed from blacklist` });
+  } else {
+    res.status(404).json({ success: false, message: 'User not found in blacklist' });
+  }
+});
+
 app.get("/api/fkdr-tracking", (req, res) => {
   const tracking = Array.from(fkdrTracking.entries()).map(([username, data]) => ({
     username,
@@ -885,6 +980,7 @@ server.listen(PORT, async () => {
   }
   loadCommandPermissions();
   loadFkdrTracking();
+  loadBlacklist();
   
   // Test Urchin connection
   if (URCHIN_ENABLED) {
@@ -1105,7 +1201,7 @@ function createBot() {
       
       commandCount++;
       
-      const first = new Date("2025-11-22T00:00:00Z");
+      const first = new Date("2026-01-16T00:08:00Z");
       const now = new Date();
       let diff = now - first;
       let cycles = Math.floor(diff / (56 * 86400000));
@@ -1153,11 +1249,11 @@ function createBot() {
         "stats <player> - Detailed stats",
         "when - Next Castle",
         "ask <message> - Ask AI",
-        URCHIN_ENABLED ? "view <player> - Urchin check" : null,
+        URCHIN_ENABLED ? "view <player> - Status check" : null,
         "fkdr start - Start tracking",
         "fkdr - View progress",
         "fkdr stop - Stop tracking",
-        "nfkdr [player] - Calculate next FKDR",
+        "nfkdr <player> - Calculate next FKDR",
         "about - Bot info",
         "----------------"
       ].filter(Boolean);
@@ -1306,6 +1402,87 @@ function createBot() {
       }
     }
 
+    // === !blacklist ===
+    if (msg.toLowerCase().includes("!blacklist")) {
+      const matchAdd = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!blacklist\s+add\s+([A-Za-z0-9_]{1,16})\s+(.+)/i);
+      const matchRemove = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!blacklist\s+remove\s+([A-Za-z0-9_]{1,16})/i);
+      const matchCheck = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!blacklist\s+check\s+([A-Za-z0-9_]{1,16})/i);
+      
+      if (!matchAdd && !matchRemove && !matchCheck) return;
+      
+      const requester = (matchAdd || matchRemove || matchCheck)[1];
+      
+      if (!hasCommandPermission(requester, 'blacklist')) {
+        await safeChat(`${requester}, you don't have permission to use !blacklist`);
+        addLog('warning', `${requester} tried to use !blacklist but was blocked`);
+        return;
+      }
+      
+      commandCount++;
+      
+      // Add to blacklist
+      if (matchAdd) {
+        const [, , targetUser, reason] = matchAdd;
+        
+        try {
+          const entry = addToBlacklist(targetUser, reason, requester);
+          await safeChat(`✓ ${targetUser} added to blacklist`);
+          await sleep(500);
+          await safeChat(`Reason: ${reason.substring(0, 80)}`);
+          addLog('info', `${requester} added ${targetUser} to blacklist: ${reason}`);
+        } catch (err) {
+          await safeChat(`Error adding to blacklist: ${err.message}`);
+          addLog('error', `Blacklist add failed: ${err.message}`);
+        }
+        return;
+      }
+      
+      // Remove from blacklist
+      if (matchRemove) {
+        const [, , targetUser] = matchRemove;
+        
+        try {
+          const removed = removeFromBlacklist(targetUser);
+          if (removed) {
+            await safeChat(`✓ ${targetUser} removed from blacklist`);
+            addLog('info', `${requester} removed ${targetUser} from blacklist`);
+          } else {
+            await safeChat(`${targetUser} not found in blacklist`);
+          }
+        } catch (err) {
+          await safeChat(`Error removing from blacklist: ${err.message}`);
+          addLog('error', `Blacklist remove failed: ${err.message}`);
+        }
+        return;
+      }
+      
+      // Check blacklist
+      if (matchCheck) {
+        const [, , targetUser] = matchCheck;
+        
+        try {
+          const entry = checkBlacklist(targetUser);
+          
+          if (entry) {
+            const date = new Date(entry.addedOn).toLocaleDateString('en-US');
+            await safeChat(`⚠️ ${targetUser} is blacklisted`);
+            await sleep(500);
+            await safeChat(`Reason: ${entry.reason.substring(0, 80)}`);
+            await sleep(500);
+            await safeChat(`Added by: ${entry.addedBy} on ${date}`);
+            addLog('info', `${requester} checked blacklist for ${targetUser} - Found`);
+          } else {
+            await safeChat(`✓ ${targetUser} not in blacklist`);
+            addLog('info', `${requester} checked blacklist for ${targetUser} - Clean`);
+          }
+        } catch (err) {
+          await safeChat(`Error checking blacklist: ${err.message}`);
+          addLog('error', `Blacklist check failed: ${err.message}`);
+        }
+        return;
+      }
+    }
+
     // === !nfkdr ===
     if (msg.toLowerCase().includes("!nfkdr")) {
       const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!nfkdr(?:\s+([A-Za-z0-9_]{1,16}))?/i);
@@ -1386,6 +1563,7 @@ process.on('SIGTERM', () => {
   console.log('📴 SIGTERM received, saving data...');
   saveCommandPermissions();
   saveFkdrTracking();
+  saveBlacklist();
   if (bot) bot.quit();
   process.exit(0);
 });
@@ -1394,6 +1572,7 @@ process.on('SIGINT', () => {
   console.log('📴 SIGINT received, saving data...');
   saveCommandPermissions();
   saveFkdrTracking();
+  saveBlacklist();
   if (bot) bot.quit();
   process.exit(0);
 });
@@ -1402,6 +1581,7 @@ process.on('SIGINT', () => {
 setInterval(() => {
   saveCommandPermissions();
   saveFkdrTracking();
+  saveBlacklist();
 }, 5 * 60 * 1000);
 
 // Update FKDR snapshots every 6 hours
