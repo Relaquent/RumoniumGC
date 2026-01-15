@@ -1145,6 +1145,7 @@ app.get("/control", (req, res) => {
         <button onclick="showTab('permissions')" id="tab-permissions" class="px-4 py-2 font-bold text-gray-400 hover:text-white">PERMISSIONS</button>
         <button onclick="showTab('data')" id="tab-data" class="px-4 py-2 font-bold text-gray-400 hover:text-white">DATA MANAGEMENT</button>
         <button onclick="showTab('logs')" id="tab-logs" class="px-4 py-2 font-bold text-gray-400 hover:text-white">LOGS</button>
+        <button onclick="showTab('blacklist')" id="tab-blacklist" class="px-4 py-2 font-bold text-gray-400 hover:text-white">BLACKLIST</button>
       </div>
     </div>
 
@@ -1197,6 +1198,17 @@ app.get("/control", (req, res) => {
         <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
           <h2 class="text-xl font-bold mb-4">CURRENT PERMISSIONS</h2>
           <div id="permissionsList" class="space-y-2 max-h-96 overflow-y-auto"></div>
+        </div>
+      </div>
+    </div>
+
+        <!-- Blacklist Tab -->
+    <div id="content-blacklist" class="tab-content hidden">
+      <div class="grid grid-cols-2 gap-6">
+        <!-- Sol panel: Ekle -->
+        <div class="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <h2 class="text-xl font-bold mb-4">ADD TO BLACKLIST</h2>
+          ... (tüm blacklist HTML'i)
         </div>
       </div>
     </div>
@@ -1283,6 +1295,7 @@ app.get("/control", (req, res) => {
       document.getElementById('tab-' + tab).classList.remove('text-gray-400');
 
       if (tab === 'permissions') loadPermissions();
+      if (tab === 'blacklist') loadBlacklistUI();
     }
 
     // Chat functionality
@@ -1500,6 +1513,148 @@ app.get("/control", (req, res) => {
 
       reader.readAsText(file);
     }
+
+        // Blacklist management
+    async function loadBlacklistUI() {
+      try {
+        const res = await fetch('/api/blacklist');
+        const data = await res.json();
+        
+        document.getElementById('blacklistCount').textContent = data.total;
+        
+        const list = document.getElementById('blacklistList');
+        
+        if (data.total === 0) {
+          list.innerHTML = '<div class="text-gray-500 text-center py-8">No users in blacklist</div>';
+          return;
+        }
+
+        list.innerHTML = data.entries.map(entry => {
+          const date = new Date(entry.addedOn).toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric' 
+          });
+          
+          const timeAgo = getTimeAgo(entry.addedOn);
+          
+          return \`
+            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-red-500 transition-colors">
+              <div class="flex justify-between items-start mb-2">
+                <div>
+                  <div class="font-bold text-lg text-red-400">\${entry.username}</div>
+                  <div class="text-xs text-gray-400">\${timeAgo} • \${date}</div>
+                </div>
+                <button onclick="removeFromBlacklistUI('\${entry.username}')" 
+                  class="px-3 py-1 rounded bg-red-600 hover:bg-red-700 text-sm font-bold">
+                  Remove
+                </button>
+              </div>
+              
+              <div class="bg-gray-800 rounded p-3 mb-2">
+                <div class="text-sm text-gray-300">\${entry.reason}</div>
+              </div>
+              
+              <div class="flex items-center gap-2 text-xs text-gray-400">
+                <span>Added by:</span>
+                <span class="px-2 py-1 rounded bg-gray-600 font-medium">\${entry.addedBy}</span>
+              </div>
+            </div>
+          \`;
+        }).join('');
+        
+      } catch (err) {
+        console.error('Failed to load blacklist:', err);
+        alert('Failed to load blacklist: ' + err.message);
+      }
+    }
+
+    async function addToBlacklistUI() {
+      const username = document.getElementById('blacklistUser').value.trim();
+      const reason = document.getElementById('blacklistReason').value.trim();
+      const addedBy = document.getElementById('blacklistAddedBy').value.trim();
+
+      if (!username) {
+        alert('Please enter a username');
+        return;
+      }
+
+      if (!reason) {
+        alert('Please enter a reason');
+        return;
+      }
+
+      if (!addedBy) {
+        alert('Please enter your name (Added By)');
+        return;
+      }
+
+      if (!confirm(\`Add \${username} to blacklist?\\n\\nReason: \${reason}\`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/blacklist/add', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ username, reason, addedBy })
+        });
+
+        const data = await res.json();
+        
+        if (data.success) {
+          alert(\`✓ \${username} added to blacklist\`);
+          
+          document.getElementById('blacklistUser').value = '';
+          document.getElementById('blacklistReason').value = '';
+          
+          loadBlacklistUI();
+        } else {
+          alert('Error: ' + data.message);
+        }
+      } catch (err) {
+        alert('Failed to add to blacklist: ' + err.message);
+      }
+    }
+
+    async function removeFromBlacklistUI(username) {
+      if (!confirm(\`Remove \${username} from blacklist?\`)) {
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/blacklist/remove', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ username })
+        });
+
+        const data = await res.json();
+        alert(data.message);
+        
+        if (data.success) {
+          loadBlacklistUI();
+        }
+      } catch (err) {
+        alert('Failed to remove from blacklist: ' + err.message);
+      }
+    }
+
+    function getTimeAgo(timestamp) {
+      const now = Date.now();
+      const then = new Date(timestamp).getTime();
+      const diff = now - then;
+      
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor(diff / (1000 * 60));
+      
+      if (days > 0) return \`\${days} day\${days > 1 ? 's' : ''} ago\`;
+      if (hours > 0) return \`\${hours} hour\${hours > 1 ? 's' : ''} ago\`;
+      if (minutes > 0) return \`\${minutes} minute\${minutes > 1 ? 's' : ''} ago\`;
+      return 'just now';
+    }
+
   </script>
 </body>
 </html>`);
