@@ -62,7 +62,7 @@ const localBlacklist = new Map();
 const BLACKLIST_FILE = path.join(__dirname, "blacklist.json");
 
 function generateBlacklistID() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
   let id = '';
   for (let i = 0; i < 12; i++) {
     id += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -81,12 +81,9 @@ function loadBlacklist() {
     if (fs.existsSync(BLACKLIST_FILE)) {
       const data = JSON.parse(fs.readFileSync(BLACKLIST_FILE, 'utf8'));
       Object.entries(data).forEach(([username, entry]) => {
-        // 👇 BU SATIRLARI EKLE 👇
-        // Add ID if missing (backwards compatibility)
         if (!entry.id) {
           entry.id = generateBlacklistID();
         }
-        // 👆 BURAYA KADAR 👆
         localBlacklist.set(username.toLowerCase(), entry);
       });
       console.log(`✅ Loaded ${localBlacklist.size} blacklist entries`);
@@ -2705,7 +2702,7 @@ commandCount++;
   const date = new Date(entry.addedOn).toLocaleDateString('en-US');
   await safeChat(`⚠️ ${targetUser} is blacklisted`);
   await sleep(500);
-  await safeChat(`ID: ${entry.id} | Added: ${date}`);
+  await safeChat(`ID: #${entry.id} | Added: ${date}`);
   await sleep(500);
   await safeChat(`Reason: ${entry.reason.substring(0, 60)}`);
   await sleep(500);
