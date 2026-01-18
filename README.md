@@ -1,4 +1,4 @@
-# 🌟 RumoniumGC Bot v2.2.1 - Stellar Lumen Edition
+# 🌟 Rumonium Advanced Bot v2.2.1 - Stellar Lumen Edition
 
 <div align="center">
 
@@ -55,8 +55,8 @@
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/relaquent/rumoniumgc-bot.git
-cd rumoniumgc-bot
+git clone https://github.com/relaquent/rumoniumgc.git
+cd rumoniumgc
 ```
 
 2. **Install dependencies**
@@ -276,7 +276,7 @@ This project is licensed under the Apache License 2.0 - see the LICENSE file for
 
 ## 📞 Support
 
-- **Issues**: [GitHub Issues](https://github.com/relaquent/rumoniumgc-bot/issues)
+- **Issues**: [GitHub Issues](https://github.com/relaquent/rumoniumgc/issues)
 
 ---
 
