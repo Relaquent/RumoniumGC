@@ -1,3 +1,4 @@
+
 const express = require("express");
 const mineflayer = require("mineflayer");
 const axios = require("axios");
@@ -60,11 +61,32 @@ let botSettings = {
 const localBlacklist = new Map();
 const BLACKLIST_FILE = path.join(__dirname, "blacklist.json");
 
+function generateBlacklistID() {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let id = '';
+  for (let i = 0; i < 12; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  // Check if ID already exists
+  for (const entry of localBlacklist.values()) {
+    if (entry.id === id) {
+      return generateBlacklistID(); // Regenerate if duplicate
+    }
+  }
+  return id;
+}
+
 function loadBlacklist() {
   try {
     if (fs.existsSync(BLACKLIST_FILE)) {
       const data = JSON.parse(fs.readFileSync(BLACKLIST_FILE, 'utf8'));
       Object.entries(data).forEach(([username, entry]) => {
+        // 👇 BU SATIRLARI EKLE 👇
+        // Add ID if missing (backwards compatibility)
+        if (!entry.id) {
+          entry.id = generateBlacklistID();
+        }
+        // 👆 BURAYA KADAR 👆
         localBlacklist.set(username.toLowerCase(), entry);
       });
       console.log(`✅ Loaded ${localBlacklist.size} blacklist entries`);
@@ -85,6 +107,7 @@ function saveBlacklist() {
 }
 
 function addToBlacklist(username, reason, addedBy) {
+  const id = generateBlacklistID();
   const entry = {
     username: username,
     reason: reason,
@@ -863,6 +886,36 @@ app.post("/api/blacklist/remove", (req, res) => {
   }
 });
 
+app.post("/api/blacklist/update", (req, res) => {
+  const { username, reason, addedBy } = req.body;
+  
+  if (!username || !reason || !addedBy) {
+    return res.status(400).json({ success: false, message: 'Missing required fields' });
+  }
+  
+  try {
+    const entry = localBlacklist.get(username.toLowerCase());
+    
+    if (!entry) {
+      return res.status(404).json({ success: false, message: 'User not found in blacklist' });
+    }
+    
+    // Update entry
+    entry.reason = reason;
+    entry.addedBy = addedBy;
+    entry.lastModified = new Date().toISOString();
+    
+    localBlacklist.set(username.toLowerCase(), entry);
+    saveBlacklist();
+    
+    addLog('info', `Blacklist entry updated: ${username} (ID: ${entry.id})`);
+    
+    res.json({ success: true, entry });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 app.get("/api/blacklist", (req, res) => {
   const stats = getBlacklistStats();
   res.json(stats);
@@ -1349,8 +1402,8 @@ app.get("/control", (req, res) => {
           <div class="mt-6 bg-yellow-900/30 border border-yellow-700 rounded p-4">
             <div class="font-bold text-yellow-300 mb-2">⚠️ Important</div>
             <div class="text-sm text-gray-300">
-              Blacklisted users will be flagged when checked with !blacklist check command in-game.
-              Use this responsibly.
+              Blacklisted users will be flagged when checked with !b check or !blacklist check command in-game.
+              You can also use !b add and !b remove for short commands.
             </div>
           </div>
         </div>
@@ -1363,6 +1416,46 @@ app.get("/control", (req, res) => {
             </button>
           </div>
           <div id="blacklistList" class="space-y-2 max-h-[600px] overflow-y-auto"></div>
+        </div>
+      </div>
+    </div>
+
+        <!-- Edit Modal -->
+    <div id="editModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-gray-800 rounded-lg p-6 max-w-2xl w-full mx-4 border border-gray-700">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-2xl font-bold">Edit Blacklist Entry</h2>
+          <button onclick="closeEditModal()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+        </div>
+
+        <div class="flex gap-4 mb-4">
+          <img id="editPlayerHead" src="" alt="Player Head" class="w-16 h-16 rounded border-2 border-gray-600">
+          <div class="flex-1">
+            <div class="text-xl font-bold text-red-400" id="editPlayerName"></div>
+            <div class="text-xs text-gray-500 font-mono" id="editPlayerID"></div>
+            <div class="text-xs text-gray-400" id="editPlayerDate"></div>
+          </div>
+        </div>
+
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Reason</label>
+            <textarea id="editReason" class="w-full bg-gray-700 rounded px-4 py-2 border border-gray-600 h-24 resize-none"></textarea>
+          </div>
+
+          <div>
+            <label class="block text-sm text-gray-400 mb-2">Added By</label>
+            <input type="text" id="editAddedBy" class="w-full bg-gray-700 rounded px-4 py-2 border border-gray-600">
+          </div>
+
+          <div class="flex gap-2">
+            <button onclick="saveEdit()" class="flex-1 px-4 py-2 rounded bg-green-600 font-bold hover:bg-green-700">
+              💾 SAVE
+            </button>
+            <button onclick="closeEditModal()" class="flex-1 px-4 py-2 rounded bg-gray-600 font-bold hover:bg-gray-700">
+              CANCEL
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1669,7 +1762,7 @@ app.get("/control", (req, res) => {
       reader.readAsText(file);
     }
 
-        // Blacklist management
+// Blacklist management
     async function loadBlacklistUI() {
       try {
         const res = await fetch('/api/blacklist');
@@ -1697,32 +1790,53 @@ app.get("/control", (req, res) => {
             day: 'numeric' 
           });
           
+                  list.innerHTML = data.entries.map(entry => {
+          const date = new Date(entry.addedOn).toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric' 
+          });
+          
           const timeAgo = getTimeAgo(entry.addedOn);
+          const headUrl = \`https://mc-heads.net/avatar/${entry.username}/64\`;
           
           return \`
             <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-red-500 transition-colors">
-              <div class="flex justify-between items-start mb-2">
-                <div>
-                  <div class="font-bold text-lg text-red-400">\${entry.username}</div>
-                  <div class="text-xs text-gray-400">\${timeAgo} • \${date}</div>
+              <div class="flex gap-3 items-start mb-2">
+                <img src="${headUrl}" alt="${entry.username}" 
+                  class="w-12 h-12 rounded border-2 border-gray-600"
+                  onerror="this.src='https://mc-heads.net/avatar/Steve/64'">
+                
+                <div class="flex-1">
+                  <div class="font-bold text-lg text-red-400">${entry.username}</div>
+                  <div class="text-xs text-gray-500 font-mono">ID: ${entry.id || 'N/A'}</div>
+                  <div class="text-xs text-gray-400">${timeAgo} • ${date}</div>
                 </div>
-                <button onclick="removeFromBlacklistUI('\${entry.username}')" 
-                  class="px-3 py-1 rounded bg-red-600 hover:bg-red-700 text-sm font-bold">
-                  Remove
-                </button>
+
+                <div class="flex gap-2">
+                  <button onclick="editBlacklistEntry('${entry.username}')" 
+                    class="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-sm font-bold">
+                    ✏️ Edit
+                  </button>
+                  <button onclick="removeFromBlacklistUI('${entry.username}')" 
+                    class="px-3 py-1 rounded bg-red-600 hover:bg-red-700 text-sm font-bold">
+                    🗑️
+                  </button>
+                </div>
               </div>
               
               <div class="bg-gray-800 rounded p-3 mb-2">
-                <div class="text-sm text-gray-300">\${entry.reason}</div>
+                <div class="text-sm text-gray-300">${entry.reason}</div>
               </div>
               
               <div class="flex items-center gap-2 text-xs text-gray-400">
                 <span>Added by:</span>
-                <span class="px-2 py-1 rounded bg-gray-600 font-medium">\${entry.addedBy}</span>
+                <span class="px-2 py-1 rounded bg-gray-600 font-medium">${entry.addedBy}</span>
               </div>
             </div>
           \`;
         }).join('');
+
         
       } catch (err) {
         console.error('Failed to load blacklist:', err);
@@ -1815,6 +1929,95 @@ app.get("/control", (req, res) => {
       if (minutes > 0) return \`\${minutes} minute\${minutes > 1 ? 's' : ''} ago\`;
       return 'just now';
     }
+
+    let currentEditingUser = null;
+
+async function editBlacklistEntry(username) {
+  try {
+    const res = await fetch('/api/blacklist');
+    const data = await res.json();
+    const entry = data.entries.find(e => e.username.toLowerCase() === username.toLowerCase());
+    
+    if (!entry) {
+      alert('Entry not found!');
+      return;
+    }
+
+    currentEditingUser = username;
+    
+    document.getElementById('editPlayerHead').src = \`https://mc-heads.net/avatar/${entry.username}/64\`;
+    document.getElementById('editPlayerName').textContent = entry.username;
+    document.getElementById('editPlayerID').textContent = \`ID: ${entry.id || 'N/A'}\`;
+    
+    const date = new Date(entry.addedOn).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+    document.getElementById('editPlayerDate').textContent = \`Added: ${date}\`;
+    
+    document.getElementById('editReason').value = entry.reason;
+    document.getElementById('editAddedBy').value = entry.addedBy;
+    
+    document.getElementById('editModal').classList.remove('hidden');
+  } catch (err) {
+    alert('Failed to load entry: ' + err.message);
+  }
+}
+
+function closeEditModal() {
+  document.getElementById('editModal').classList.add('hidden');
+  currentEditingUser = null;
+}
+
+async function saveEdit() {
+  if (!currentEditingUser) return;
+
+  const reason = document.getElementById('editReason').value.trim();
+  const addedBy = document.getElementById('editAddedBy').value.trim();
+
+  if (!reason) {
+    alert('Reason cannot be empty!');
+    return;
+  }
+
+  if (!addedBy) {
+    alert('Added By cannot be empty!');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/blacklist/update', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        username: currentEditingUser,
+        reason: reason,
+        addedBy: addedBy
+      })
+    });
+
+    const data = await res.json();
+    
+    if (data.success) {
+      alert(\`✓ ${currentEditingUser} updated successfully!\`);
+      closeEditModal();
+      loadBlacklistUI();
+    } else {
+      alert('Error: ' + data.message);
+    }
+  } catch (err) {
+    alert('Failed to save changes: ' + err.message);
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeEditModal();
+  }
+});
 
         // Statistics management
     async function loadStatistics() {
@@ -2436,11 +2639,12 @@ commandCount++;
       }
     }
 
-    // === !blacklist ===
-    if (msg.toLowerCase().includes("!blacklist")) {
-      const matchAdd = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!blacklist\s+add\s+([A-Za-z0-9_]{1,16})\s+(.+)/i);
-      const matchRemove = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!blacklist\s+remove\s+([A-Za-z0-9_]{1,16})/i);
-      const matchCheck = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!blacklist\s+check\s+([A-Za-z0-9_]{1,16})/i);
+
+    // === !blacklist / !b ===
+    if (msg.toLowerCase().includes("!blacklist") || msg.toLowerCase().includes("!b ")) {
+      const matchAdd = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!(?:blacklist|b)\s+add\s+([A-Za-z0-9_]{1,16})\s+(.+)/i);
+      const matchRemove = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!(?:blacklist|b)\s+remove\s+([A-Za-z0-9_]{1,16})/i);
+      const matchCheck = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!(?:blacklist|b)\s+check\s+([A-Za-z0-9_]{1,16})/i);
       
       if (!matchAdd && !matchRemove && !matchCheck) return;
       
@@ -2462,7 +2666,7 @@ commandCount++;
           const entry = addToBlacklist(targetUser, reason, requester);
           await safeChat(`✓ ${targetUser} added to blacklist`);
           await sleep(500);
-          await safeChat(`Reason: ${reason.substring(0, 80)}`);
+          await safeChat(`ID: ${entry.id} | Reason: ${reason.substring(0, 60)}`);
           addLog('info', `${requester} added ${targetUser} to blacklist: ${reason}`);
           addActivity('blacklist', `${requester} added ${targetUser} to blacklist`, requester);
           incrementCommandStat('blacklist');
@@ -2506,12 +2710,14 @@ commandCount++;
           const entry = checkBlacklist(targetUser);
           
           if (entry) {
-            const date = new Date(entry.addedOn).toLocaleDateString('en-US');
-            await safeChat(`⚠️ ${targetUser} is blacklisted`);
-            await sleep(500);
-            await safeChat(`Reason: ${entry.reason.substring(0, 80)}`);
-            await sleep(500);
-            await safeChat(`Added by: ${entry.addedBy} on ${date}`);
+              const date = new Date(entry.addedOn).toLocaleDateString('en-US');
+              await safeChat(`⚠️ ${targetUser} is blacklisted`);
+              await sleep(500);
+              await safeChat(`ID: ${entry.id} | Added: ${date}`); // 👈 DEĞİŞTİ
+              await sleep(500);
+              await safeChat(`Reason: ${entry.reason.substring(0, 60)}`);
+              await sleep(500);
+              await safeChat(`Added by: ${entry.addedBy}`); // 👈 DEĞİŞTİ
             addLog('info', `${requester} checked blacklist for ${targetUser} - Found`);
           } else {
             await safeChat(`✓ ${targetUser} not in blacklist`);
