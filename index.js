@@ -109,6 +109,7 @@ function saveBlacklist() {
 function addToBlacklist(username, reason, addedBy) {
   const id = generateBlacklistID();
   const entry = {
+    id: id,
     username: username,
     reason: reason,
     addedBy: addedBy,
@@ -2701,16 +2702,16 @@ commandCount++;
           const entry = checkBlacklist(targetUser);
           
           if (entry) {
-              const date = new Date(entry.addedOn).toLocaleDateString('en-US');
-              await safeChat(`⚠️ ${targetUser} is blacklisted`);
-              await sleep(500);
-              await safeChat(`ID: ${entry.id} | Added: ${date}`); // 👈 DEĞİŞTİ
-              await sleep(500);
-              await safeChat(`Reason: ${entry.reason.substring(0, 60)}`);
-              await sleep(500);
-              await safeChat(`Added by: ${entry.addedBy}`); // 👈 DEĞİŞTİ
-            addLog('info', `${requester} checked blacklist for ${targetUser} - Found`);
-          } else {
+  const date = new Date(entry.addedOn).toLocaleDateString('en-US');
+  await safeChat(`⚠️ ${targetUser} is blacklisted`);
+  await sleep(500);
+  await safeChat(`ID: ${entry.id} | Added: ${date}`);
+  await sleep(500);
+  await safeChat(`Reason: ${entry.reason.substring(0, 60)}`);
+  await sleep(500);
+  await safeChat(`Added by: ${entry.addedBy}`);
+  addLog('info', `${requester} checked blacklist for ${targetUser} - Found`);
+} else {
             await safeChat(`✓ ${targetUser} not in blacklist`);
             addLog('info', `${requester} checked blacklist for ${targetUser} - Clean`);
           }
