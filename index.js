@@ -1,4 +1,3 @@
-
 const express = require("express");
 const mineflayer = require("mineflayer");
 const axios = require("axios");
@@ -2655,7 +2654,7 @@ commandCount++;
           const entry = addToBlacklist(targetUser, reason, requester);
           await safeChat(`✓ ${targetUser} added to blacklist`);
           await sleep(500);
-          await safeChat(`ID: ${entry.id} | Reason: ${reason.substring(0, 60)}`);
+          await safeChat(`ID: #${entry.id} | Reason: ${reason.substring(0, 60)}`);
           addLog('info', `${requester} added ${targetUser} to blacklist: ${reason}`);
           addActivity('blacklist', `${requester} added ${targetUser} to blacklist`, requester);
           incrementCommandStat('blacklist');
