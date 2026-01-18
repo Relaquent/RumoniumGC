@@ -1,6 +1,6 @@
-# Installation Guide - RumoniumGC Bot
+# Installation Guide - Rumonium Bot
 
-This guide will walk you through setting up RumoniumGC Bot from scratch.
+This guide will walk you through setting up Rumonium Bot from scratch.
 
 ## 📋 Prerequisites
 
@@ -9,10 +9,11 @@ This guide will walk you through setting up RumoniumGC Bot from scratch.
 - **NPM** (comes with Node.js)
 - **Minecraft Account** (Java Edition, owned on Microsoft account)
 - **Hypixel API Key** ([Get one](https://api.hypixel.net/))
-- **OpenAI API Key** ([Get one](https://platform.openai.com/api-keys))
+
 
 ### Optional
 - **Urchin API Key** for player reputation checking ([Request](https://urchin.ws/))
+- **OpenAI API Key** ([Get one](https://platform.openai.com/api-keys))
 - **Git** for cloning the repository
 
 ---
@@ -23,12 +24,12 @@ This guide will walk you through setting up RumoniumGC Bot from scratch.
 
 #### Option A: Using Git (Recommended)
 ```bash
-git clone https://github.com/yourusername/rumoniumgc-bot.git
+git clone https://github.com/relaquent/rumoniumgc.git
 cd rumoniumgc-bot
 ```
 
 #### Option B: Download ZIP
-1. Download the latest release from [Releases](https://github.com/yourusername/rumoniumgc-bot/releases)
+1. Download the latest release from [Releases](https://github.com/relaquent/rumoniumggc/releases)
 2. Extract the ZIP file
 3. Open terminal/command prompt in the extracted folder
 
@@ -50,9 +51,7 @@ This will install all required packages:
 ### Step 3: Get Your API Keys
 
 #### Hypixel API Key
-1. Log into Hypixel (mc.hypixel.net)
-2. Type `/api new` in chat
-3. Copy the key (format: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
+1. Request your Hypixel API key from their developer website.
 
 #### OpenAI API Key
 1. Go to [OpenAI Platform](https://platform.openai.com/)
@@ -76,7 +75,7 @@ Create a file named `.env` in the root directory:
 # Required - Hypixel API
 HYPIXEL_API_KEY=your_hypixel_api_key_here
 
-# Required - OpenAI API
+# Optional - OpenAI API
 OPENAI_API_KEY=sk-your_openai_key_here
 
 # Optional - Urchin API (for !view command)
@@ -328,7 +327,7 @@ The bot creates these files automatically:
 
 If you're still having issues:
 
-1. Check [GitHub Issues](https://github.com/yourusername/rumoniumgc-bot/issues)
+1. Check [GitHub Issues](https://github.com/relaquent/rumoniumgc/issues)
 2. Search for similar problems
 3. Create a new issue with:
    - Your OS and Node.js version
