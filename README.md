@@ -282,8 +282,6 @@ This project is licensed under the Apache License 2.0 - see the LICENSE file for
 
 <div align="center">
 
-**Made with ❤️ for the Minecraft community**
-
 If you find this bot useful, please consider giving it a ⭐ on GitHub!
 
 </div>
@@ -294,7 +292,5 @@ If you find this bot useful, please consider giving it a ⭐ on GitHub!
 
 This release includes:
 - `README.md` - This file
-- `CHANGELOG.md` - Version history
 - `INSTALL.md` - Detailed installation guide
-- `.env.example` - Environment variables template
 - `LICENSE` - Apache 2.0 License
