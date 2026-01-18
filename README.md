@@ -4,7 +4,7 @@
 
 ![Version](https://img.shields.io/badge/version-2.3.0-blue.svg)
 ![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
+![License](https://img.shields.io/badge/license-Apache-green.svg)
 
 **A powerful, feature-rich Minecraft guild bot for Hypixel with AI integration, advanced statistics tracking, and comprehensive management tools.**
 
