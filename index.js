@@ -1921,7 +1921,7 @@ async function loadBlacklistUI() {
       return 'just now';
     }
 
-    let currentEditingUser = null;
+let currentEditingUser = null;
 
 async function editBlacklistEntry(username) {
   try {
@@ -1936,9 +1936,9 @@ async function editBlacklistEntry(username) {
 
     currentEditingUser = username;
     
-    document.getElementById('editPlayerHead').src = \`https://mc-heads.net/avatar/${entry.username}/64\`;
+    document.getElementById('editPlayerHead').src = 'https://mc-heads.net/avatar/' + entry.username + '/64';
     document.getElementById('editPlayerName').textContent = entry.username;
-    document.getElementById('editPlayerID').textContent = \`ID: ${entry.id || 'N/A'}\`;
+    document.getElementById('editPlayerID').textContent = 'ID: ' + (entry.id || 'N/A');
     
     const date = new Date(entry.addedOn).toLocaleDateString('en-US', { 
       year: 'numeric', 
@@ -1947,7 +1947,7 @@ async function editBlacklistEntry(username) {
       hour: '2-digit',
       minute: '2-digit'
     });
-    document.getElementById('editPlayerDate').textContent = \`Added: ${date}\`;
+    document.getElementById('editPlayerDate').textContent = 'Added: ' + date;
     
     document.getElementById('editReason').value = entry.reason;
     document.getElementById('editAddedBy').value = entry.addedBy;
@@ -1993,7 +1993,7 @@ async function saveEdit() {
     const data = await res.json();
     
     if (data.success) {
-      alert(\`✓ ${currentEditingUser} updated successfully!\`);
+      alert('✓ ' + currentEditingUser + ' updated successfully!');
       closeEditModal();
       loadBlacklistUI();
     } else {
