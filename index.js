@@ -137,7 +137,7 @@ function checkBlacklist(username) {
 function getBlacklistStats() {
   return {
     total: localBlacklist.size,
-    entries: Array.from(localBlacklist.values())
+    entries: Array.from(localBlacklist.values()).sort((a, b) => b.timestamp - a.timestamp)
   };
 }
 const commandPermissions = new Map();
@@ -1762,87 +1762,78 @@ app.get("/control", (req, res) => {
       reader.readAsText(file);
     }
 
-// Blacklist management
-    async function loadBlacklistUI() {
-      try {
-        const res = await fetch('/api/blacklist');
-        const data = await res.json();
-        
-        document.getElementById('blacklistCount').textContent = data.total;
-        
-        // Update statistics tab counter too
-        const blacklistCount2 = document.getElementById('blacklistCount2');
-        if (blacklistCount2) {
-          blacklistCount2.textContent = data.total;
-        }
-        
-        const list = document.getElementById('blacklistList');
-        
-        if (data.total === 0) {
-          list.innerHTML = '<div class="text-gray-500 text-center py-8">No users in blacklist</div>';
-          return;
-        }
-
-        list.innerHTML = data.entries.map(entry => {
-          const date = new Date(entry.addedOn).toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric' 
-          });
-          
-                  list.innerHTML = data.entries.map(entry => {
-          const date = new Date(entry.addedOn).toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'short', 
-            day: 'numeric' 
-          });
-          
-          const timeAgo = getTimeAgo(entry.addedOn);
-          const headUrl = \`https://mc-heads.net/avatar/${entry.username}/64\`;
-          
-          return \`
-            <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-red-500 transition-colors">
-              <div class="flex gap-3 items-start mb-2">
-                <img src="${headUrl}" alt="${entry.username}" 
-                  class="w-12 h-12 rounded border-2 border-gray-600"
-                  onerror="this.src='https://mc-heads.net/avatar/Steve/64'">
-                
-                <div class="flex-1">
-                  <div class="font-bold text-lg text-red-400">${entry.username}</div>
-                  <div class="text-xs text-gray-500 font-mono">ID: ${entry.id || 'N/A'}</div>
-                  <div class="text-xs text-gray-400">${timeAgo} • ${date}</div>
-                </div>
-
-                <div class="flex gap-2">
-                  <button onclick="editBlacklistEntry('${entry.username}')" 
-                    class="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-sm font-bold">
-                    ✏️ Edit
-                  </button>
-                  <button onclick="removeFromBlacklistUI('${entry.username}')" 
-                    class="px-3 py-1 rounded bg-red-600 hover:bg-red-700 text-sm font-bold">
-                    🗑️
-                  </button>
-                </div>
-              </div>
-              
-              <div class="bg-gray-800 rounded p-3 mb-2">
-                <div class="text-sm text-gray-300">${entry.reason}</div>
-              </div>
-              
-              <div class="flex items-center gap-2 text-xs text-gray-400">
-                <span>Added by:</span>
-                <span class="px-2 py-1 rounded bg-gray-600 font-medium">${entry.addedBy}</span>
-              </div>
-            </div>
-          \`;
-        }).join('');
-
-        
-      } catch (err) {
-        console.error('Failed to load blacklist:', err);
-        alert('Failed to load blacklist: ' + err.message);
-      }
+async function loadBlacklistUI() {
+  try {
+    const res = await fetch('/api/blacklist');
+    const data = await res.json();
+    
+    document.getElementById('blacklistCount').textContent = data.total;
+    
+    // Update statistics tab counter too
+    const blacklistCount2 = document.getElementById('blacklistCount2');
+    if (blacklistCount2) {
+      blacklistCount2.textContent = data.total;
     }
+    
+    const list = document.getElementById('blacklistList');
+    
+    if (data.total === 0) {
+      list.innerHTML = '<div class="text-gray-500 text-center py-8">No users in blacklist</div>';
+      return;
+    }
+
+    list.innerHTML = data.entries.map(entry => {
+      const date = new Date(entry.addedOn).toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric' 
+      });
+      
+      const timeAgo = getTimeAgo(entry.addedOn);
+      const headUrl = \`https://mc-heads.net/avatar/\${entry.username}/64\`;
+      
+      return \`
+        <div class="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-red-500 transition-colors">
+          <div class="flex gap-3 items-start mb-2">
+            <img src="\${headUrl}" alt="\${entry.username}" 
+              class="w-12 h-12 rounded border-2 border-gray-600"
+              onerror="this.src='https://mc-heads.net/avatar/Steve/64'">
+            
+            <div class="flex-1">
+              <div class="font-bold text-lg text-red-400">\${entry.username}</div>
+              <div class="text-xs text-gray-500 font-mono">ID: \${entry.id || 'N/A'}</div>
+              <div class="text-xs text-gray-400">\${timeAgo} • \${date}</div>
+            </div>
+
+            <div class="flex gap-2">
+              <button onclick="editBlacklistEntry('\${entry.username}')" 
+                class="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-sm font-bold">
+                ✏️ Edit
+              </button>
+              <button onclick="removeFromBlacklistUI('\${entry.username}')" 
+                class="px-3 py-1 rounded bg-red-600 hover:bg-red-700 text-sm font-bold">
+                🗑️
+              </button>
+            </div>
+          </div>
+          
+          <div class="bg-gray-800 rounded p-3 mb-2">
+            <div class="text-sm text-gray-300">\${entry.reason}</div>
+          </div>
+          
+          <div class="flex items-center gap-2 text-xs text-gray-400">
+            <span>Added by:</span>
+            <span class="px-2 py-1 rounded bg-gray-600 font-medium">\${entry.addedBy}</span>
+          </div>
+        </div>
+      \`;
+    }).join('');
+
+  } catch (err) {
+    console.error('Failed to load blacklist:', err);
+    alert('Failed to load blacklist: ' + err.message);
+  }
+}
 
     async function addToBlacklistUI() {
       const username = document.getElementById('blacklistUser').value.trim();
