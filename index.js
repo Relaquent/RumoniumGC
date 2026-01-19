@@ -37,7 +37,7 @@ if (!process.env.AURORA_API_KEY) {
   process.exit(1);
 }
 const AURORA_API_KEY = process.env.AURORA_API_KEY;
-const AURORA_API_BASE = "https://aqrctic.xyz/api/v2/resources/ping";
+const AURORA_API_BASE = "https://bordic.xyz/api/v2/resources/ping";
 
 // === Urchin API Setup (FIXED) ===
 const URCHIN_ENABLED = !!process.env.URCHIN_API_KEY;
@@ -363,7 +363,7 @@ async function getPlayerPing(ign) {
         const timeAgo = getTimeAgo(timestamp);
         
         return {
-          ping: latest.ping,
+          ping: latest.avg,  // avg kullanıyoruz
           max: latest.max,
           min: latest.min,
           timestamp: timeAgo
@@ -2952,3 +2952,4 @@ setInterval(async () => {
 }, 6 * 60 * 60 * 1000);
 
 createBot();
+
