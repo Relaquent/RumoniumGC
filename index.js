@@ -31,6 +31,14 @@ if (!process.env.OPENAI_API_KEY) {
 }
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// === Aurora API Setup ===
+if (!process.env.AURORA_API_KEY) {
+  console.error("❌ AURORA_API_KEY not found.");
+  process.exit(1);
+}
+const AURORA_API_KEY = process.env.AURORA_API_KEY;
+const AURORA_API_BASE = "https://aqrctic.xyz/api/v2/resources/ping";
+
 // === Urchin API Setup (FIXED) ===
 const URCHIN_ENABLED = !!process.env.URCHIN_API_KEY;
 const URCHIN_API_KEY = process.env.URCHIN_API_KEY || null;
@@ -159,7 +167,7 @@ const PERMISSIONS_FILE = path.join(__dirname, "command_permissions.json");
 
 const AVAILABLE_COMMANDS = [
   'bw', 'gexp', 'stats', 'when', 'ask', 'about', 'help',
-  'fkdr', 'nfkdr', 'view', 'blacklist'
+  'fkdr', 'nfkdr', 'view', 'blacklist', 'ping'
 ];
 
 function loadCommandPermissions() {
@@ -322,6 +330,56 @@ if (!process.env.HYPIXEL_API_KEY) {
 const HYPIXEL_API_KEY = process.env.HYPIXEL_API_KEY;
 const HYPIXEL_HOST = "mc.hypixel.net";
 const MC_VERSION = "1.8.9";
+
+// === Aurora API - Get Player Ping ===
+async function getPlayerPing(ign) {
+  try {
+    // First get player UUID
+    const playerData = await getPlayerUUID(ign);
+    const uuid = playerData.uuid;
+    
+    // Then fetch ping data from Aurora API
+    const url = `${AURORA_API_BASE}?key=${AURORA_API_KEY}&uuid=${uuid}`;
+    
+    console.log(`[Aurora] Checking ping for: ${ign}`);
+    
+    const response = await axios.get(url, {
+      timeout: 10000,
+      headers: {
+        'Accept': 'application/json',
+        'User-Agent': 'RumoniumGC-Bot/2.2'
+      }
+    });
+
+    console.log(`[Aurora] Response: ${response.status}`);
+    
+    if (response.status === 200 && response.data?.success && response.data?.data) {
+      const pingData = response.data.data;
+      
+      // Get the most recent ping
+      if (pingData.length > 0) {
+        const latest = pingData[0];
+        const timestamp = new Date(latest.timestamp);
+        const timeAgo = getTimeAgo(timestamp);
+        
+        return {
+          ping: latest.ping,
+          max: latest.max,
+          min: latest.min,
+          timestamp: timeAgo
+        };
+      } else {
+        throw new Error('No ping data available');
+      }
+    }
+    
+    throw new Error('Invalid API response');
+    
+  } catch (err) {
+    console.error('[Aurora] Error:', err.message);
+    throw err;
+  }
+}
 
 function ratio(num, den) {
   const n = Number(num) || 0;
@@ -2488,6 +2546,7 @@ commandCount++;
         "stats <player> - Detailed stats",
         "when - Next Castle",
         "ask <message> - Ask AI",
+        "ping <player> - Check player ping",
         URCHIN_ENABLED ? "view <player> - Status check" : null,
         "fkdr start - Start tracking",
         "fkdr - View progress",
@@ -2736,6 +2795,39 @@ commandCount++;
       }
     }
 
+    // === !ping ===
+    if (msg.toLowerCase().includes("!ping")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!ping\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+      const [, requester, ign] = match;
+      
+      if (!hasCommandPermission(requester, 'ping')) {
+        await safeChat(`${requester}, you don't have permission to use !ping`);
+        addLog('warning', `${requester} tried to use !ping but was blocked`);
+        return;
+      }
+      
+      commandCount++;
+      incrementCommandStat('ping');
+      incrementUserStat(requester);
+      addActivity('command', `${requester} checked ping for ${ign}`, requester);
+      
+      try {
+        await safeChat(`Checking ${ign}'s ping...`);
+        const pingData = await getPlayerPing(ign);
+        
+        await safeChat(`${ign} | Ping: ${pingData.ping}ms | Min: ${pingData.min}ms | Max: ${pingData.max}ms`);
+        await sleep(500);
+        await safeChat(`Last measured: ${pingData.timestamp}`);
+        
+        addLog('info', `${requester} checked ping for ${ign}: ${pingData.ping}ms`);
+      } catch (err) {
+        await safeChat(`Error checking ping: ${err.message}`);
+        addLog('error', `Ping check failed for ${ign}: ${err.message}`);
+      }
+      return;
+    }
+
     // === !nfkdr ===
     if (msg.toLowerCase().includes("!nfkdr")) {
       const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!nfkdr(?:\s+([A-Za-z0-9_]{1,16}))?/i);
@@ -2860,4 +2952,3 @@ setInterval(async () => {
 }, 6 * 60 * 60 * 1000);
 
 createBot();
-
