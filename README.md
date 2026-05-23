@@ -1,8 +1,8 @@
-# 🌟 Rumonium Advanced Bot v2.2.1 - Stellar Lumen Edition
+# 🌟 Rumonium Advanced Bot v2.3
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-2.2.1-blue.svg)
+![Version](https://img.shields.io/badge/version-2.3-blue.svg)
 ![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache-green.svg)
 
