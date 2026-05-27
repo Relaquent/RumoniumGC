@@ -444,6 +444,50 @@ async function updateFkdrSnapshot(username) {
   return tracking;
 }
 
+function parseActivityScore(player) {
+  const bw = player?.stats?.Bedwars || {};
+  const sw = player?.stats?.SkyWars || {};
+  const duels = player?.stats?.Duels || {};
+  const uhc = player?.stats?.UHC || {};
+  const mm = player?.stats?.MurderMystery || {};
+  const bb = player?.stats?.BuildBattle || {};
+  const arcade = player?.stats?.Arcade || {};
+  const walls = player?.stats?.Walls || {};
+  const paintball = player?.stats?.Paintball_PVP || {};
+  const cw = player?.stats?.CrazyWalls || {};
+  const speed = player?.stats?.SpeedUHC || {};
+  const smash = player?.stats?.SuperSmash || {};
+  const tnt = player?.stats?.TNTGames || {};
+  const blitz = player?.stats?.HungerGames || {};
+  const pit = player?.stats?.Pit?.profile || {};
+
+  const sum = (...nums) => nums.reduce((a, b) => a + (Number(b) || 0), 0);
+
+  return {
+    bedwars:      sum(bw.kills_bedwars, bw.deaths_bedwars, bw.wins_bedwars, bw.losses_bedwars, bw.games_played_bedwars),
+    skywars:      sum(sw.kills, sw.deaths, sw.wins, sw.losses, sw.games),
+    duels:        sum(duels.kills, duels.deaths, duels.wins, duels.losses, duels.games_played_duels),
+    uhc:          sum(uhc.kills, uhc.deaths, uhc.wins, uhc.losses, uhc.games),
+    murdermystery:sum(mm.kills, mm.deaths, mm.wins, mm.games),
+    buildbattle:  sum(bb.wins, bb.games_played, bb.score),
+    arcade:       sum(arcade.wins, arcade.coins),
+    walls:        sum(walls.kills, walls.deaths, walls.wins, walls.losses),
+    speeduhc:     sum(speed.kills, speed.deaths, speed.wins, speed.losses),
+    smash:        sum(smash.kills, smash.deaths, smash.wins, smash.losses, smash.games),
+    tnt:          sum(tnt.wins_tntrun, tnt.record_tntrun, tnt.wins_pvprun, tnt.wins_bowspleef, tnt.wins_capture),
+    blitz:        sum(blitz.kills, blitz.deaths, blitz.wins),
+    pit:          sum(pit.kills, pit.deaths, pit.cash_earned),
+    total:        0
+  };
+}
+
+function calcTotalActivity(scores) {
+  scores.total = Object.entries(scores)
+    .filter(([k]) => k !== 'total')
+    .reduce((a, [, v]) => a + v, 0);
+  return scores;
+}
+
 function calculateFkdrProgress(tracking) {
   if (!tracking || tracking.snapshots.length < 2) return null;
 
@@ -485,6 +529,124 @@ function stopFkdrTracking(username) {
   if (fkdrTracking.has(username.toLowerCase())) {
     fkdrTracking.delete(username.toLowerCase());
     saveFkdrTracking();
+    return true;
+  }
+  return false;
+}
+
+// === Activity Tracking System ===
+const activityTracking = new Map();
+const ACTIVITY_TRACKING_FILE = path.join(__dirname, "activity_tracking.json");
+
+function loadActivityTracking() {
+  try {
+    if (fs.existsSync(ACTIVITY_TRACKING_FILE)) {
+      const data = JSON.parse(fs.readFileSync(ACTIVITY_TRACKING_FILE, 'utf8'));
+      Object.entries(data).forEach(([username, tracking]) => {
+        activityTracking.set(username.toLowerCase(), tracking);
+      });
+      console.log(`✅ Loaded activity tracking for ${activityTracking.size} players`);
+    }
+  } catch (err) {
+    console.error('❌ Failed to load activity tracking:', err.message);
+  }
+}
+
+function saveActivityTracking() {
+  try {
+    const data = Object.fromEntries(activityTracking);
+    fs.writeFileSync(ACTIVITY_TRACKING_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.error('❌ Failed to save activity tracking:', err.message);
+  }
+}
+
+async function startActivityTracking(username) {
+  const playerData = await getPlayerUUID(username);
+  const scores = calcTotalActivity(parseActivityScore(playerData.fullData));
+  const now = new Date();
+  const tracking = {
+    username,
+    uuid: playerData.uuid,
+    startDate: now.toISOString(),
+    snapshots: [{
+      timestamp: now.toISOString(),
+      scores
+    }]
+  };
+  activityTracking.set(username.toLowerCase(), tracking);
+  saveActivityTracking();
+  return tracking;
+}
+
+async function updateActivitySnapshot(username) {
+  const tracking = activityTracking.get(username.toLowerCase());
+  if (!tracking) return null;
+  // Force fresh data - bypass cache for activity checks
+  const url = `https://api.hypixel.net/v2/player?key=${HYPIXEL_API_KEY}&name=${encodeURIComponent(username)}`;
+  const { data } = await axios.get(url, { timeout: 10000 });
+  if (!data?.success || !data?.player) throw new Error("Player not found");
+  const scores = calcTotalActivity(parseActivityScore(data.player));
+  const now = new Date();
+  tracking.snapshots.push({
+    timestamp: now.toISOString(),
+    scores
+  });
+  // Keep last 90 days
+  const ninetyDaysAgo = now.getTime() - (90 * 24 * 60 * 60 * 1000);
+  tracking.snapshots = tracking.snapshots.filter(s =>
+    new Date(s.timestamp).getTime() > ninetyDaysAgo
+  );
+  activityTracking.set(username.toLowerCase(), tracking);
+  saveActivityTracking();
+  return tracking;
+}
+
+function detectActivityFromSnapshots(tracking) {
+  if (!tracking || tracking.snapshots.length < 2) return null;
+  const snapshots = tracking.snapshots;
+  const latest = snapshots[snapshots.length - 1];
+
+  // Find the most recent snapshot where something changed
+  let lastActiveSnapshot = null;
+  let lastActiveGame = null;
+  for (let i = snapshots.length - 2; i >= 0; i--) {
+    const prev = snapshots[i];
+    const games = Object.keys(latest.scores).filter(k => k !== 'total');
+    for (const game of games) {
+      if ((latest.scores[game] || 0) > (prev.scores[game] || 0)) {
+        if (!lastActiveSnapshot || new Date(prev.timestamp) > new Date(lastActiveSnapshot.timestamp)) {
+          lastActiveSnapshot = prev;
+          lastActiveGame = game;
+        }
+      }
+    }
+    if (lastActiveSnapshot) break;
+  }
+
+  if (!lastActiveSnapshot) return { active: false, lastSeen: null, game: null };
+
+  // Find the first snapshot AFTER the change to narrow the window
+  const changeIdx = snapshots.indexOf(lastActiveSnapshot);
+  const afterChange = snapshots[changeIdx + 1];
+
+  return {
+    active: true,
+    // Activity happened between lastActiveSnapshot and afterChange
+    windowStart: lastActiveSnapshot.timestamp,
+    windowEnd: afterChange ? afterChange.timestamp : latest.timestamp,
+    game: lastActiveGame,
+    // Calculate time ago from midpoint of window for best estimate
+    windowStartAgo: getTimeAgo(new Date(lastActiveSnapshot.timestamp)),
+    windowEndAgo: afterChange ? getTimeAgo(new Date(afterChange.timestamp)) : 'now',
+    totalChange: latest.scores.total - snapshots[0].scores.total
+  };
+}
+
+function stopActivityTracking(username) {
+  if (activityTracking.has(username.toLowerCase())) {
+    activityTracking.delete(username.toLowerCase());
+    saveActivityTracking();
     return true;
   }
   return false;
@@ -703,6 +865,23 @@ app.get("/api/settings", (req, res) => res.json(botSettings));
 app.post("/api/settings", (req, res) => {
   botSettings = { ...botSettings, ...req.body };
   res.json({ success: true });
+});
+
+app.get("/api/activity-tracking", (req, res) => {
+  const tracking = Array.from(activityTracking.entries()).map(([username, data]) => ({
+    username, ...data, detection: detectActivityFromSnapshots(data)
+  }));
+  res.json({ tracking, count: tracking.length });
+});
+
+app.post("/api/activity-tracking/remove", (req, res) => {
+  const { username } = req.body;
+  if (activityTracking.has(username?.toLowerCase())) {
+    stopActivityTracking(username);
+    res.json({ success: true, message: `Activity tracking removed for ${username}` });
+  } else {
+    res.status(404).json({ success: false, message: 'User not found' });
+  }
 });
 
 app.get("/api/gpt-prompt", (req, res) => res.json({ prompt: gptSystemPrompt }));
@@ -2379,6 +2558,7 @@ server.listen(PORT, async () => {
   console.log(`🌐 Server running on port ${PORT}`);
   loadCommandPermissions();
   loadFkdrTracking();
+  loadActivityTracking();
   loadBlacklist();
   if (URCHIN_ENABLED) await testUrchinConnection();
 });
@@ -2912,6 +3092,81 @@ function createBot() {
     }
   });
 
+  // === !activity ===
+    if (msg.toLowerCase().includes("!activity")) {
+      const matchStart = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!activity\s+start\s+([A-Za-z0-9_]{1,16})/i);
+      const matchStop  = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!activity\s+stop\s+([A-Za-z0-9_]{1,16})/i);
+      const matchCheck = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!activity\s+([A-Za-z0-9_]{1,16})$/i);
+
+      if (!matchStart && !matchStop && !matchCheck) return;
+      const requester = (matchStart || matchStop || matchCheck)[1];
+
+      if (matchStart) {
+        const targetIgn = matchStart[2];
+        try {
+          if (activityTracking.has(targetIgn.toLowerCase())) {
+            await safeChat(`${targetIgn} is already being tracked!`);
+            return;
+          }
+          await safeChat(`Starting activity tracking for ${targetIgn}...`);
+          await startActivityTracking(targetIgn);
+          await safeChat(`✓ Now tracking ${targetIgn} | Snapshots every 6h | Use !activity ${targetIgn} to check`);
+          addLog('success', `Activity tracking started for ${targetIgn} by ${requester}`);
+        } catch (err) {
+          await safeChat(`Error: ${err.message}`);
+        }
+        return;
+      }
+
+      if (matchStop) {
+        const targetIgn = matchStop[2];
+        const stopped = stopActivityTracking(targetIgn);
+        await safeChat(stopped
+          ? `✓ Activity tracking stopped for ${targetIgn}`
+          : `${targetIgn} is not being tracked`
+        );
+        return;
+      }
+
+      if (matchCheck) {
+        const targetIgn = matchCheck[2];
+        try {
+          if (!activityTracking.has(targetIgn.toLowerCase())) {
+            await safeChat(`${targetIgn} is not tracked. Use !activity start ${targetIgn} first`);
+            return;
+          }
+          await safeChat(`Updating snapshot for ${targetIgn}...`);
+          const tracking = await updateActivitySnapshot(targetIgn);
+          const detection = detectActivityFromSnapshots(tracking);
+
+          if (!detection) {
+            await safeChat(`${targetIgn} | Not enough data yet, check back later`);
+            return;
+          }
+
+          if (!detection.active) {
+            await safeChat(`${targetIgn} | No game activity detected since tracking started`);
+            return;
+          }
+
+          const gameNames = {
+            bedwars: 'BedWars', skywars: 'SkyWars', duels: 'Duels',
+            uhc: 'UHC', murdermystery: 'Murder Mystery', buildbattle: 'Build Battle',
+            arcade: 'Arcade', walls: 'Walls', speeduhc: 'Speed UHC',
+            smash: 'Smash Heroes', tnt: 'TNT Games', blitz: 'Blitz SG', pit: 'The Pit'
+          };
+          const gameName = gameNames[detection.game] || detection.game;
+
+          await safeChat(`${targetIgn} | 🟡 Last seen: ${detection.windowStartAgo} - ${detection.windowEndAgo}`);
+          await sleep(500);
+          await safeChat(`Game: ${gameName} | Total activity score change: +${detection.totalChange}`);
+        } catch (err) {
+          await safeChat(`Error: ${err.message}`);
+        }
+        return;
+      }
+    }
+
   // BUG FIX: kicked and end events now both call scheduleReconnect()
   // instead of direct setTimeout(createBot) to prevent duplicate instances
   bot.on("kicked", (reason) => {
@@ -2993,6 +3248,24 @@ setInterval(async () => {
   }
   console.log(`✅ Updated ${updated} FKDR snapshots`);
   addLog('info', `Updated ${updated} FKDR snapshots`);
+}, 6 * 60 * 60 * 1000);
+
+// Update Activity snapshots every 6 hours
+setInterval(async () => {
+  if (activityTracking.size === 0) return;
+  console.log('👁️ Updating Activity snapshots...');
+  let updated = 0;
+  for (const [username] of activityTracking.entries()) {
+    try {
+      await updateActivitySnapshot(username);
+      updated++;
+      await sleep(3000);
+    } catch (err) {
+      console.error(`Failed to update activity for ${username}:`, err.message);
+    }
+  }
+  console.log(`✅ Updated ${updated} activity snapshots`);
+  addLog('info', `Updated ${updated} activity snapshots`);
 }, 6 * 60 * 60 * 1000);
 
 createBot();
