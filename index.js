@@ -3090,9 +3090,8 @@ function createBot() {
       }
       return;
     }
-  });
 
-  // === !activity ===
+      // === !activity ===
     if (msg.toLowerCase().includes("!activity")) {
       const matchStart = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!activity\s+start\s+([A-Za-z0-9_]{1,16})/i);
       const matchStop  = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!activity\s+stop\s+([A-Za-z0-9_]{1,16})/i);
@@ -3165,7 +3164,8 @@ function createBot() {
         }
         return;
       }
-    }
+    }  
+  });
 
   // BUG FIX: kicked and end events now both call scheduleReconnect()
   // instead of direct setTimeout(createBot) to prevent duplicate instances
