@@ -163,7 +163,7 @@ const PERMISSIONS_FILE = path.join(__dirname, "command_permissions.json");
 
 const AVAILABLE_COMMANDS = [
   'bw', 'gexp', 'stats', 'when', 'ask', 'about', 'help',
-  'fkdr', 'nfkdr', 'view', 'blacklist', 'ping'
+  'fkdr', 'nfkdr', 'view', 'blacklist', 'ping', 'online'
 ];
 
 function loadCommandPermissions() {
@@ -351,6 +351,25 @@ function ratio(num, den) {
   const d = Number(den) || 0;
   if (d === 0) return n > 0 ? "inf" : "0.00";
   return (n / d).toFixed(2);
+}
+
+// === Hypixel API - Check Player Online Status ===
+async function getPlayerOnlineStatus(ign) {
+  const playerData = await getPlayerUUID(ign);
+  const player = playerData.fullData;
+
+  const isOnline = player?.lastLogin && player?.lastLogout
+    ? player.lastLogin > player.lastLogout
+    : false;
+
+  const lastLoginTs = player?.lastLogin;
+  const lastLogoutTs = player?.lastLogout;
+
+  return {
+    online: isOnline,
+    lastLogin: lastLoginTs ? getTimeAgo(new Date(lastLoginTs)) : 'Unknown',
+    lastLogout: lastLogoutTs ? getTimeAgo(new Date(lastLogoutTs)) : 'Unknown',
+  };
 }
 
 // === FKDR Tracking System ===
@@ -2827,6 +2846,35 @@ function createBot() {
         await safeChat(`Last measured: ${pingData.timestamp}`);
       } catch (err) {
         await safeChat(`Error checking ping: ${err.message}`);
+      }
+      return;
+    }
+
+    // === !online ===
+    if (msg.toLowerCase().includes("!online")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!online\s+([A-Za-z0-9_]{1,16})/i);
+      if (!match) return;
+      const [, requester, ign] = match;
+      if (!hasCommandPermission(requester, 'online')) {
+        await safeChat(`${requester}, you don't have permission to use !online`);
+        return;
+      }
+      commandCount++; incrementCommandStat('online'); incrementUserStat(requester);
+      addActivity('command', `${requester} checked online status for ${ign}`, requester);
+      try {
+        await safeChat(`Checking ${ign}'s status...`);
+        const status = await getPlayerOnlineStatus(ign);
+        if (status.online) {
+          await safeChat(`${ign} | 🟢 ONLINE | Last login: ${status.lastLogin}`);
+        } else {
+          if (status.lastLogout === 'Unknown') {
+            await safeChat(`${ign} | ❓ Status hidden (privacy mode)`);
+          } else {
+            await safeChat(`${ign} | 🔴 OFFLINE | Last seen: ${status.lastLogout}`);
+          }
+        }
+      } catch (err) {
+        await safeChat(`Error checking status: ${err.message}`);
       }
       return;
     }
