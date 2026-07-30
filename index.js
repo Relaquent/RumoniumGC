@@ -45,6 +45,11 @@ const URCHIN_API_KEY = process.env.URCHIN_API_KEY || null;
 const URCHIN_API_BASE = "https://urchin.ws";
 let WORKING_URCHIN_URL = null;
 
+// === Urchin Admin (Tag) Setup ===
+const URCHIN_ADMIN_API_KEY = process.env.URCHIN_ADMIN_API_KEY || URCHIN_API_KEY;
+const TAG_ADMINS = ["relaquent"]; // sadece buradakiler !tag kullanabilir, küçük harf
+const URCHIN_TAG_TYPES = ["account","info","caution","possible_sniper","sniper","legit_sniper","closet_cheater","blatant_cheater","confirmed_cheater"];
+
 // === Express + Socket.IO ===
 const app = express();
 const server = http.createServer(app);
@@ -163,7 +168,7 @@ const PERMISSIONS_FILE = path.join(__dirname, "command_permissions.json");
 
 const AVAILABLE_COMMANDS = [
   'bw', 'gexp', 'stats', 'when', 'ask', 'about', 'help',
-  'fkdr', 'nfkdr', 'view', 'blacklist', 'ping', 'online'
+  'fkdr', 'nfkdr', 'view', 'weekly', 'monthly', 'yearly', 'tag', 'blacklist', 'ping', 'online'
 ];
 
 function loadCommandPermissions() {
@@ -694,6 +699,21 @@ async function checkUrchinBlacklist(username) {
     const connected = await testUrchinConnection();
     if (!connected) throw new Error('Urchin API unavailable');
   }
+
+  async function addUrchinTag(uuid, tagType, reason, overwrite = false) {
+  if (!URCHIN_ENABLED) throw new Error('Urchin API not configured');
+  const url = `https://urchin.ws/admin/add-tag?key=${URCHIN_ADMIN_API_KEY}`;
+  const response = await axios.post(url,
+    { uuid, tag_type: tagType, reason, hide_username: false, overwrite },
+    { timeout: 10000, headers: { 'Content-Type': 'application/json' }, validateStatus: s => s < 500 }
+  );
+  if (response.status === 200) return response.data.message || 'Tag added';
+  if (response.status === 400) throw new Error(`Invalid tag type. Valid: ${URCHIN_TAG_TYPES.join(', ')}`);
+  if (response.status === 401) throw new Error('Invalid admin API key');
+  if (response.status === 403) throw new Error('Admin access required (key not authorized)');
+  if (response.status === 409) throw new Error('Tag already exists (overwrite=false)');
+  throw new Error(`Urchin error: ${response.status}`);
+}
 
   const params = new URLSearchParams({
     key: URCHIN_API_KEY,
@@ -2560,6 +2580,7 @@ server.listen(PORT, async () => {
   loadFkdrTracking();
   loadActivityTracking();
   loadBlacklist();
+  loadBwStatsTracking();
   if (URCHIN_ENABLED) await testUrchinConnection();
 });
 
@@ -2845,6 +2866,8 @@ function createBot() {
         "when - Next Castle",
         "ask <message> - Ask AI",
         "ping <player> - Check player ping",
+        "weekly/monthly/yearly <player> - Period stats",
+        TAG_ADMINS.length ? "tag <player> <type> <reason> - Tag player (admin)" : null,
         URCHIN_ENABLED ? "view <player> - Status check" : null,
         "fkdr start - Start tracking",
         "fkdr - View progress",
@@ -3088,6 +3111,53 @@ function createBot() {
       } catch (err) {
         await safeChat(`Error: ${err.message}`);
       }
+      return;
+    }
+
+    // === !weekly / !monthly / !yearly ===
+    const periodMatch = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!(weekly|monthly|yearly)\s+([A-Za-z0-9_]{1,16})/i);
+    if (periodMatch) {
+      const [, requester, periodWord, ign] = periodMatch;
+      const periodDays = { weekly: 7, monthly: 30, yearly: 365 }[periodWord.toLowerCase()];
+      if (!hasCommandPermission(requester, periodWord.toLowerCase())) {
+        await safeChat(`${requester}, you don't have permission to use !${periodWord}`); return;
+      }
+      commandCount++; incrementCommandStat(periodWord.toLowerCase()); incrementUserStat(requester);
+      addActivity('command', `${requester} checked ${periodWord} stats for ${ign}`, requester);
+      try {
+        let tracking = bwStatsTracking.get(ign.toLowerCase());
+        if (!tracking) {
+          await startBwStatsTracking(ign);
+          await safeChat(`${ign} için izleme başlatıldı, daha sonra tekrar dene`);
+          return;
+        }
+        tracking = await updateBwStatsSnapshot(ign);
+        const diff = calcBwPeriodStats(tracking, periodDays);
+        if (!diff) { await safeChat(`${ign}, henüz yeterli veri yok`); return; }
+        await safeChat(`${ign} | ${periodWord} Finals: ${diff.finals} | Deaths: ${diff.fdeaths} | FKDR: ${diff.fkdr}`);
+        await sleep(500);
+        await safeChat(`Wins: ${diff.wins} | Losses: ${diff.losses} | Beds: ${diff.beds}${diff.partial ? ` | (sadece ${diff.trackedDays} günlük veri)` : ''}`);
+      } catch (err) { await safeChat(`Error: ${err.message}`); }
+      return;
+    }
+
+    // === !tag ===
+    if (msg.toLowerCase().includes("!tag")) {
+      const match = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!tag\s+([A-Za-z0-9_]{1,16})\s+([a-z_]+)\s+(.+)/i);
+      if (!match) return;
+      const [, requester, targetIgn, tagType, reason] = match;
+      if (!TAG_ADMINS.includes(requester.toLowerCase())) {
+        await safeChat(`${requester}, !tag komutunu kullanma yetkin yok`); return;
+      }
+      commandCount++; incrementCommandStat('tag'); incrementUserStat(requester);
+      try {
+        const playerData = await getPlayerUUID(targetIgn);
+        const normalizedType = tagType.toLowerCase();
+        await addUrchinTag(playerData.uuid, normalizedType, reason);
+        await safeChat(`✓ ${targetIgn} etiketlendi: ${normalizedType}`);
+        addLog('success', `${requester} tagged ${targetIgn} as ${normalizedType}: ${reason}`);
+        addActivity('blacklist', `${requester} tagged ${targetIgn} (${normalizedType})`, requester);
+      } catch (err) { await safeChat(`Tag error: ${err.message}`); }
       return;
     }
 
