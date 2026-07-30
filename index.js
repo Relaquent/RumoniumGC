@@ -693,13 +693,6 @@ async function testUrchinConnection() {
   }
 }
 
-async function checkUrchinBlacklist(username) {
-  if (!URCHIN_ENABLED) throw new Error('Urchin API not configured');
-  if (!WORKING_URCHIN_URL) {
-    const connected = await testUrchinConnection();
-    if (!connected) throw new Error('Urchin API unavailable');
-  }
-
   async function addUrchinTag(uuid, tagType, reason, overwrite = false) {
   if (!URCHIN_ENABLED) throw new Error('Urchin API not configured');
   const url = `https://urchin.ws/admin/add-tag?key=${URCHIN_ADMIN_API_KEY}`;
@@ -714,6 +707,13 @@ async function checkUrchinBlacklist(username) {
   if (response.status === 409) throw new Error('Tag already exists (overwrite=false)');
   throw new Error(`Urchin error: ${response.status}`);
 }
+
+async function checkUrchinBlacklist(username) {
+  if (!URCHIN_ENABLED) throw new Error('Urchin API not configured');
+  if (!WORKING_URCHIN_URL) {
+    const connected = await testUrchinConnection();
+    if (!connected) throw new Error('Urchin API unavailable');
+  }
 
   const params = new URLSearchParams({
     key: URCHIN_API_KEY,
