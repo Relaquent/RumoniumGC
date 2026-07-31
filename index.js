@@ -331,6 +331,7 @@ async function getPlayerPing(ign) {
   const url = `${AURORA_API_BASE}?key=${AURORA_API_KEY}&uuid=${uuid}`;
 
   const response = await axios.get(url, {
+    console.log(JSON.stringify(response.data, null, 2));
     timeout: 10000,
     headers: { 'Accept': 'application/json', 'User-Agent': 'RumoniumGC-Bot/2.3' }
   });
