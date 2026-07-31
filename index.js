@@ -168,7 +168,7 @@ const PERMISSIONS_FILE = path.join(__dirname, "command_permissions.json");
 
 const AVAILABLE_COMMANDS = [
   'bw', 'gexp', 'stats', 'when', 'ask', 'about', 'help',
-  'fkdr', 'nfkdr', 'view', 'weekly', 'monthly', 'yearly', 'tag', 'blacklist', 'ping', 'online'
+  'fkdr', 'nfkdr', 'view', 'cweekly', 'cmonthly', 'cyearly', 'tag', 'cdaily', 'blacklist', 'ping', 'online'
 ];
 
 function loadCommandPermissions() {
@@ -699,6 +699,38 @@ async function checkUrchinBlacklist(username) {
     const connected = await testUrchinConnection();
     if (!connected) throw new Error('Urchin API unavailable');
   }
+
+  // === Urchin Session Stats (v3) — daily/weekly/monthly/yearly ===
+async function getUrchinSessionStats(period, ign) {
+  if (!URCHIN_ENABLED) throw new Error('Urchin API not configured');
+  const url = `https://api.urchin.gg/v3/player/sessions/${period}?player=${encodeURIComponent(ign)}`;
+  const response = await axios.get(url, {
+    timeout: 10000,
+    headers: { 'X-API-Key': URCHIN_API_KEY, 'Accept': 'application/json' },
+    validateStatus: s => s < 500
+  });
+  if (response.status === 404) throw new Error('No session data for this player');
+  if (response.status !== 200) throw new Error(`Urchin session error: ${response.status}`);
+  return response.data; // { delta, displayname, from, from_readable, uuid }
+}
+
+function numDelta(v) {
+  if (typeof v === 'number') return v;
+  if (v && typeof v === 'object') return (v.new || 0) - (v.old || 0);
+  return 0;
+}
+
+function extractBwSession(delta) {
+  const bw = delta?.stats?.Bedwars;
+  if (!bw) return { finals: 0, deaths: 0, wins: 0, losses: 0, beds: 0 };
+  return {
+    finals: numDelta(bw.final_kills_bedwars),
+    deaths: numDelta(bw.final_deaths_bedwars),
+    wins: numDelta(bw.wins_bedwars),
+    losses: numDelta(bw.losses_bedwars),
+    beds: numDelta(bw.beds_broken_bedwars),
+  };
+}
 
   async function addUrchinTag(uuid, tagType, reason, overwrite = false) {
   if (!URCHIN_ENABLED) throw new Error('Urchin API not configured');
@@ -3113,6 +3145,30 @@ function createBot() {
       }
       return;
     }
+
+    // === !cdaily / !cweekly / !cmonthly / !cyearly (Urchin session stats) ===
+const cPeriodMatch = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!c(daily|weekly|monthly|yearly)\s+([A-Za-z0-9_]{1,16})/i);
+if (cPeriodMatch) {
+  const [, requester, period, ign] = cPeriodMatch;
+  const cmdName = 'c' + period.toLowerCase();
+  if (!URCHIN_ENABLED) { await safeChat(`${requester}, Urchin API is disabled`); return; }
+  if (!hasCommandPermission(requester, cmdName)) {
+    await safeChat(`${requester}, you don't have permission to use !${cmdName}`); return;
+  }
+  commandCount++; incrementCommandStat(cmdName); incrementUserStat(requester);
+  addActivity('command', `${requester} checked ${cmdName} for ${ign}`, requester);
+  try {
+    const session = await getUrchinSessionStats(period.toLowerCase(), ign);
+    const bw = extractBwSession(session.delta);
+    const fkdr = bw.deaths > 0 ? (bw.finals / bw.deaths).toFixed(2) : (bw.finals > 0 ? 'inf' : '0.00');
+    await safeChat(`${ign} | ${period} Finals: ${bw.finals>=0?'+':''}${bw.finals} | Deaths: ${bw.deaths>=0?'+':''}${bw.deaths} | FKDR: ${fkdr}`);
+    await sleep(500);
+    await safeChat(`Wins: ${bw.wins>=0?'+':''}${bw.wins} | Losses: ${bw.losses>=0?'+':''}${bw.losses} | Beds: ${bw.beds>=0?'+':''}${bw.beds} | Since: ${session.from_readable || 'N/A'}`);
+  } catch (err) {
+    await safeChat(`Error - ${ign} | ${err.message}`);
+  }
+  return;
+}
 
     // === !weekly / !monthly / !yearly ===
     const periodMatch = msg.match(/Guild > (?:\[[^\]]+\] )?([A-Za-z0-9_]{1,16}).*!(weekly|monthly|yearly)\s+([A-Za-z0-9_]{1,16})/i);
