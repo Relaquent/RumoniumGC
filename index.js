@@ -42,7 +42,7 @@ const AURORA_API_BASE = "https://bordic.xyz/api/v2/resources/ping";
 // === Urchin API Setup ===
 const URCHIN_ENABLED = !!process.env.URCHIN_API_KEY;
 const URCHIN_API_KEY = process.env.URCHIN_API_KEY || null;
-const URCHIN_API_BASE = "https://api.urchin.gg/v3";
+const URCHIN_API_BASE = "https://urchin.ws";
 let WORKING_URCHIN_URL = null;
 
 // === Urchin Admin (Tag) Setup ===
@@ -331,7 +331,6 @@ async function getPlayerPing(ign) {
   const url = `${AURORA_API_BASE}?key=${AURORA_API_KEY}&uuid=${uuid}`;
 
   const response = await axios.get(url, {
-    console.log(JSON.stringify(response.data, null, 2));
     timeout: 10000,
     headers: { 'Accept': 'application/json', 'User-Agent': 'RumoniumGC-Bot/2.3' }
   });
@@ -694,41 +693,27 @@ async function testUrchinConnection() {
   }
 }
 
-  async function addUrchinTag(player, tagType, reason) {
-  const response = await axios.post(
-    `${URCHIN_API_BASE}/tags`,
-    {
-      type: tagType,
-      reason: reason,
-      hide_username: false
-    },
-    {
-      params: {
-        key: URCHIN_ADMIN_API_KEY,
-        player: player
-      },
-      timeout: 10000,
-      headers: {
-        "Content-Type": "application/json"
-      },
-      validateStatus: s => s < 500
-    }
-  );
-
-  if (response.status === 201)
-    return response.data;
-
-  throw new Error(
-    response.data?.error || `Urchin error: ${response.status}`
-  );
-}
-
 async function checkUrchinBlacklist(username) {
   if (!URCHIN_ENABLED) throw new Error('Urchin API not configured');
   if (!WORKING_URCHIN_URL) {
     const connected = await testUrchinConnection();
     if (!connected) throw new Error('Urchin API unavailable');
   }
+
+  async function addUrchinTag(uuid, tagType, reason, overwrite = false) {
+  if (!URCHIN_ENABLED) throw new Error('Urchin API not configured');
+  const url = `https://urchin.ws/admin/add-tag?key=${URCHIN_ADMIN_API_KEY}`;
+  const response = await axios.post(url,
+    { uuid, tag_type: tagType, reason, hide_username: false, overwrite },
+    { timeout: 10000, headers: { 'Content-Type': 'application/json' }, validateStatus: s => s < 500 }
+  );
+  if (response.status === 200) return response.data.message || 'Tag added';
+  if (response.status === 400) throw new Error(`Invalid tag type. Valid: ${URCHIN_TAG_TYPES.join(', ')}`);
+  if (response.status === 401) throw new Error('Invalid admin API key');
+  if (response.status === 403) throw new Error('Admin access required (key not authorized)');
+  if (response.status === 409) throw new Error('Tag already exists (overwrite=false)');
+  throw new Error(`Urchin error: ${response.status}`);
+}
 
   const params = new URLSearchParams({
     key: URCHIN_API_KEY,
