@@ -693,19 +693,33 @@ async function testUrchinConnection() {
   }
 }
 
-  async function addUrchinTag(uuid, tagType, reason, overwrite = false) {
-  if (!URCHIN_ENABLED) throw new Error('Urchin API not configured');
-  const url = `https://urchin.ws/admin/add-tag?key=${URCHIN_ADMIN_API_KEY}`;
-  const response = await axios.post(url,
-    { uuid, tag_type: tagType, reason, hide_username: false, overwrite },
-    { timeout: 10000, headers: { 'Content-Type': 'application/json' }, validateStatus: s => s < 500 }
+  async function addUrchinTag(player, tagType, reason) {
+  const response = await axios.post(
+    `${URCHIN_API_BASE}/tags`,
+    {
+      type: tagType,
+      reason: reason,
+      hide_username: false
+    },
+    {
+      params: {
+        key: URCHIN_ADMIN_API_KEY,
+        player: player
+      },
+      timeout: 10000,
+      headers: {
+        "Content-Type": "application/json"
+      },
+      validateStatus: s => s < 500
+    }
   );
-  if (response.status === 200) return response.data.message || 'Tag added';
-  if (response.status === 400) throw new Error(`Invalid tag type. Valid: ${URCHIN_TAG_TYPES.join(', ')}`);
-  if (response.status === 401) throw new Error('Invalid admin API key');
-  if (response.status === 403) throw new Error('Admin access required (key not authorized)');
-  if (response.status === 409) throw new Error('Tag already exists (overwrite=false)');
-  throw new Error(`Urchin error: ${response.status}`);
+
+  if (response.status === 201)
+    return response.data;
+
+  throw new Error(
+    response.data?.error || `Urchin error: ${response.status}`
+  );
 }
 
 async function checkUrchinBlacklist(username) {
