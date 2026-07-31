@@ -42,7 +42,7 @@ const AURORA_API_BASE = "https://bordic.xyz/api/v2/resources/ping";
 // === Urchin API Setup ===
 const URCHIN_ENABLED = !!process.env.URCHIN_API_KEY;
 const URCHIN_API_KEY = process.env.URCHIN_API_KEY || null;
-const URCHIN_API_BASE = "https://urchin.ws";
+const URCHIN_API_BASE = "https://api.urchin.gg/v3";
 let WORKING_URCHIN_URL = null;
 
 // === Urchin Admin (Tag) Setup ===
