@@ -659,3 +659,209 @@ const socket = io();
       document.getElementById('sysMemory').textContent = sys.memoryUsed + ' MB';
     } catch(e) {}
   }, 30000);
+
+/* =========================================================
+   RUMONIUM // EXECUTIVE CONTROL EXTENSIONS
+   Frontend-only enhancements; existing API contracts remain intact.
+   ========================================================= */
+
+// Extend tab loading without replacing the existing control surface.
+const __rumoniumOriginalShowTab = showTab;
+showTab = function(tab) {
+  __rumoniumOriginalShowTab(tab);
+  if (tab === 'intel') {
+    setTimeout(() => document.getElementById('intelPlayerInput')?.focus(), 60);
+  }
+  if (tab === 'activity-intel') loadActivityIntel();
+};
+
+let paletteIndex = 0;
+const paletteActions = [
+  { icon:'⌂', title:'Open Mission Dashboard', hint:'Overview and live telemetry', run:()=>showTab('dashboard') },
+  { icon:'◈', title:'Player Intelligence', hint:'Correlate blacklist, FKDR and activity', run:()=>showTab('intel') },
+  { icon:'⌁', title:'Activity Intelligence', hint:'Inspect live tracking streams', run:()=>showTab('activity-intel') },
+  { icon:'▶', title:'Start Bot', hint:'Enable auto-reconnect and start the bot', run:()=>botAction('start') },
+  { icon:'↻', title:'Reconnect Bot', hint:'Force a fresh Minecraft session', run:()=>botAction('reconnect') },
+  { icon:'■', title:'Disconnect Bot', hint:'Stop the current bot session', run:()=>botAction('disconnect') },
+  { icon:'⌫', title:'Clear Cache', hint:'Flush player and guild cache', run:()=>clearCache() },
+  { icon:'▣', title:'Live Chat', hint:'Open the guild chat stream', run:()=>showTab('chat') },
+  { icon:'!', title:'Blacklist Manager', hint:'Review and edit restricted identities', run:()=>showTab('blacklist') },
+  { icon:'⚙', title:'Bot Settings', hint:'Tune cooldowns, AI and welcome messages', run:()=>showTab('settings') },
+  { icon:'↥', title:'System Logs', hint:'Inspect the live event stream', run:()=>showTab('logs') },
+  { icon:'⇩', title:'Export Full Backup', hint:'Download a complete JSON backup', run:()=>exportData('all') }
+];
+
+function openCommandPalette() {
+  const overlay = document.getElementById('commandPalette');
+  if (!overlay) return;
+  overlay.classList.add('open');
+  const input = document.getElementById('paletteInput');
+  input.value = '';
+  paletteIndex = 0;
+  renderPalette('');
+  setTimeout(() => input.focus(), 40);
+}
+function closeCommandPalette() { document.getElementById('commandPalette')?.classList.remove('open'); }
+function renderPalette(query='') {
+  const q = query.toLowerCase().trim();
+  const items = paletteActions.filter(a => !q || (a.title+' '+a.hint).toLowerCase().includes(q));
+  const el = document.getElementById('paletteResults');
+  if (!items.length) { el.innerHTML='<div style="padding:25px;text-align:center;color:#49655a;font:10px JetBrains Mono,monospace;">NO MATCHING OPERATIONS</div>'; return; }
+  paletteIndex = Math.max(0, Math.min(paletteIndex, items.length-1));
+  el.innerHTML = items.map((a,i)=>`<div class="palette-item ${i===paletteIndex?'selected':''}" data-index="${i}" onclick="executePalette(${i})"><span class="picon">${a.icon}</span><div><strong>${escapeHtml(a.title)}</strong><small>${escapeHtml(a.hint)}</small></div></div>`).join('');
+  el.__items = items;
+}
+function filterPalette(q) { paletteIndex=0; renderPalette(q); }
+function executePalette(index) {
+  const el=document.getElementById('paletteResults');
+  const item=el.__items?.[index];
+  if (!item) return;
+  closeCommandPalette();
+  setTimeout(item.run, 30);
+}
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault(); openCommandPalette(); return;
+  }
+  const palette=document.getElementById('commandPalette');
+  if (!palette?.classList.contains('open')) return;
+  const el=document.getElementById('paletteResults');
+  const items=el?.__items || [];
+  if (e.key === 'Escape') { e.preventDefault(); closeCommandPalette(); }
+  if (e.key === 'ArrowDown') { e.preventDefault(); paletteIndex=Math.min(items.length-1,paletteIndex+1); renderPalette(document.getElementById('paletteInput').value); }
+  if (e.key === 'ArrowUp') { e.preventDefault(); paletteIndex=Math.max(0,paletteIndex-1); renderPalette(document.getElementById('paletteInput').value); }
+  if (e.key === 'Enter' && items.length) { e.preventDefault(); executePalette(paletteIndex); }
+});
+
+function toggleFocusMode() {
+  document.body.classList.toggle('focus-mode');
+  toast(document.body.classList.contains('focus-mode') ? 'Focus mode enabled' : 'Focus mode disabled', 'info');
+}
+async function hardRefresh() {
+  toast('Refreshing control plane…','info');
+  try {
+    await Promise.all([loadDashboard(), loadStatistics(), updateNavBlacklistBadge()]);
+    const active=document.querySelector('.tab-content.active')?.id;
+    if(active==='content-activity-intel') await loadActivityIntel();
+    if(active==='content-fkdr') await loadFkdrTab();
+    if(active==='content-blacklist') await loadBlacklistUI();
+    toast('Control plane synchronized','success');
+  } catch(e) { toast('Refresh failed','error'); }
+}
+
+function updateClock() {
+  const el=document.getElementById('liveClock');
+  if(el) el.textContent=new Date().toLocaleTimeString('en-GB',{hour12:false});
+}
+setInterval(updateClock,1000); updateClock();
+
+function setTelemetry(id, value, percent) {
+  const v=document.getElementById(id), bar=document.getElementById(id+'Bar');
+  if(v) v.textContent=value;
+  if(bar) bar.style.width=Math.max(0,Math.min(100,percent||0))+'%';
+}
+
+function refreshExecutiveTelemetry(stats, sys, activity) {
+  const memoryPct = sys.memoryTotal ? (sys.memoryUsed/sys.memoryTotal)*100 : 0;
+  const queuePct = Math.min(100,(stats.queueLength||0)*12);
+  const cachePct = Math.min(100,(stats.cacheSize||0)*2);
+  const bot = !!stats.botReady;
+  const score = Math.max(0, Math.min(100, Math.round((bot?45:15) + (memoryPct<75?20:8) + (queuePct<40?15:5) + (stats.urchinEnabled?10:5) + (stats.reconnectAttempts<3?10:2))));
+  document.getElementById('healthScore').textContent=score;
+  document.getElementById('healthScore').style.color=score>=80?'var(--accent)':score>=55?'var(--yellow)':'var(--red)';
+  setTelemetry('telemetryBot', bot?'ONLINE':'OFFLINE', bot?100:12);
+  setTelemetry('telemetryMemory', Math.round(memoryPct)+'%', memoryPct);
+  setTelemetry('telemetryQueue', String(stats.queueLength||0), queuePct);
+  setTelemetry('telemetryCache', String(stats.cacheSize||0), cachePct);
+  document.getElementById('telemetryNode').textContent=sys.nodeVersion||'--';
+  document.getElementById('telemetryPid').textContent=sys.pid||'--';
+  document.getElementById('threatSurface').textContent=document.getElementById('blacklistCount')?.textContent||'0';
+  document.getElementById('trackingSurface').textContent='—';
+  const hours=stats.uptimeMs?stats.uptimeMs/3600000:0;
+  document.getElementById('commandVelocity').innerHTML=(hours>0?Math.round((stats.commandCount||0)/hours):0)+'<span>/hr</span>';
+  if(activity?.recent?.length) document.getElementById('signalMarquee').textContent='LIVE EVENT // '+activity.recent[0].description.toUpperCase();
+}
+
+// Patch the existing dashboard loader by observing its normal data flow on a lightweight interval.
+const __rumoniumTelemetryTimer=setInterval(async()=>{
+  try {
+    const [s,sys,a]=await Promise.all([fetch('/api/stats').then(r=>r.json()),fetch('/api/system-info').then(r=>r.json()),fetch('/api/activity').then(r=>r.json())]);
+    refreshExecutiveTelemetry(s,sys,a);
+  } catch(e) {}
+},10000);
+
+async function runPlayerIntel() {
+  const input=document.getElementById('intelPlayerInput');
+  const username=input.value.trim();
+  if(!username) { toast('Enter a Minecraft username','warning'); input.focus(); return; }
+  const empty=document.getElementById('intelEmpty'), result=document.getElementById('intelResult');
+  empty.style.display='none'; result.style.display='block';
+  document.getElementById('intelName').textContent=username;
+  document.getElementById('intelAvatar').src='https://mc-heads.net/avatar/'+encodeURIComponent(username)+'/96';
+  document.getElementById('intelSignals').innerHTML='<div class="signal-line"><span class="marker"></span>Correlating local intelligence streams…</div>';
+  try {
+    const [blRes,fkRes,actRes]=await Promise.all([fetch('/api/blacklist'),fetch('/api/fkdr-tracking'),fetch('/api/activity-tracking')]);
+    const bl=await blRes.json(), fk=await fkRes.json(), act=await actRes.json();
+    const entries=(bl.entries||[]);
+    const tracked=(fk.tracking||[]).find(x=>x.username?.toLowerCase()===username.toLowerCase());
+    const activity=(act.tracking||[]).find(x=>x.username?.toLowerCase()===username.toLowerCase());
+    const black=entries.find(x=>x.username?.toLowerCase()===username.toLowerCase());
+    let risk=0; const signals=[];
+    if(black){risk+=75;signals.push({c:'danger',t:'BLACKLIST MATCH',d:black.reason||'Local blacklist entry detected'});}
+    else signals.push({c:'good',t:'BLACKLIST CLEAR',d:'No local blacklist match'});
+    if(tracked){risk+=10;signals.push({c:'warn',t:'FKDR TRACK ACTIVE',d:(tracked.progress?.current?.fkdr||'—')+' FKDR observed'});}
+    else signals.push({c:'good',t:'FKDR TRACK NONE',d:'No FKDR stream attached'});
+    if(activity){risk+=10;const det=activity.detection||'Tracked';signals.push({c:'warn',t:'ACTIVITY STREAM',d:String(det)});}
+    else signals.push({c:'good',t:'ACTIVITY CLEAR',d:'No activity stream attached'});
+    const observations=(activity?.snapshots?.length || activity?.history?.length || 0);
+    risk=Math.min(100,risk);
+    document.getElementById('intelRisk').textContent=risk;
+    const disposition=risk>=75?'HIGH RISK':risk>=40?'ELEVATED':'LOW RISK';
+    const disp=document.getElementById('intelDisposition'); disp.textContent=disposition; disp.style.color=risk>=75?'var(--red)':risk>=40?'var(--yellow)':'var(--accent)';
+    document.getElementById('intelBlacklist').textContent=black?'MATCH':'CLEAR';
+    document.getElementById('intelBlacklist').style.color=black?'var(--red)':'var(--accent)';
+    document.getElementById('intelFkdr').textContent=tracked?(tracked.progress?.current?.fkdr||'TRACKED'):'NONE';
+    document.getElementById('intelActivity').textContent=activity?'TRACKED':'NONE';
+    document.getElementById('intelObservations').textContent=observations;
+    document.getElementById('intelSignals').innerHTML=signals.map(x=>`<div class="signal-line ${x.c}"><span class="marker"></span><div><strong>${escapeHtml(x.t)}</strong><div style="margin-top:3px;color:#4d695e;font-size:9px;">${escapeHtml(x.d)}</div></div></div>`).join('');
+    document.getElementById('intelRecommendation').textContent=black?'This identity matches a local blacklist record. Review the stored reason and operator history before taking action.':activity?'This identity has an active monitoring stream. Review snapshots and detection output in Activity Intelligence.':'No elevated local signal was found. This is not a global verdict; it only reflects data available to this control plane.';
+    toast('Identity analysis complete','success');
+  } catch(e) {
+    document.getElementById('intelSignals').innerHTML='<div class="signal-line danger"><span class="marker"></span>Correlation failed. Check API availability.</div>';
+    toast('Intel query failed','error');
+  }
+}
+
+async function loadActivityIntel() {
+  const list=document.getElementById('activityIntelList');
+  if(!list) return;
+  list.innerHTML='<div style="padding:25px;text-align:center;color:#49655a;font:10px JetBrains Mono,monospace;">SYNCHRONIZING ACTIVITY STREAMS…</div>';
+  try {
+    const data=await fetch('/api/activity-tracking').then(r=>r.json());
+    const rows=data.tracking||[];
+    document.getElementById('activityTrackedCount').textContent=rows.length;
+    let signals=0, hot=0;
+    rows.forEach(x=>{
+      const snap=x.snapshots||x.history||[]; signals+=Array.isArray(snap)?snap.length:0;
+      const det=String(x.detection||'').toLowerCase(); if(det && !['none','neutral','unknown'].includes(det)) hot++;
+    });
+    document.getElementById('activitySignalsCount').textContent=signals;
+    document.getElementById('activityHotCount').textContent=hot;
+    if(!rows.length){list.innerHTML='<div style="padding:35px;text-align:center;color:#49655a;font:10px JetBrains Mono,monospace;">NO ACTIVE ACTIVITY STREAMS</div>';return;}
+    list.innerHTML=rows.map(x=>{
+      const det=String(x.detection||'No detection');
+      const cls=/warn|suspicious|high|active/i.test(det)?'hot':'good';
+      return `<div class="matrix-row"><div><div class="matrix-name">${escapeHtml(x.username||'unknown')}</div><div class="matrix-meta">identity</div></div><div><div class="matrix-meta">status</div><div class="matrix-value">TRACKING</div></div><div><div class="matrix-meta">snapshots</div><div class="matrix-value">${Array.isArray(x.snapshots)?x.snapshots.length:'—'}</div></div><div><div class="matrix-meta">detection</div><div class="matrix-value">${escapeHtml(det)}</div></div><span class="matrix-chip ${cls}">${cls==='hot'?'ATTENTION':'NOMINAL'}</span></div>`;
+    }).join('');
+  } catch(e) { list.innerHTML='<div style="padding:25px;color:var(--red);font:10px JetBrains Mono,monospace;">ACTIVITY ENDPOINT UNAVAILABLE</div>'; }
+}
+
+// Keep the executive counters in sync after blacklist refreshes.
+const __oldUpdateNavBlacklistBadge = updateNavBlacklistBadge;
+updateNavBlacklistBadge = async function() {
+  await __oldUpdateNavBlacklistBadge();
+  const source=document.getElementById('navBlacklistCount')?.textContent||'0';
+  const target=document.getElementById('threatSurface');
+  if(target) target.textContent=source;
+};
