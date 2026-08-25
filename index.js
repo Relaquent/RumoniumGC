@@ -665,27 +665,33 @@ async function testUrchinConnection() {
   }
 
   try {
-    const params = new URLSearchParams({
-      key: URCHIN_API_KEY,
-      sources: 'GAME,PARTY,PARTY_INVITES,CHAT,CHAT_MENTIONS,MANUAL,ME'
-    });
-    const testUrl = `${URCHIN_API_BASE}/player/Technoblade?${params.toString()}`;
-    const response = await axios.get(testUrl, {
+    const response = await axios.get('https://api.urchin.gg/health', {
       timeout: 10000,
-      headers: { 'Accept': 'application/json', 'User-Agent': 'RumoniumGC-Bot/2.3' },
-      validateStatus: (status) => status < 500
+      headers: {
+        'X-API-Key': URCHIN_API_KEY,
+        'Accept': 'application/json',
+        'User-Agent': 'RumoniumGC-Bot/2.3'
+      },
+      validateStatus: status => status < 500
     });
 
-    if (response.status === 200 || response.status === 404) {
-      WORKING_URCHIN_URL = URCHIN_API_BASE;
-      addLog('success', `Urchin API connected`);
+    if (response.status === 200) {
+      WORKING_URCHIN_URL = 'https://api.urchin.gg';
+      addLog('success', 'Urchin API connected');
       return true;
     }
+
     if (response.status === 401) {
       addLog('error', 'Invalid Urchin API key');
       return false;
     }
-    addLog('error', `Urchin unexpected status: ${response.status}`);
+
+    if (response.status === 403) {
+      addLog('error', 'Urchin API key locked or not permitted');
+      return false;
+    }
+
+    addLog('error', `Urchin health check returned ${response.status}`);
     return false;
   } catch (err) {
     addLog('error', `Urchin connection failed: ${err.message}`);
@@ -726,46 +732,165 @@ function extractBwSession(delta) {
 }
 
 async function checkUrchinBlacklist(username) {
-  if (!URCHIN_ENABLED) throw new Error('Urchin API not configured');
-  if (!WORKING_URCHIN_URL) {
-    const connected = await testUrchinConnection();
-    if (!connected) throw new Error('Urchin API unavailable');
+  if (!URCHIN_ENABLED) {
+    throw new Error('Urchin API not configured');
   }
 
-  const params = new URLSearchParams({
-    key: URCHIN_API_KEY,
-    sources: 'GAME,PARTY,PARTY_INVITES,CHAT,CHAT_MENTIONS,MANUAL,ME'
-  });
-  const url = `${WORKING_URCHIN_URL}/player/${encodeURIComponent(username)}?${params.toString()}`;
+  const ign = String(username || '').trim();
+  if (!/^[A-Za-z0-9_]{1,16}$/.test(ign)) {
+    throw new Error('Invalid Minecraft username');
+  }
 
-  const response = await axios.get(url, {
-    timeout: 10000,
-    headers: { 'Accept': 'application/json', 'User-Agent': 'RumoniumGC-Bot/2.3' },
-    validateStatus: (status) => status < 500
-  });
+  /*
+   * IMPORTANT:
+   * Do not treat every non-player/lookup failure as "Clean".
+   *
+   * Urchin's current API also exposes the v3 Cubelify endpoint. It is
+   * preferable here because it resolves the player by UUID and returns
+   * blacklist tags directly. The old /player/:username endpoint can return
+   * 404 for a lookup that is not actually a valid "clean" result.
+   */
+  try {
+    const playerData = await getPlayerUUID(ign);
+    const uuid = playerData?.uuid;
 
-  if (response.status === 404) return `${username} - Not in database (Clean)`;
-  if (response.status === 401) { WORKING_URCHIN_URL = null; throw new Error('Invalid API key'); }
-  if (response.status === 403) { WORKING_URCHIN_URL = null; throw new Error('API key locked'); }
-  if (response.status === 429) throw new Error('Rate limited - try again later');
-  if (response.status !== 200) throw new Error(`API error: ${response.status}`);
-
-  if (response.data && response.data.uuid) {
-    const player = response.data;
-    const shortUuid = player.uuid.substring(0, 8);
-    if (player.tags && Array.isArray(player.tags) && player.tags.length > 0) {
-      const tagDetails = player.tags.slice(0, 3).map(tag => {
-        const tagType = tag.type || 'Unknown';
-        const addedBy = tag.hide_username ? 'Hidden' : (tag.added_by ? `User ${tag.added_by}` : 'Unknown');
-        return `${tagType} (by ${addedBy})`;
-      });
-      const tagCount = player.tags.length;
-      const moreText = player.tags.length > 3 ? ` +${player.tags.length - 3} more` : '';
-      return `${username} - ${shortUuid}...\n⚠️ ${username} ${tagCount} Tag${tagCount !== 1 ? 's' : ''}: ${tagDetails.join(', ')}${moreText}`;
+    if (!uuid) {
+      throw new Error('Could not resolve Minecraft UUID');
     }
-    return `${username} - ${shortUuid}...\n✓ ${username} Clean (No tags)`;
+
+    const sources = 'GAME,PARTY,PARTY_INVITES,CHAT,CHAT_MENTIONS,MANUAL,ME';
+    const cubelifyUrl =
+      `https://api.urchin.gg/v3/cubelify?` +
+      new URLSearchParams({
+        uuid,
+        key: URCHIN_API_KEY,
+        name: ign,
+        sources
+      }).toString();
+
+    const response = await axios.get(cubelifyUrl, {
+      timeout: 10000,
+      headers: {
+        'X-API-Key': URCHIN_API_KEY,
+        'Accept': 'application/json',
+        'User-Agent': 'RumoniumGC-Bot/2.3'
+      },
+      validateStatus: status => status < 500
+    });
+
+    if (response.status === 401) {
+      throw new Error('Invalid Urchin API key');
+    }
+    if (response.status === 403) {
+      throw new Error('Urchin API key locked or not permitted');
+    }
+    if (response.status === 429) {
+      throw new Error('Urchin rate limited - try again later');
+    }
+    if (response.status !== 200) {
+      throw new Error(`Urchin API error: ${response.status}`);
+    }
+
+    const data = response.data || {};
+
+    // Cubelify may return an error as a 200 response.
+    const errorText = [
+      data.error,
+      data.message,
+      ...(Array.isArray(data.tags) ? data.tags.map(t => t?.tooltip || t?.text || '') : [])
+    ].filter(Boolean).join(' ');
+
+    if (/invalid api key|locked|unauthorized|forbidden|rate limit|error/i.test(errorText)
+        && !Array.isArray(data.tags)) {
+      throw new Error(errorText);
+    }
+
+    const tags = Array.isArray(data.tags) ? data.tags : [];
+
+    if (tags.length === 0) {
+      addLog('info', `Urchin: ${ign} has no blacklist tags`);
+      return `${ign} - ${uuid.substring(0, 8)}...\n✓ ${ign} Clean (No tags)`;
+    }
+
+    const tagDetails = tags.slice(0, 6).map(tag => {
+      const text = tag?.text || tag?.tooltip || tag?.type || 'Unknown tag';
+      return String(text).replace(/\s+/g, ' ').trim();
+    }).filter(Boolean);
+
+    const moreText = tags.length > 6 ? ` +${tags.length - 6} more` : '';
+
+    addLog('warning', `Urchin: ${ign} has ${tags.length} blacklist tag(s)`);
+
+    return [
+      `${ign} - ${uuid.substring(0, 8)}...`,
+      `⚠️ ${ign} ${tags.length} Tag${tags.length !== 1 ? 's' : ''}: ${tagDetails.join(', ')}${moreText}`
+    ].join('\n');
+
+  } catch (primaryErr) {
+    /*
+     * Fallback to the classic Urchin endpoint. Crucially, 404 is reported
+     * as "not found", NOT automatically as "Clean".
+     */
+    try {
+      const params = new URLSearchParams({
+        key: URCHIN_API_KEY,
+        sources: 'GAME,PARTY,PARTY_INVITES,CHAT,CHAT_MENTIONS,MANUAL,ME'
+      });
+
+      const url = `https://urchin.ws/player/${encodeURIComponent(ign)}?${params.toString()}`;
+
+      const response = await axios.get(url, {
+        timeout: 10000,
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'RumoniumGC-Bot/2.3'
+        },
+        validateStatus: status => status < 500
+      });
+
+      if (response.status === 404) {
+        addLog('warning', `Urchin: ${ign} was not found by the legacy endpoint`);
+        return `${ign} - Not found in Urchin database`;
+      }
+
+      if (response.status === 401) {
+        throw new Error('Invalid Urchin API key');
+      }
+      if (response.status === 403) {
+        throw new Error('Urchin API key locked or not permitted');
+      }
+      if (response.status === 429) {
+        throw new Error('Urchin rate limited - try again later');
+      }
+      if (response.status !== 200) {
+        throw new Error(`Urchin API error: ${response.status}`);
+      }
+
+      const player = response.data || {};
+      const tags = Array.isArray(player.tags) ? player.tags : [];
+
+      if (!tags.length) {
+        addLog('info', `Urchin: ${ign} has no blacklist tags`);
+        return `${ign} - ${player.uuid ? player.uuid.substring(0, 8) + '...' : 'UUID unavailable'}\n✓ ${ign} Clean (No tags)`;
+      }
+
+      const tagDetails = tags.slice(0, 6).map(tag => {
+        const type = tag?.type || 'Unknown';
+        const reason = tag?.reason ? `: ${tag.reason}` : '';
+        return `${type}${reason}`;
+      });
+
+      const moreText = tags.length > 6 ? ` +${tags.length - 6} more` : '';
+
+      addLog('warning', `Urchin: ${ign} has ${tags.length} blacklist tag(s)`);
+
+      return `${ign} - ${(player.uuid || '').substring(0, 8)}...\n⚠️ ${ign} ${tags.length} Tag${tags.length !== 1 ? 's' : ''}: ${tagDetails.join(', ')}${moreText}`;
+
+    } catch (fallbackErr) {
+      addLog('error', `Urchin lookup failed for ${ign}: ${fallbackErr.message}`);
+      throw new Error(`Urchin lookup failed: ${fallbackErr.message}`);
+    }
   }
-  return `${username} - Invalid response format`;
 }
 
 function getTimeAgo(timestamp) {
@@ -1224,15 +1349,6 @@ app.get("/api/system-info", (req, res) => {
   });
 });
 
-
-// === Web Panel (static premium UI) ===
-// Serve the real web/ control panel and its assets. This must be registered
-// before the legacy inline /control route below.
-const CONTROL_WEB_DIR = path.join(__dirname, "web");
-app.use("/control", express.static(CONTROL_WEB_DIR, { index: false, etag: false, maxAge: 0 }));
-app.get("/control", (req, res) => {
-  res.sendFile(path.join(CONTROL_WEB_DIR, "index.html"));
-});
 
 // === Web Panel ===
 app.get("/control", (req, res) => {
