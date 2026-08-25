@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RUMONIUM // CYBER OPS</title>
+  <title>Rumonium Admin Panel</title>
   <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
   
   <link rel="stylesheet" href="/control/style.css">
@@ -15,7 +15,7 @@
 <aside class="sidebar">
   <div class="sidebar-logo">
     <h1>⚡ RUMONIUM</h1>
-    <div class="ver">CYBER OPS // CONTROL NODE v3.0</div>
+    <div class="ver">Control Panel v3.0</div>
     <span class="status-badge connecting" id="sidebarStatus">
       <span class="status-dot"></span>
       <span id="sidebarStatusText">CONNECTING</span>
@@ -30,6 +30,10 @@
     <div class="nav-item" onclick="showTab('chat')" id="nav-chat">
       <span class="icon">💬</span><span>Live Chat</span>
     </div>
+    <div class="nav-item" onclick="showTab('intel')" id="nav-intel">
+      <span class="icon">◈</span><span>Player Intel</span>
+      <span class="nav-hot">LIVE</span>
+    </div>
 
     <div class="nav-section">Management</div>
     <div class="nav-item" onclick="showTab('blacklist')" id="nav-blacklist">
@@ -41,6 +45,9 @@
     </div>
     <div class="nav-item" onclick="showTab('fkdr')" id="nav-fkdr">
       <span class="icon">📊</span><span>FKDR Tracking</span>
+    </div>
+    <div class="nav-item" onclick="showTab('activity-intel')" id="nav-activity-intel">
+      <span class="icon">⌁</span><span>Activity Intel</span>
     </div>
 
     <div class="nav-section">System</div>
@@ -67,13 +74,30 @@
 
 <!-- Main Content -->
 <main class="main">
+  <header class="topbar">
+    <div class="topbar-brand">
+      <span class="eyebrow">RUMONIUM / CONTROL PLANE</span>
+      <span class="secure-mark"><i></i> SECURE SESSION</span>
+    </div>
+    <div class="topbar-actions">
+      <button class="global-search" onclick="openCommandPalette()"><span>⌕</span><span>Search system, player, action...</span><kbd>CTRL K</kbd></button>
+      <div class="live-clock" id="liveClock">--:--:--</div>
+      <button class="icon-btn" title="Focus mode" onclick="toggleFocusMode()">◐</button>
+      <button class="icon-btn" title="Refresh all data" onclick="hardRefresh()">↻</button>
+    </div>
+  </header>
+
+  <div class="signal-strip">
+    <div><span class="signal-dot"></span><b>SYSTEM NOMINAL</b><span class="signal-muted">All control-plane services responding</span></div>
+    <div class="signal-marquee" id="signalMarquee">LIVE TELEMETRY // ENCRYPTED CONTROL CHANNEL // RUMONIUM CORE</div>
+  </div>
 
   <!-- DASHBOARD TAB -->
   <div class="tab-content active" id="content-dashboard">
     <div style="margin-bottom:20px; display:flex; justify-content:space-between; align-items:center;">
       <div>
         <h2 style="font-size:22px; font-weight:800;">Dashboard</h2>
-        <p style="color:var(--text3); font-size:13px; margin-top:4px;">Real-time telemetry // bot control</p>
+        <p style="color:var(--text3); font-size:13px; margin-top:4px;">Real-time overview & bot control</p>
       </div>
       <div style="font-size:12px; color:var(--text3);" id="lastRefresh">—</div>
     </div>
@@ -100,6 +124,40 @@
         <div class="stat-sub" id="apiQueueStat">Queue: 0</div>
       </div>
     </div>
+
+    <section class="executive-grid">
+      <div class="card command-hero">
+        <div class="hero-grid-bg"></div>
+        <div class="hero-copy">
+          <div class="eyebrow">MISSION CONTROL / 01</div>
+          <h3>RUMONIUM <span>CORE</span></h3>
+          <p>Unified intelligence, automation and live guild operations in one control plane.</p>
+          <div class="hero-actions">
+            <button class="btn btn-primary" onclick="openCommandPalette()">⌘ Command palette</button>
+            <button class="btn btn-ghost" onclick="showTab('intel')">◈ Player intelligence</button>
+          </div>
+        </div>
+        <div class="health-orbit">
+          <div class="orbit-ring"></div>
+          <div class="health-core"><strong id="healthScore">--</strong><span>HEALTH</span></div>
+        </div>
+      </div>
+
+      <div class="card telemetry-card">
+        <div class="card-header"><span class="card-title">LIVE TELEMETRY</span><span class="live-label"><i></i> STREAMING</span></div>
+        <div class="telemetry-row"><span>BOT LINK</span><strong id="telemetryBot">CONNECTING</strong><div class="telemetry-bar"><i id="telemetryBotBar"></i></div></div>
+        <div class="telemetry-row"><span>MEMORY</span><strong id="telemetryMemory">--</strong><div class="telemetry-bar"><i id="telemetryMemoryBar"></i></div></div>
+        <div class="telemetry-row"><span>API QUEUE</span><strong id="telemetryQueue">0</strong><div class="telemetry-bar"><i id="telemetryQueueBar"></i></div></div>
+        <div class="telemetry-row"><span>CACHE</span><strong id="telemetryCache">0</strong><div class="telemetry-bar"><i id="telemetryCacheBar"></i></div></div>
+        <div class="telemetry-footer"><span>NODE <b id="telemetryNode">--</b></span><span>PID <b id="telemetryPid">--</b></span></div>
+      </div>
+    </section>
+
+    <section class="grid3 insight-grid">
+      <div class="card insight-card"><div class="insight-label">THREAT SURFACE</div><div class="insight-value" id="threatSurface">0</div><div class="insight-meta"><span>blacklisted identities</span><button onclick="showTab('blacklist')">Inspect →</button></div></div>
+      <div class="card insight-card"><div class="insight-label">TRACKING SIGNAL</div><div class="insight-value" id="trackingSurface">0</div><div class="insight-meta"><span>active intelligence streams</span><button onclick="showTab('activity-intel')">Open →</button></div></div>
+      <div class="card insight-card"><div class="insight-label">COMMAND VELOCITY</div><div class="insight-value" id="commandVelocity">0<span>/hr</span></div><div class="insight-meta"><span>current observed rate</span><span class="signal-up">● LIVE</span></div></div>
+    </section>
 
     <div class="grid2">
       <!-- Bot Control -->
@@ -161,7 +219,7 @@
   <div class="tab-content" id="content-chat">
     <div style="margin-bottom:16px;">
       <h2 style="font-size:22px; font-weight:800;">Live Chat</h2>
-      <p style="color:var(--text3); font-size:13px; margin-top:4px;">Intercepted guild communications // live stream</p>
+      <p style="color:var(--text3); font-size:13px; margin-top:4px;">Real-time guild chat monitor</p>
     </div>
     <div class="card" style="padding:0; overflow:hidden;">
       <div id="chat"></div>
@@ -170,6 +228,46 @@
         <button class="btn btn-primary" onclick="sendChatMsg()">Send</button>
       </div>
     </div>
+  </div>
+
+  <!-- PLAYER INTEL TAB -->
+  <div class="tab-content" id="content-intel">
+    <div class="page-head">
+      <div><div class="eyebrow">INTELLIGENCE / PLAYER DOSSIER</div><h2>Player Intelligence</h2><p>Cross-reference blacklist, FKDR and activity signals without leaving the control plane.</p></div>
+      <div class="classified-badge">CLASSIFIED / INTERNAL</div>
+    </div>
+    <div class="intel-search card">
+      <div class="search-hero"><span>◈</span><div><strong>Identity Query</strong><small>Enter a Minecraft username to correlate available signals.</small></div></div>
+      <div class="intel-input"><input id="intelPlayerInput" placeholder="username" autocomplete="off" onkeydown="if(event.key==='Enter')runPlayerIntel()"><button class="btn btn-primary" onclick="runPlayerIntel()">Run analysis →</button></div>
+      <div class="intel-hints"><span>Signals: BLACKLIST</span><span>FKDR</span><span>ACTIVITY</span><span>LOCAL CACHE</span></div>
+    </div>
+    <div id="intelEmpty" class="intel-empty"><div class="reticle">◌</div><h3>Awaiting target identity</h3><p>No external query has been executed.</p></div>
+    <div id="intelResult" class="intel-result" style="display:none;">
+      <div class="intel-profile card">
+        <div class="profile-top"><img id="intelAvatar" src="" onerror="this.src='https://mc-heads.net/avatar/Steve/96'"><div><div class="eyebrow">SUBJECT</div><h3 id="intelName">—</h3><span id="intelDisposition" class="risk-badge">UNKNOWN</span></div><div class="risk-score"><span>RISK SCORE</span><strong id="intelRisk">0</strong><small>/ 100</small></div></div>
+        <div class="signal-grid">
+          <div class="signal-box"><span>BLACKLIST</span><strong id="intelBlacklist">CLEAR</strong></div>
+          <div class="signal-box"><span>FKDR TRACK</span><strong id="intelFkdr">NONE</strong></div>
+          <div class="signal-box"><span>ACTIVITY</span><strong id="intelActivity">NONE</strong></div>
+          <div class="signal-box"><span>OBSERVATIONS</span><strong id="intelObservations">0</strong></div>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:16px;">
+        <div class="card"><div class="card-header"><span class="card-title">CORRELATED SIGNALS</span></div><div id="intelSignals" class="intel-signals"></div></div>
+        <div class="card"><div class="card-header"><span class="card-title">OPERATOR NOTES</span></div><div class="note-panel"><p id="intelRecommendation">Run an identity query to generate a local assessment.</p><button class="btn btn-ghost btn-full" onclick="showTab('blacklist')">Open blacklist manager</button></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTIVITY INTEL TAB -->
+  <div class="tab-content" id="content-activity-intel">
+    <div class="page-head"><div><div class="eyebrow">SURVEILLANCE / ACTIVITY GRAPH</div><h2>Activity Intelligence</h2><p>Live tracking streams and behavioral snapshots collected by the bot.</p></div><button class="btn btn-ghost" onclick="loadActivityIntel()">↻ Refresh</button></div>
+    <div class="stats-grid three">
+      <div class="stat-card cyan"><div class="stat-value" id="activityTrackedCount">0</div><div class="stat-label">Tracked identities</div><div class="stat-sub">active monitoring streams</div></div>
+      <div class="stat-card purple"><div class="stat-value" id="activitySignalsCount">0</div><div class="stat-label">Signals observed</div><div class="stat-sub">available snapshots</div></div>
+      <div class="stat-card yellow"><div class="stat-value" id="activityHotCount">0</div><div class="stat-label">Attention required</div><div class="stat-sub">non-neutral detections</div></div>
+    </div>
+    <div class="card"><div class="card-header"><span class="card-title">LIVE ACTIVITY MATRIX</span><span class="live-label"><i></i> REFRESHING</span></div><div id="activityIntelList" class="intel-matrix"></div></div>
   </div>
 
   <!-- BLACKLIST TAB -->
@@ -422,6 +520,15 @@
   </div>
 
 </main>
+
+<!-- Command Palette -->
+<div class="palette-overlay" id="commandPalette" onclick="if(event.target===this)closeCommandPalette()">
+  <div class="command-palette">
+    <div class="palette-head"><span>⌘</span><input id="paletteInput" placeholder="Type a command or search..." oninput="filterPalette(this.value)" autocomplete="off"><kbd>ESC</kbd></div>
+    <div id="paletteResults" class="palette-results"></div>
+    <div class="palette-foot"><span>↑↓ navigate</span><span>ENTER execute</span><span>ESC close</span></div>
+  </div>
+</div>
 
 <!-- Edit Blacklist Modal -->
 <div class="modal-overlay" id="editModal">
