@@ -104,7 +104,8 @@ function generateBlacklistID() {
 function loadBlacklist() {
   try {
     if (fs.existsSync(BLACKLIST_FILE)) {
-      const data = JSON.parse(fs.readFileSync(BLACKLIST_FILE, 'utf8'));
+      const raw = fs.readFileSync(BLACKLIST_FILE, 'utf8').trim();
+      const data = raw ? JSON.parse(raw) : {};
       Object.entries(data).forEach(([username, entry]) => {
         if (!entry.id) {
           entry.id = generateBlacklistID();
@@ -1256,7 +1257,6 @@ server.listen(PORT, async () => {
   loadFkdrTracking();
   loadActivityTracking();
   loadBlacklist();
-  loadBwStatsTracking();
   if (URCHIN_ENABLED) await testUrchinConnection();
 });
 
